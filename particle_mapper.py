@@ -1,0 +1,1139 @@
+#!/usr/bin/env python3
+"""
+POSEMAP - Core Library
+Pose-Oriented Single-particle EM Micrograph Annotation & Projection
+
+This module provides core functions for:
+1. Loading particle data from cryoSPARC .cs files
+2. Matching particles between refinement and passthrough files
+3. Projecting 3D volumes and atomic structures at particle orientations
+4. Coordinate transformations and visualization utilities
+"""
+
+import numpy as np
+import mrcfile
+from pathlib import Path
+from scipy.spatial.transform import Rotation
+from scipy.ndimage import rotate, zoom
+from scipy.spatial.distance import cdist
+from typing import Tuple, Optional, Dict, List
+try:
+    from Bio.PDB import PDBParser
+    from Bio.PDB.PDBExceptions import PDBConstructionWarning
+    import warnings
+    warnings.simplefilter('ignore', PDBConstructionWarning)
+    BIOPYTHON_AVAILABLE = True
+except ImportError:
+    BIOPYTHON_AVAILABLE = False
+
+
+def load_cs_file(cs_file_path: str) -> np.ndarray:
+    """Load a cryosparc .cs file as a numpy structured array."""
+    return np.load(cs_file_path, allow_pickle=True)
+
+
+def match_particles(refinement_cs: np.ndarray, passthrough_cs: np.ndarray) -> Dict:
+    """
+    Match particles between refinement and passthrough .cs files by UID.
+    
+    Returns a dictionary with matched particle data including:
+    - poses (Euler angles from refinement)
+    - shifts (2D shifts from refinement)
+    - micrograph_paths
+    - center_x_frac, center_y_frac (fractional coordinates)
+    - micrograph_shapes
+    """
+    # Create mapping from UID to index in each file
+    refinement_uids = refinement_cs['uid']
+    passthrough_uids = passthrough_cs['uid']
+    
+    # Find matching indices
+    refinement_to_passthrough = {}
+    passthrough_to_refinement = {}
+    
+    # Create dictionaries for fast lookup
+    passthrough_uid_to_idx = {uid: idx for idx, uid in enumerate(passthrough_uids)}
+    
+    matched_indices = []
+    for ref_idx, uid in enumerate(refinement_uids):
+        if uid in passthrough_uid_to_idx:
+            passthrough_idx = passthrough_uid_to_idx[uid]
+            matched_indices.append((ref_idx, passthrough_idx))
+            refinement_to_passthrough[ref_idx] = passthrough_idx
+            passthrough_to_refinement[passthrough_idx] = ref_idx
+    
+    print(f"Matched {len(matched_indices)} particles out of {len(refinement_cs)}")
+    
+    # Extract matched data
+    matched_data = {
+        'refinement_indices': [m[0] for m in matched_indices],
+        'passthrough_indices': [m[1] for m in matched_indices],
+        'uids': refinement_uids[[m[0] for m in matched_indices]],
+        'poses': refinement_cs['alignments3D/pose'][[m[0] for m in matched_indices]],
+        'shifts': refinement_cs['alignments3D/shift'][[m[0] for m in matched_indices]],
+        'pixel_size': refinement_cs['alignments3D/psize_A'][[m[0] for m in matched_indices]],
+        'micrograph_paths': passthrough_cs['location/micrograph_path'][[m[1] for m in matched_indices]],
+        'center_x_frac': passthrough_cs['location/center_x_frac'][[m[1] for m in matched_indices]],
+        'center_y_frac': passthrough_cs['location/center_y_frac'][[m[1] for m in matched_indices]],
+        'micrograph_shapes': passthrough_cs['location/micrograph_shape'][[m[1] for m in matched_indices]],
+        'micrograph_psize': passthrough_cs['location/micrograph_psize_A'][[m[1] for m in matched_indices]],
+    }
+    
+    return matched_data
+
+
+def load_volume(volume_path: str) -> Tuple[np.ndarray, float]:
+    """Load a 3D volume from an .mrc file and return the volume and pixel size."""
+    with mrcfile.open(volume_path) as mrc:
+        volume = mrc.data.astype(np.float32)
+        pixel_size = float(mrc.voxel_size.x)  # Angstroms per pixel
+    return volume, pixel_size
+
+
+def euler_to_rotation_matrix(euler_angles: np.ndarray, convention: str = 'ZYZ') -> np.ndarray:
+    """
+    Convert Euler angles to rotation matrix.
+    
+    Cryosparc typically uses ZYZ convention (phi, theta, psi).
+    """
+    # Create rotation object and convert to matrix
+    rot = Rotation.from_euler(convention, euler_angles, degrees=False)
+    return rot.as_matrix()
+
+
+def project_volume(volume: np.ndarray, euler_angles: np.ndarray, 
+                   output_size: Optional[Tuple[int, int]] = None,
+                   pixel_size: float = 1.0) -> np.ndarray:
+    """
+    Project a 3D volume at given Euler angles.
+    
+    Uses a more accurate approach: rotates coordinates and samples the volume.
+    
+    Parameters:
+    -----------
+    volume : np.ndarray
+        3D volume array
+    euler_angles : np.ndarray
+        Euler angles [phi, theta, psi] in radians (ZYZ convention)
+    output_size : tuple, optional
+        Output projection size (height, width). If None, uses volume size.
+    pixel_size : float
+        Pixel size in Angstroms (for consistency, though not used in rotation)
+        
+    Returns:
+    --------
+    np.ndarray : 2D projection
+    """
+    if output_size is None:
+        output_size = (volume.shape[1], volume.shape[2])
+    
+    # Get rotation matrix
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    
+    # Create coordinate grid for output projection
+    h, w = output_size
+    center_out = np.array([h/2, w/2])
+    
+    # Create 2D grid for projection plane
+    y_coords, x_coords = np.mgrid[0:h, 0:w].astype(float)
+    y_coords -= center_out[0]
+    x_coords -= center_out[1]
+    
+    # Scale to match volume dimensions (assuming square, use average dimension)
+    vol_size = np.mean(volume.shape)
+    scale = vol_size / max(h, w)
+    y_coords *= scale
+    x_coords *= scale
+    
+    # Create 3D coordinates (z=0 for projection plane)
+    coords_2d = np.stack([x_coords.flatten(), y_coords.flatten(), 
+                          np.zeros(h*w)], axis=1)
+    
+    # Rotate coordinates back to volume space
+    # The rotation matrix rotates from volume space to view space
+    # So we need the inverse (which is the transpose for rotation matrices)
+    R_inv = R.T
+    coords_3d = (R_inv @ coords_2d.T).T
+    
+    # Translate to volume center (volume shape is [z, y, x])
+    vol_center = np.array([volume.shape[2]/2, volume.shape[1]/2, volume.shape[0]/2])
+    coords_3d += vol_center
+    
+    # Sample volume using trilinear interpolation
+    projection = np.zeros(h * w, dtype=volume.dtype)
+    
+    # Get integer and fractional parts
+    x0 = np.floor(coords_3d[:, 0]).astype(int)
+    y0 = np.floor(coords_3d[:, 1]).astype(int)
+    z0 = np.floor(coords_3d[:, 2]).astype(int)
+    x1 = x0 + 1
+    y1 = y0 + 1
+    z1 = z0 + 1
+    
+    # Fractional parts
+    xd = coords_3d[:, 0] - x0
+    yd = coords_3d[:, 1] - y0
+    zd = coords_3d[:, 2] - z0
+    
+    # Clamp coordinates to valid range (volume shape is [z, y, x])
+    x0 = np.clip(x0, 0, volume.shape[2] - 1)
+    x1 = np.clip(x1, 0, volume.shape[2] - 1)
+    y0 = np.clip(y0, 0, volume.shape[1] - 1)
+    y1 = np.clip(y1, 0, volume.shape[1] - 1)
+    z0 = np.clip(z0, 0, volume.shape[0] - 1)
+    z1 = np.clip(z1, 0, volume.shape[0] - 1)
+    
+    # Trilinear interpolation (volume is indexed as [z, y, x] in numpy)
+    c000 = volume[z0, y0, x0]
+    c001 = volume[z1, y0, x0]
+    c010 = volume[z0, y1, x0]
+    c011 = volume[z1, y1, x0]
+    c100 = volume[z0, y0, x1]
+    c101 = volume[z1, y0, x1]
+    c110 = volume[z0, y1, x1]
+    c111 = volume[z1, y1, x1]
+    
+    c00 = c000 * (1 - xd) + c100 * xd
+    c01 = c001 * (1 - xd) + c101 * xd
+    c10 = c010 * (1 - xd) + c110 * xd
+    c11 = c011 * (1 - xd) + c111 * xd
+    
+    c0 = c00 * (1 - yd) + c10 * yd
+    c1 = c01 * (1 - yd) + c11 * yd
+    
+    projection = c0 * (1 - zd) + c1 * zd
+    
+    # Reshape to 2D
+    projection = projection.reshape(h, w)
+    
+    return projection
+
+
+def get_particle_orientation_arrow(euler_angles: np.ndarray, length: float = 50.0) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Get arrow direction for visualizing particle orientation.
+    
+    Parameters:
+    -----------
+    euler_angles : np.ndarray
+        Euler angles [phi, theta, psi] in radians
+    length : float
+        Arrow length in pixels
+        
+    Returns:
+    --------
+    dx, dy : float
+        Arrow direction components
+    """
+    # The viewing direction is along the Z axis after rotation
+    # We can get this from the rotation matrix
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    
+    # The Z axis after rotation points in the direction: R @ [0, 0, 1]
+    view_direction = R @ np.array([0, 0, 1])
+    
+    # Project onto XY plane (micrograph plane)
+    dx = view_direction[0] * length
+    dy = view_direction[1] * length
+    
+    return dx, dy
+
+
+def get_particle_axes(euler_angles: np.ndarray, length: float = 30.0) -> Dict[str, np.ndarray]:
+    """
+    Get X, Y, Z axis directions for visualizing particle orientation.
+    
+    Returns:
+    --------
+    dict with keys 'x', 'y', 'z' containing (dx, dy) tuples for each axis
+    """
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    
+    # Get rotated axes
+    x_axis = R @ np.array([1, 0, 0])
+    y_axis = R @ np.array([0, 1, 0])
+    z_axis = R @ np.array([0, 0, 1])
+    
+    # Project onto XY plane
+    axes = {
+        'x': (x_axis[0] * length, x_axis[1] * length),
+        'y': (y_axis[0] * length, y_axis[1] * length),
+        'z': (z_axis[0] * length, z_axis[1] * length),
+    }
+    
+    return axes
+
+
+def fractional_to_pixel_coords(center_x_frac: float, center_y_frac: float, 
+                                micrograph_shape: Tuple[int, int]) -> Tuple[int, int]:
+    """Convert fractional coordinates (0-1) to pixel coordinates."""
+    x_pixel = int(center_x_frac * micrograph_shape[1])
+    y_pixel = int(center_y_frac * micrograph_shape[0])
+    return x_pixel, y_pixel
+
+
+def load_pdb_structure(pdb_path: str):
+    """
+    Load structure file (.pdb or .cif) and extract coordinates and chain information.
+    Supports both PDB and mmCIF formats.
+    
+    Args:
+        pdb_path: Path to .pdb or .cif structure file
+    
+    Returns:
+        dict with keys:
+            - coords: (N, 3) array of atom coordinates
+            - chain_ids: (N,) array of chain identifiers
+            - residue_names: (N,) array of residue names (3-letter codes)
+            - atom_names: (N,) array of atom names
+            - ca_coords: (M, 3) array of CA (alpha carbon) coordinates for cartoon rendering
+            - ca_chain_ids: (M,) array of chain IDs for CA atoms
+            - ca_residue_names: (M,) array of residue names for CA atoms
+    """
+    if not BIOPYTHON_AVAILABLE:
+        raise ImportError("BioPython is required for structure file reading. Install with: pip install biopython")
+    
+    from pathlib import Path
+    file_ext = Path(pdb_path).suffix.lower()
+    
+    # Use appropriate parser based on file extension
+    if file_ext == '.cif':
+        from Bio.PDB.MMCIFParser import MMCIFParser
+        parser = MMCIFParser(QUIET=True)
+    elif file_ext == '.pdb':
+        parser = PDBParser(QUIET=True)
+    else:
+        raise ValueError(f"Unsupported file format: {file_ext}. Expected .pdb or .cif")
+    
+    structure = parser.get_structure('structure', pdb_path)
+    
+    coords = []
+    chain_ids = []
+    residue_names = []
+    atom_names = []
+    
+    # Also extract CA atoms for cartoon/ribbon rendering
+    ca_coords = []
+    ca_chain_ids = []
+    ca_residue_names = []
+    
+    for model in structure:
+        for chain in model:
+            chain_id = chain.id
+            for residue in chain:
+                resname = residue.get_resname()
+                for atom in residue:
+                    coords.append(atom.coord)
+                    chain_ids.append(chain_id)
+                    residue_names.append(resname)
+                    atom_names.append(atom.name)
+                    
+                    # Extract CA atoms for cartoon rendering
+                    if atom.name == 'CA':
+                        ca_coords.append(atom.coord)
+                        ca_chain_ids.append(chain_id)
+                        ca_residue_names.append(resname)
+    
+    result = {
+        'coords': np.array(coords),
+        'chain_ids': np.array(chain_ids),
+        'residue_names': np.array(residue_names),
+        'atom_names': np.array(atom_names)
+    }
+    
+    # Add CA data if available
+    if len(ca_coords) > 0:
+        result['ca_coords'] = np.array(ca_coords)
+        result['ca_chain_ids'] = np.array(ca_chain_ids)
+        result['ca_residue_names'] = np.array(ca_residue_names)
+    
+    return result
+
+
+def is_nucleic_acid(resname: str) -> bool:
+    """Check if residue name corresponds to a nucleic acid."""
+    nucleic_acids = ['A', 'T', 'G', 'C', 'U', 'DA', 'DT', 'DG', 'DC', 'DU',
+                     'ADE', 'THY', 'GUA', 'CYT', 'URA', 'A5', 'T5', 'G5', 'C5', 'U5',
+                     'A3', 'T3', 'G3', 'C3', 'U3']
+    return resname.strip() in nucleic_acids
+
+
+def get_chain_colors(chain_ids: np.ndarray, residue_names: np.ndarray,
+                     chain_color_map: Optional[Dict[str, str]] = None,
+                     default_protein_color: str = '#49A9CC',
+                     default_nucleic_color: str = '#FF6B6B') -> np.ndarray:
+    """
+    Assign colors to atoms based on chain and residue type.
+    
+    Args:
+        chain_ids: Array of chain identifiers
+        residue_names: Array of residue names
+        chain_color_map: Optional dict mapping chain_id -> hex color
+        default_protein_color: Color for protein chains (if not in chain_color_map)
+        default_nucleic_color: Color for nucleic acid chains (if not in chain_color_map)
+    
+    Returns:
+        (N, 3) array of RGB colors in [0, 1] range
+    """
+    def hex_to_rgb(hex_color: str) -> np.ndarray:
+        """Convert hex color to RGB [0, 1]."""
+        hex_color = hex_color.lstrip('#')
+        return np.array([int(hex_color[i:i+2], 16) for i in (0, 2, 4)]) / 255.0
+    
+    colors = np.zeros((len(chain_ids), 3))
+    
+    for i, (chain_id, resname) in enumerate(zip(chain_ids, residue_names)):
+        if chain_color_map and chain_id in chain_color_map:
+            # Use custom color for this chain
+            colors[i] = hex_to_rgb(chain_color_map[chain_id])
+        elif is_nucleic_acid(resname):
+            # Nucleic acid
+            colors[i] = hex_to_rgb(default_nucleic_color)
+        else:
+            # Protein (default)
+            colors[i] = hex_to_rgb(default_protein_color)
+    
+    return colors
+
+
+def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
+                        output_size: Tuple[int, int] = (500, 500),
+                        chain_color_map: Optional[Dict[str, str]] = None,
+                        default_protein_color: str = '#007CBE',  # Updated to match new style
+                        default_nucleic_color: str = '#3B1F2B',  # Updated to match new style
+                        ribbon_width: float = 5.0,
+                        pdb_path: Optional[str] = None,
+                        pymol_path: Optional[str] = None) -> np.ndarray:
+    """
+    Project a structure file (.pdb or .cif) using fast pseudo-surface rendering (CA/P spheres).
+    Uses only CA atoms for protein and P atoms for nucleic acids for speed.
+    Properly applies rotation matrix to each particle for correct pose visualization.
+    Supports both PDB and mmCIF formats.
+    """
+    import subprocess
+    import uuid
+    from pathlib import Path
+    from scipy.spatial.transform import Rotation
+    import shutil
+    import os
+    
+    if pdb_path is None:
+        raise ValueError("pdb_path is required for PyMOL rendering")
+    
+    if not Path(pdb_path).exists():
+        raise FileNotFoundError(f"Structure file not found: {pdb_path}")
+    
+    # Find PyMOL executable - be VERY explicit to avoid finding ChimeraX
+    if pymol_path and Path(pymol_path).exists() and 'chimerax' not in str(pymol_path).lower():
+        pymol_exe = pymol_path
+    else:
+        # Try common locations (conda environments, system PATH)
+        import shutil
+        # First try system PATH
+        pymol_exe = shutil.which('pymol')
+        if pymol_exe and 'chimerax' not in pymol_exe.lower():
+            pass  # Found in PATH
+        else:
+            # Try conda locations
+            possible_paths = [
+                Path.home() / 'miniconda3' / 'bin' / 'pymol',
+                Path.home() / 'anaconda3' / 'bin' / 'pymol',
+            ]
+            conda_base = os.environ.get('CONDA_PREFIX', '')
+            if conda_base:
+                possible_paths.insert(0, Path(conda_base) / 'bin' / 'pymol')
+            
+            pymol_exe = None
+            for path in possible_paths:
+                path_str = str(path)
+                if path.exists() and 'chimerax' not in path_str.lower():
+                    pymol_exe = path_str
+                    break
+    
+    if not pymol_exe:
+        raise RuntimeError("PyMOL not found. Install with: conda install -c conda-forge pymol-open-source")
+    
+    # CRITICAL: Final verification - make absolutely sure it's not ChimeraX
+    if 'chimerax' in pymol_exe.lower():
+        raise RuntimeError(f"ERROR: Found ChimeraX instead of PyMOL at {pymol_exe}. Please check your PATH.")
+    
+    # Verify it's actually PyMOL by running --version
+    try:
+        verify_result = subprocess.run([pymol_exe, '--version'], 
+                                      capture_output=True, text=True, timeout=5)
+        if 'chimerax' in verify_result.stdout.lower() or 'chimerax' in verify_result.stderr.lower():
+            raise RuntimeError(f"ERROR: {pymol_exe} is actually ChimeraX, not PyMOL!")
+    except subprocess.TimeoutExpired:
+        pass  # Version check timed out, but continue anyway
+    
+    # Convert Euler angles to rotation matrix (ZYZ convention)
+    # This rotation matrix rotates from object space to world space
+    rot = Rotation.from_euler('ZYZ', euler_angles, degrees=False)
+    R = rot.as_matrix()
+    
+    # Extract ZYZ Euler angles for sequential rotation
+    # ZYZ convention: first rotate around Z by phi, then Y by theta, then Z by psi
+    phi, theta, psi = euler_angles[0], euler_angles[1], euler_angles[2]
+    phi_deg = float(phi * 180.0 / np.pi)
+    theta_deg = float(theta * 180.0 / np.pi)
+    psi_deg = float(psi * 180.0 / np.pi)
+    
+    # Also prepare transform_object matrix as backup
+    transform_matrix = np.eye(4, dtype=np.float64)
+    transform_matrix[:3, :3] = R
+    matrix_list = [float(x) for x in transform_matrix.flatten().tolist()]
+    matrix_str = str(matrix_list)
+    
+    # Create temporary files
+    h, w = output_size
+    output_file = Path.cwd() / f'pymol_render_{uuid.uuid4().hex[:8]}.png'
+    output_abs = str(output_file.absolute())
+    pdb_abs = str(Path(pdb_path).absolute())
+    
+    # Convert hex colors to RGB tuples (0-1 range) for PyMOL
+    def hex_to_rgb_tuple(hex_color):
+        hex_color = hex_color.lstrip('#')
+        r = int(hex_color[0:2], 16) / 255.0
+        g = int(hex_color[2:4], 16) / 255.0
+        b = int(hex_color[4:6], 16) / 255.0
+        return (r, g, b)
+    
+    # Build PyMOL script - Fast pseudo-surface rendering using CA/P spheres
+    # CRITICAL: Each script must be completely independent - PyMOL may cache state
+    full_obj = "rib_all"
+    rep_obj = "rib_pseudo"
+    
+    script_lines = [
+        'import sys',
+        'import pymol',
+        'from pymol import cmd',
+        'pymol.finish_launching(["pymol", "-cq"])',
+        'cmd.reinitialize()',  # Reset all PyMOL settings to defaults
+        f'cmd.load("{pdb_abs}", "{full_obj}")',
+        f'cmd.hide("everything", "{full_obj}")',
+        # Create pseudo-surface object: CA for protein, P for nucleic acids
+        f'cmd.create("{rep_obj}", "({full_obj} and polymer.protein and name CA) or ({full_obj} and polymer.nucleic and name P)")',
+        f'cmd.hide("everything", "{rep_obj}")',
+        f'cmd.show("spheres", "{rep_obj}")',
+        # Make spheres large enough to overlap into continuous blob
+        f'cmd.set("sphere_scale", 2.2, "{rep_obj}")',
+        f'cmd.set("sphere_quality", 1)',
+        f'cmd.set("sphere_transparency", 0.10, "{rep_obj}")',
+        # Colors
+    ]
+    
+    # Add color commands
+    if chain_color_map:
+        # Apply chain-specific colors FIRST
+        # IMPORTANT: PyMOL chain selection syntax is "chain A" or 'chain "A"' for quoted IDs
+        colored_chains = []
+        for chain_id, hex_color in chain_color_map.items():
+            # Clean chain_id (remove whitespace, ensure it's a string)
+            chain_id_clean = str(chain_id).strip()
+            colored_chains.append(chain_id_clean)
+            rgb = hex_to_rgb_tuple(hex_color)
+            # Create a safe color name (no special characters)
+            color_name = f"chain_{chain_id_clean.replace(' ', '_').replace('-', '_')}_color"
+            
+            # PyMOL chain selection: use quotes around chain ID to handle special characters
+            # Format: 'chain "A"' or 'chain A' (PyMOL handles both, but quotes are safer)
+            # Build the selection string directly in the script line to avoid quote escaping issues
+            # Use single quotes for the outer Python string to allow double quotes inside
+            script_lines.append(f'cmd.set_color("{color_name}", {list(rgb)})')
+            # Use single quotes for outer string, double quotes for PyMOL chain selection
+            script_lines.append(f"cmd.color('{color_name}', '{rep_obj} and chain \"{chain_id_clean}\"')")
+        
+        # Apply default colors to chains NOT in chain_color_map
+        # Build exclusion list for chains we already colored
+        if colored_chains:
+            # Create exclusion string: "not (chain A or chain B or ...)"
+            # Use single quotes for outer string to allow double quotes for PyMOL
+            chain_exclusions = ' or '.join([f'chain "{cid}"' for cid in colored_chains])
+            exclusion_sel = f'not ({chain_exclusions})'
+        else:
+            exclusion_sel = ''
+        
+        prot_rgb = hex_to_rgb_tuple(default_protein_color)
+        nuc_rgb = hex_to_rgb_tuple(default_nucleic_color)
+        script_lines.append(f'cmd.set_color("protein_blue_default", {list(prot_rgb)})')
+        script_lines.append(f'cmd.set_color("rna_plum_default", {list(nuc_rgb)})')
+        
+        # Color remaining protein and nucleic chains (excluding already-colored chains)
+        if exclusion_sel:
+            # Use single quotes for outer string to allow double quotes in exclusion_sel
+            script_lines.append(f"cmd.color('protein_blue_default', '{rep_obj} and polymer.protein and {exclusion_sel}')")
+            script_lines.append(f"cmd.color('rna_plum_default', '{rep_obj} and polymer.nucleic and {exclusion_sel}')")
+        else:
+            # No exclusions needed (shouldn't happen if chain_color_map has items)
+            script_lines.append(f'cmd.color("protein_blue_default", "{rep_obj} and polymer.protein")')
+            script_lines.append(f'cmd.color("rna_plum_default", "{rep_obj} and polymer.nucleic")')
+    else:
+        # Use default colors: protein blue #007CBE, RNA plum #3B1F2B
+        prot_rgb = hex_to_rgb_tuple(default_protein_color)
+        nuc_rgb = hex_to_rgb_tuple(default_nucleic_color)
+        script_lines.append(f'cmd.set_color("protein_blue", {list(prot_rgb)})')
+        script_lines.append(f'cmd.set_color("rna_plum", {list(nuc_rgb)})')
+        script_lines.append(f'cmd.color("protein_blue", "{rep_obj} and polymer.protein")')
+        script_lines.append(f'cmd.color("rna_plum", "{rep_obj} and polymer.nucleic")')
+    
+        # Lighting - with ray tracing for quality
+        script_lines.extend([
+            'cmd.bg_color("white")',
+            'cmd.set("ray_opaque_background", 0)',  # Transparent background
+            'cmd.set("orthoscopic", 1)',
+            'cmd.set("antialias", 2)',
+            'cmd.set("ray_trace_mode", 1)',  # Enable ray tracing for quality
+            'cmd.set("ray_shadows", 0)',
+            'cmd.set("two_sided_lighting", 1)',
+            'cmd.set("ambient", 0.6)',
+            'cmd.set("direct", 0.6)',
+            'cmd.set("specular", 0.2)',
+            'cmd.set("shininess", 20)',
+            'cmd.set("reflect", 0.0)',
+            'cmd.set("ray_trace_fog", 0)',
+            'cmd.set("depth_cue", 0)',
+            'cmd.set("gamma", 1.0)',
+        ])
+    
+    # Center, set origin, and apply rotation
+    script_lines.append(f'cmd.center("{rep_obj}")')
+    script_lines.append(f'cmd.origin("{rep_obj}")')
+    
+    # CRITICAL: Apply ZYZ Euler rotation as three sequential rotations
+    if abs(phi_deg) > 1e-6:
+        script_lines.append(f'cmd.rotate("z", {phi_deg}, object="{rep_obj}")')
+    if abs(theta_deg) > 1e-6:
+        script_lines.append(f'cmd.rotate("y", {theta_deg}, object="{rep_obj}")')
+    if abs(psi_deg) > 1e-6:
+        script_lines.append(f'cmd.rotate("z", {psi_deg}, object="{rep_obj}")')
+    
+    # Zoom and set viewport
+    script_lines.append(f'cmd.zoom("{rep_obj}", complete=1)')
+    
+    # Set viewport and render - NO ray tracing for speed (ray=0)
+    script_lines.append(f'cmd.viewport({w}, {h})')
+    script_lines.append(f'cmd.png("{output_abs}", width={w}, height={h}, ray=1, quiet=1)')
+    script_lines.append('cmd.quit()')
+    
+    script_content = '\n'.join(script_lines)
+    
+    # Create unique script filename using UUID to ensure no collisions
+    # Using hash of Euler angles can cause collisions for similar angles
+    import uuid
+    script_uuid = uuid.uuid4().hex[:8]
+    script_file = Path.cwd().absolute() / f'pymol_script_{script_uuid}.py'
+    script_file_abs = str(script_file.absolute())
+    with open(script_file, 'w') as f:
+        f.write(script_content)
+    
+    # Debug: Print Euler angles to verify they're different for each particle
+    print(f"DEBUG PyMOL: Euler=[{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}], "
+          f"ZYZ_deg=[{phi_deg:.2f}, {theta_deg:.2f}, {psi_deg:.2f}], script={script_file.name}")
+    
+    try:
+        # Run PyMOL with the script file
+        # -c = run command, -q = quiet
+        result = subprocess.run(
+            [pymol_exe, '-cq', script_file_abs],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=str(Path.cwd().absolute())
+        )
+        
+        # Check for errors
+        if result.returncode != 0:
+            error_msg = f"PyMOL failed (return code {result.returncode})"
+            if result.stderr:
+                error_msg += f"\nSTDERR:\n{result.stderr[-1000:]}"
+            if result.stdout:
+                error_msg += f"\nSTDOUT:\n{result.stdout[-1000:]}"
+            raise RuntimeError(error_msg)
+        
+        # Check if file was created
+        if not output_file.exists():
+            error_msg = f"PyMOL did not create output file: {output_file}"
+            if result.stderr:
+                error_msg += f"\nSTDERR:\n{result.stderr[-1000:]}"
+            if result.stdout:
+                error_msg += f"\nSTDOUT:\n{result.stdout[-1000:]}"
+            raise RuntimeError(error_msg)
+        
+        from PIL import Image
+        import PIL.ImageEnhance as ImageEnhance
+        img = Image.open(output_file)
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+        if img.size != (w, h):
+            img = img.resize((w, h), Image.Resampling.LANCZOS)
+        
+        # Brighten the image for better visibility on micrographs
+        image = np.array(img).astype(np.float32) / 255.0
+        
+        # No post-processing needed - the pseudo-surface rendering is already bright and clean
+        
+        if output_file.exists():
+            output_file.unlink()
+    finally:
+        # Clean up script file
+        try:
+            if script_file.exists():
+                script_file.unlink()
+        except Exception:
+            pass  # Ignore cleanup errors
+    
+    return image
+
+
+def project_pdb_structure(pdb_data: Dict, euler_angles: np.ndarray,
+                          output_size: Tuple[int, int] = (500, 500),
+                          chain_color_map: Optional[Dict[str, str]] = None,
+                          default_protein_color: str = '#49A9CC',
+                          default_nucleic_color: str = '#FF6B6B',
+                          atom_radius: float = 2.5,
+                          line_width: float = 0.5,
+                          pdb_path: Optional[str] = None,
+                          chimerax_path: Optional[str] = None) -> np.ndarray:
+    """
+    Project a PDB structure at given Euler angles to a 2D RGBA image.
+    
+    Args:
+        pdb_data: Dictionary from load_pdb_structure()
+        euler_angles: Euler angles [phi, theta, psi] in radians (ZYZ convention)
+        output_size: (height, width) of output image
+        chain_color_map: Optional dict mapping chain_id -> hex color
+        default_protein_color: Default color for protein chains
+        default_nucleic_color: Default color for nucleic acid chains
+        atom_radius: Radius of atoms in Angstroms for rendering
+        line_width: Width of bonds in Angstroms
+        pdb_path: Path to PDB file (required for ChimeraX rendering)
+        chimerax_path: Path to ChimeraX executable (optional, will auto-detect)
+    
+    Returns:
+        (H, W, 4) RGBA array in [0, 1] range
+    """
+    # Use PyMOL for cartoon/ribbon rendering if pdb_path is provided
+    if pdb_path and ('ca_coords' in pdb_data and len(pdb_data['ca_coords']) > 0):
+        # Use PyMOL API for proper structural rendering with correct rotation
+        return project_pdb_cartoon_pymol(pdb_data, euler_angles, output_size,
+                                         chain_color_map, default_protein_color, default_nucleic_color,
+                                         pdb_path=pdb_path, pymol_path=chimerax_path)  # Reuse chimerax_path param for pymol_path
+    
+    # If no pdb_path provided, raise error (ChimeraX rendering requires it)
+    if not pdb_path:
+        raise ValueError("pdb_path is required for ChimeraX rendering. Please provide the PDB file path.")
+    
+    # Fall back: return empty image if no CA atoms
+    if 'ca_coords' not in pdb_data or len(pdb_data['ca_coords']) == 0:
+        h, w = output_size
+        return np.zeros((h, w, 4), dtype=np.float32)
+    """
+    Project a PDB structure at given Euler angles to a 2D RGBA image.
+    
+    Args:
+        pdb_data: Dictionary from load_pdb_structure()
+        euler_angles: Euler angles [phi, theta, psi] in radians (ZYZ convention)
+        output_size: (height, width) of output image
+        chain_color_map: Optional dict mapping chain_id -> hex color
+        default_protein_color: Default color for protein chains
+        default_nucleic_color: Default color for nucleic acid chains
+        atom_radius: Radius of atoms in Angstroms for rendering
+        line_width: Width of bonds in Angstroms
+    
+    Returns:
+        (H, W, 4) RGBA array in [0, 1] range
+    """
+    # Use CA atoms for cartoon/ribbon rendering if available, otherwise fall back to all atoms
+    if 'ca_coords' in pdb_data and len(pdb_data['ca_coords']) > 0:
+        # Cartoon/ribbon style using CA backbone
+        return project_pdb_cartoon(pdb_data, euler_angles, output_size,
+                                   chain_color_map, default_protein_color, default_nucleic_color)
+    
+    # Fall back to atom-based rendering if no CA atoms
+    coords = pdb_data['coords'].copy()
+    chain_ids = pdb_data['chain_ids']
+    residue_names = pdb_data['residue_names']
+    
+    if len(coords) == 0:
+        # Return empty image if no atoms
+        h, w = output_size
+        return np.zeros((h, w, 4), dtype=np.float32)
+    
+    # Get rotation matrix
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    
+    # Center coordinates
+    center = coords.mean(axis=0)
+    coords_centered = coords - center
+    
+    # Apply rotation
+    coords_rotated = (R @ coords_centered.T).T
+    
+    # Project to 2D (drop Z coordinate, keep X and Y)
+    coords_2d = coords_rotated[:, :2]
+    
+    # Get colors for each atom
+    colors = get_chain_colors(chain_ids, residue_names, chain_color_map,
+                             default_protein_color, default_nucleic_color)
+    
+    # Determine bounding box and scale
+    min_coords = coords_2d.min(axis=0)
+    max_coords = coords_2d.max(axis=0)
+    range_coords = max_coords - min_coords
+    max_range = max(range_coords)
+    
+    if max_range < 1e-6:
+        # All atoms at same position - use default scale
+        max_range = 100.0  # Default 100 Angstroms
+        min_coords = coords_2d[0] - max_range / 2
+        max_coords = coords_2d[0] + max_range / 2
+    
+    # Add padding
+    padding = max(max_range * 0.1, 10.0)  # At least 10 Angstroms padding
+    min_coords -= padding
+    max_coords += padding
+    range_coords = max_coords - min_coords
+    max_range = max(range_coords)
+    
+    # Scale to fit output size
+    scale = min(output_size) / max_range if max_range > 1e-6 else 1.0
+    coords_scaled = (coords_2d - min_coords) * scale
+    
+    # Sort atoms by depth (Z coordinate after rotation) - render back to front
+    z_coords = coords_rotated[:, 2]
+    sort_indices = np.argsort(-z_coords)  # Negative for back-to-front
+    
+    # Create output image
+    h, w = output_size
+    image = np.zeros((h, w, 4), dtype=np.float32)
+    
+    # Convert atom radius from Angstroms to pixels
+    # Use larger radius for more structural/surface-like appearance
+    atom_radius_px = max(2.0, atom_radius * scale)  # At least 2.0 pixels for better visibility
+    
+    # For very large structures, sample atoms to improve performance
+    num_atoms = len(coords_scaled)
+    if num_atoms > 10000:
+        # Sample atoms: render every Nth atom to maintain visual quality while improving speed
+        # Use a sampling rate that keeps ~10000 atoms for rendering
+        sample_rate = max(1, num_atoms // 10000)
+        sort_indices = sort_indices[::sample_rate]
+        print(f"  Sampling atoms: rendering {len(sort_indices)} of {num_atoms} atoms (every {sample_rate}th)")
+    
+    # Pre-compute coordinate grids for efficiency (only if needed)
+    # For large structures, we'll use a more efficient approach
+    use_vectorized = num_atoms < 50000
+    
+    # Lighting direction (from top-left, like PyMOL/ChimeraX)
+    light_dir = np.array([-0.5, 0.5, 1.0])
+    light_dir = light_dir / np.linalg.norm(light_dir)
+    
+    # Normalize Z coordinates for depth calculations
+    z_min, z_max = z_coords.min(), z_coords.max()
+    z_range = z_max - z_min + 1e-6
+    
+    if use_vectorized:
+        # Original approach: pre-compute grids (faster for smaller structures)
+        y_coords, x_coords = np.mgrid[0:h, 0:w].astype(float)
+        
+        # Render atoms back to front (so closer atoms appear on top)
+        for idx in sort_indices:
+            x, y = coords_scaled[idx]
+            z = z_coords[idx]
+            color = colors[idx]
+            
+            # Skip if atom is outside image bounds (with margin)
+            margin = atom_radius_px * 2
+            if x < -margin or x > w + margin or y < -margin or y > h + margin:
+                continue
+            
+            # Calculate distance from each pixel to atom center
+            dx = x_coords - x
+            dy = y_coords - y
+            dist_sq = dx**2 + dy**2
+            dist = np.sqrt(dist_sq)
+            
+            # Create mask for pixels within atom radius
+            mask = dist <= atom_radius_px
+            
+            if not mask.any():
+                continue
+            
+            # Calculate sphere surface normal (for 3D sphere effect)
+            # For a sphere, the normal at (dx, dy) is (dx/r, dy/r, sqrt(1 - (dx/r)^2 - (dy/r)^2))
+            # But we approximate with a simpler approach for performance
+            r_norm = np.clip(dist / atom_radius_px, 0, 1)
+            dz_sphere = np.sqrt(np.maximum(0, 1 - r_norm**2))
+            
+            # Calculate lighting (Phong-like shading)
+            # Surface normal in 2D projection (approximate)
+            normal_x = np.where(mask, dx / (atom_radius_px + 1e-6), 0)
+            normal_y = np.where(mask, dy / (atom_radius_px + 1e-6), 0)
+            normal_z = np.where(mask, dz_sphere, 0)
+            
+            # Dot product with light direction
+            dot_product = (normal_x * light_dir[0] + normal_y * light_dir[1] + normal_z * light_dir[2])
+            dot_product = np.clip(dot_product, 0, 1)
+            
+            # Ambient + diffuse lighting (like PyMOL)
+            ambient = 0.3
+            diffuse = 0.7
+            lighting = ambient + diffuse * dot_product
+            
+            # Add specular highlight for more realistic look
+            specular_strength = 0.3
+            specular_power = 32
+            # View direction is (0, 0, 1) in 2D projection
+            view_dir = np.array([0, 0, 1])
+            reflect_dir = 2 * dot_product * np.array([normal_x, normal_y, normal_z]) - light_dir
+            reflect_dir_z = np.clip(reflect_dir[2], 0, 1)
+            specular = specular_strength * (reflect_dir_z ** specular_power)
+            specular = np.where(mask, specular, 0)
+            
+            # Combine lighting
+            total_lighting = lighting + specular
+            total_lighting = np.clip(total_lighting, 0, 1.5)  # Allow slight overexposure for highlights
+            
+            # Apply lighting to color
+            lit_color = color * total_lighting[:, :, np.newaxis]
+            lit_color = np.clip(lit_color, 0, 1)
+            
+            # Use smooth falloff for sphere edges with softer edges for surface-like appearance
+            # Sphere falloff: alpha = sqrt(1 - (r/R)^2) for r < R, but with softer falloff
+            r_norm_clipped = np.clip(r_norm, 0, 1)
+            # Use a softer falloff curve for more surface-like blending
+            sphere_alpha = np.power(np.maximum(0, 1 - r_norm_clipped**2), 0.7)
+            sphere_alpha = np.where(mask, sphere_alpha, 0)
+            
+            # Depth-based alpha adjustment (closer = more opaque)
+            z_norm = (z - z_min) / z_range
+            depth_factor = 0.75 + 0.25 * z_norm  # Range from 0.75 to 1.0 (more opaque overall)
+            alpha = sphere_alpha * depth_factor
+            
+            # Enhance color saturation and contrast for more structural appearance
+            lit_color = np.clip(lit_color * 1.15, 0, 1)
+            
+            # Add slight darkening at edges for more 3D structural appearance
+            edge_factor = np.clip(1.0 - r_norm_clipped * 0.3, 0.7, 1.0)
+            lit_color = lit_color * edge_factor[:, :, np.newaxis]
+            
+            # Alpha blend with existing image (proper over operator)
+            existing_alpha = image[:, :, 3]
+            new_alpha = existing_alpha + alpha * (1 - existing_alpha)
+            
+            # Blend colors using proper alpha compositing
+            alpha_mask = alpha > 0
+            for c in range(3):
+                image[:, :, c] = np.where(alpha_mask,
+                    np.where(existing_alpha > 0,
+                        (image[:, :, c] * existing_alpha + lit_color[:, :, c] * alpha) / np.maximum(new_alpha, 1e-6),
+                        lit_color[:, :, c]),
+                    image[:, :, c])
+            
+            image[:, :, 3] = new_alpha
+    else:
+        # Fast approach for large structures: use integer coordinates and direct pixel access
+        # This is much faster but still includes lighting for quality
+        z_min, z_max = z_coords.min(), z_coords.max()
+        z_range = z_max - z_min + 1e-6
+        
+        # Lighting direction (from top-left, like PyMOL/ChimeraX)
+        light_dir = np.array([-0.5, 0.5, 1.0])
+        light_dir = light_dir / np.linalg.norm(light_dir)
+        
+        # Render atoms back to front
+        for idx in sort_indices:
+            x, y = coords_scaled[idx]
+            z = z_coords[idx]
+            color = colors[idx]
+            
+            # Skip if atom is outside image bounds (with margin)
+            margin = atom_radius_px * 2
+            if x < -margin or x > w + margin or y < -margin or y > h + margin:
+                continue
+            
+            # Calculate bounding box for this atom
+            x_min = max(0, int(x - atom_radius_px))
+            x_max = min(w, int(x + atom_radius_px) + 1)
+            y_min = max(0, int(y - atom_radius_px))
+            y_max = min(h, int(y + atom_radius_px) + 1)
+            
+            if x_max <= x_min or y_max <= y_min:
+                continue
+            
+            # Create local coordinate arrays for this atom's region
+            y_local, x_local = np.mgrid[y_min:y_max, x_min:x_max].astype(float)
+            
+            # Calculate distances
+            dx = x_local - x
+            dy = y_local - y
+            dist_sq = dx**2 + dy**2
+            dist = np.sqrt(dist_sq)
+            
+            # Create mask
+            mask = dist <= atom_radius_px
+            if not mask.any():
+                continue
+            
+            # Calculate sphere surface normal
+            r_norm = np.clip(dist / atom_radius_px, 0, 1)
+            dz_sphere = np.sqrt(np.maximum(0, 1 - r_norm**2))
+            
+            # Calculate lighting
+            normal_x = np.where(mask, dx / (atom_radius_px + 1e-6), 0)
+            normal_y = np.where(mask, dy / (atom_radius_px + 1e-6), 0)
+            normal_z = np.where(mask, dz_sphere, 0)
+            
+            dot_product = (normal_x * light_dir[0] + normal_y * light_dir[1] + normal_z * light_dir[2])
+            dot_product = np.clip(dot_product, 0, 1)
+            
+            # Ambient + diffuse lighting
+            ambient = 0.3
+            diffuse = 0.7
+            lighting = ambient + diffuse * dot_product
+            
+            # Specular highlight
+            specular_strength = 0.3
+            specular_power = 32
+            reflect_dir_z = np.clip(2 * dot_product * normal_z - light_dir[2], 0, 1)
+            specular = specular_strength * (reflect_dir_z ** specular_power)
+            specular = np.where(mask, specular, 0)
+            
+            total_lighting = lighting + specular
+            total_lighting = np.clip(total_lighting, 0, 1.5)
+            
+            # Apply lighting to color
+            lit_color = color * total_lighting[:, :, np.newaxis]
+            lit_color = np.clip(lit_color * 1.1, 0, 1)  # Slight saturation boost
+            
+            # Sphere falloff with softer edges for surface-like appearance
+            r_norm_clipped = np.clip(r_norm, 0, 1)
+            sphere_alpha = np.power(np.maximum(0, 1 - r_norm_clipped**2), 0.7)
+            sphere_alpha = np.where(mask, sphere_alpha, 0)
+            
+            # Depth-based alpha
+            z_norm = (z - z_min) / z_range
+            depth_factor = 0.75 + 0.25 * z_norm
+            alpha = sphere_alpha * depth_factor
+            
+            # Enhance color saturation
+            lit_color = np.clip(lit_color * 1.15, 0, 1)
+            
+            # Add edge darkening for 3D effect
+            edge_factor = np.clip(1.0 - r_norm_clipped * 0.3, 0.7, 1.0)
+            lit_color = lit_color * edge_factor[:, :, np.newaxis]
+            
+            # Blend with existing image (proper alpha compositing)
+            existing_alpha = image[y_min:y_max, x_min:x_max, 3]
+            new_alpha = existing_alpha + alpha * (1 - existing_alpha)
+            
+            for c in range(3):
+                existing_color = image[y_min:y_max, x_min:x_max, c]
+                alpha_mask = alpha > 0
+                image[y_min:y_max, x_min:x_max, c] = np.where(alpha_mask,
+                    np.where(existing_alpha > 0,
+                        (existing_color * existing_alpha + lit_color[:, :, c] * alpha) / np.maximum(new_alpha, 1e-6),
+                        lit_color[:, :, c]),
+                    existing_color)
+            
+            image[y_min:y_max, x_min:x_max, 3] = new_alpha
+    
+    # Draw bonds between nearby atoms for better structure visualization
+    # Only draw bonds for atoms that are close in 3D space (more efficient)
+    if len(coords_scaled) > 1000:
+        # For large structures, skip bond drawing for performance
+        pass
+    elif len(coords_scaled) > 1:
+        bond_cutoff_angstrom = 2.0  # Typical covalent bond length
+        bond_cutoff_px = bond_cutoff_angstrom * scale
+        
+        # Use a more efficient approach: only check nearby atoms
+        # For each atom, find neighbors within bond cutoff
+        bond_width_px = max(0.5, line_width * scale)
+        
+        # Sample atoms for bond drawing (every Nth atom) to improve performance
+        sample_step = max(1, len(coords_scaled) // 5000)  # Limit to ~5000 bond checks
+        
+        for i in range(0, len(coords_scaled), sample_step):
+            x1, y1 = coords_scaled[i]
+            z1 = coords_rotated[i, 2]
+            
+            # Only check atoms that could be within bond distance
+            # Use a simple distance check in 3D space
+            for j in range(i + 1, min(i + 100, len(coords_scaled))):  # Limit search window
+                x2, y2 = coords_scaled[j]
+                z2 = coords_rotated[j, 2]
+                
+                # 3D distance
+                dist_3d = np.sqrt((coords_rotated[i, 0] - coords_rotated[j, 0])**2 +
+                                 (coords_rotated[i, 1] - coords_rotated[j, 1])**2 +
+                                 (coords_rotated[i, 2] - coords_rotated[j, 2])**2)
+                
+                if dist_3d < bond_cutoff_angstrom and dist_3d > 0.5:
+                    # Draw bond line
+                    dist_2d = np.sqrt((x2-x1)**2 + (y2-y1)**2)
+                    if dist_2d < w + h:  # Only if bond is potentially visible
+                        # Average color of the two atoms
+                        bond_color = (colors[i] + colors[j]) / 2.0
+                        
+                        # Draw line using Bresenham-like approach (simplified)
+                        num_points = max(2, int(dist_2d))
+                        x_line = np.linspace(x1, x2, num_points)
+                        y_line = np.linspace(y1, y2, num_points)
+                        
+                        # Draw line segments
+                        for px, py in zip(x_line, y_line):
+                            px_int = int(px)
+                            py_int = int(py)
+                            if 0 <= px_int < w and 0 <= py_int < h:
+                                # Draw small circle for line segment
+                                dist_sq = (x_coords - px)**2 + (y_coords - py)**2
+                                dist = np.sqrt(dist_sq)
+                                line_mask = dist <= bond_width_px
+                                
+                                if line_mask.any():
+                                    line_alpha = np.exp(-(dist**2) / (2 * (bond_width_px * 0.5)**2))
+                                    line_alpha = np.where(line_mask, line_alpha * 0.4, 0)  # Semi-transparent bonds
+                                    
+                                    existing_alpha = image[:, :, 3]
+                                    new_alpha = np.maximum(existing_alpha, line_alpha)
+                                    
+                                    for c in range(3):
+                                        image[:, :, c] = np.where(line_mask,
+                                            np.where(existing_alpha > 0,
+                                                (image[:, :, c] * existing_alpha + bond_color[c] * line_alpha) / np.maximum(new_alpha, 1e-6),
+                                                bond_color[c]),
+                                            image[:, :, c])
+                                    
+                                    image[:, :, 3] = new_alpha
+    
+    # Post-processing: enhance contrast and saturation for structural appearance
+    # Normalize alpha to [0, 1]
+    image[:, :, 3] = np.clip(image[:, :, 3], 0, 1)
+    
+    # Apply contrast and saturation boost to RGB channels (only where there's structure)
+    alpha_mask = image[:, :, 3] > 0.01
+    if alpha_mask.any():
+        for c in range(3):
+            rgb = image[:, :, c]
+            # Gamma correction for more vibrant, structural appearance
+            rgb_enhanced = np.power(np.clip(rgb, 0, 1), 0.85)
+            # Slight contrast boost
+            rgb_enhanced = np.clip((rgb_enhanced - 0.5) * 1.1 + 0.5, 0, 1)
+            image[:, :, c] = np.where(alpha_mask, rgb_enhanced, rgb)
+        
+        # Add subtle edge enhancement for more structural definition
+        # This creates a slight outline effect that makes the structure pop
+        from scipy.ndimage import gaussian_filter
+        alpha_smooth = gaussian_filter(image[:, :, 3].astype(float), sigma=0.5)
+        edge_enhance = np.clip((image[:, :, 3] - alpha_smooth) * 0.3, 0, 1)
+        for c in range(3):
+            image[:, :, c] = np.where(alpha_mask, 
+                np.clip(image[:, :, c] + edge_enhance * 0.1, 0, 1), 
+                image[:, :, c])
+    
+    # Flip vertically (image coordinates vs data coordinates)
+    image = np.flipud(image)
+    
+    return image
+
