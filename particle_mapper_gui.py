@@ -2258,10 +2258,6 @@ class ParticleMapperGUI:
         
         print(f"=== Drawn {particles_drawn} particles, {projections_drawn} projections ===\n")
         
-        # Draw scale bar if enabled
-        if self.show_scale_bar and self.pixel_size_angstroms is not None:
-            self._draw_scale_bar(img_width, img_height)
-        
         # CRITICAL: After all drawing is complete, explicitly reset axis limits to image dimensions
         # This prevents matplotlib from auto-adjusting limits when projections extend beyond boundaries
         # We do this BEFORE restoring zoom to ensure consistent viewport size
@@ -2282,6 +2278,10 @@ class ParticleMapperGUI:
                 self.ax.set_xlim(saved_xlim)
                 self.ax.set_ylim(saved_ylim)
                 self.ax.set_aspect('equal', adjustable='box')
+        
+        # Draw scale bar AFTER zoom is restored, so it appears in the visible viewport
+        if self.show_scale_bar and self.pixel_size_angstroms is not None:
+            self._draw_scale_bar(img_width, img_height)
         
         self.canvas.draw()
         
@@ -2529,28 +2529,57 @@ class ParticleMapperGUI:
     def _draw_scale_bar(self, img_width, img_height):
         """Draw a scale bar on the micrograph display.
         
+        The scale bar is positioned in the bottom-right of the CURRENT viewport (visible area),
+        so it moves and adapts when the user zooms in/out.
+        
         Args:
-            img_width: Width of the image in pixels
-            img_height: Height of the image in pixels
+            img_width: Width of the full image in pixels (for bounds checking)
+            img_height: Height of the full image in pixels (for bounds checking)
         """
         if self.pixel_size_angstroms is None or self.pixel_size_angstroms <= 0:
             return
         
+        # Get current viewport (visible area) limits
+        xlim = self.ax.get_xlim()
+        ylim = self.ax.get_ylim()
+        viewport_x_min, viewport_x_max = xlim
+        viewport_y_min, viewport_y_max = ylim
+        
         # Calculate scale bar length in pixels
         scale_bar_length_pixels = self.scale_bar_length_angstroms / self.pixel_size_angstroms
         
-        # Position scale bar in bottom-right corner with some padding
+        # Position scale bar in bottom-right corner of VISIBLE viewport with some padding
         padding = 20  # pixels from edge
         bar_height = 4  # pixels
-        bar_y = padding  # Distance from bottom
-        bar_x_start = img_width - scale_bar_length_pixels - padding
-        bar_x_end = img_width - padding
+        
+        # Calculate position relative to viewport
+        # Ensure scale bar stays within image bounds
+        bar_x_end = min(viewport_x_max - padding, img_width - 0.5 - padding)
+        bar_x_start = max(bar_x_end - scale_bar_length_pixels, viewport_x_min + padding)
+        
+        # If scale bar would be too long for the viewport, adjust it
+        if bar_x_end - bar_x_start < scale_bar_length_pixels * 0.5:
+            # Scale bar is too long for viewport, reduce it proportionally
+            available_width = viewport_x_max - viewport_x_min - 2 * padding
+            if available_width > 0:
+                bar_x_start = viewport_x_min + padding
+                bar_x_end = bar_x_start + min(scale_bar_length_pixels, available_width)
+            else:
+                return  # Viewport too small, skip drawing
+        
+        # Ensure scale bar stays within image bounds
+        bar_x_start = max(bar_x_start, -0.5)
+        bar_x_end = min(bar_x_end, img_width - 0.5)
+        
+        # Y position: bottom of viewport, but ensure it's within image bounds
+        bar_y = max(viewport_y_min + padding, padding)
+        bar_y = min(bar_y, img_height - 0.5 - bar_height - 20)  # Leave room for text
         
         # Draw the scale bar (white rectangle)
         from matplotlib.patches import Rectangle
         scale_bar_rect = Rectangle(
             (bar_x_start, bar_y), 
-            scale_bar_length_pixels, 
+            bar_x_end - bar_x_start, 
             bar_height,
             facecolor='white', 
             edgecolor='white',
@@ -2561,18 +2590,21 @@ class ParticleMapperGUI:
         
         # Add text label above the scale bar
         label_text = f"{self.scale_bar_length_angstroms:.0f} Å"
-        self.ax.text(
-            (bar_x_start + bar_x_end) / 2,  # Center of bar
-            bar_y + bar_height + 8,  # Above the bar
-            label_text,
-            color='white',
-            fontsize=10,
-            fontweight='bold',
-            ha='center',
-            va='bottom',
-            zorder=21,
-            bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.5, edgecolor='none')
-        )
+        text_y = bar_y + bar_height + 8
+        # Ensure text is within viewport
+        if text_y <= viewport_y_max:
+            self.ax.text(
+                (bar_x_start + bar_x_end) / 2,  # Center of bar
+                text_y,  # Above the bar
+                label_text,
+                color='white',
+                fontsize=10,
+                fontweight='bold',
+                ha='center',
+                va='bottom',
+                zorder=21,
+                bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.5, edgecolor='none')
+            )
     
     def update_lowpass(self, val):
         self.lowpass_A = val
