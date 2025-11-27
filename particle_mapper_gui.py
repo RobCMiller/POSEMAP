@@ -105,6 +105,8 @@ class ParticleMapperGUI:
         self.base_projection_size = None  # Store original size from ChimeraX generation
         self.pixel_size_angstroms = None  # Pixel size in Angstroms per pixel (for auto-scaling)
         self.arrow_length = 90  # 3x longer default (was 30)
+        self.show_scale_bar = False  # Toggle for scale bar display
+        self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
         
         # Cache for fast projection toggle
         self.cached_blank_image = None  # Cached image without projections
@@ -592,6 +594,21 @@ class ParticleMapperGUI:
         self.arrow_label = ttk.Label(viz_frame, text=f"{self.arrow_length} px")
         self.arrow_label.pack(anchor=tk.W)
         
+        # Scale bar controls
+        self.show_scale_bar_var = tk.BooleanVar(value=self.show_scale_bar)
+        ttk.Checkbutton(viz_frame, text="Show Scale Bar", 
+                       variable=self.show_scale_bar_var,
+                       command=self.toggle_scale_bar).pack(anchor=tk.W, pady=(10,0))
+        
+        ttk.Label(viz_frame, text="Scale Bar Length (Å):").pack(anchor=tk.W, pady=(10,0))
+        self.scale_bar_var = tk.DoubleVar(value=self.scale_bar_length_angstroms)
+        scale_bar_scale = ttk.Scale(viz_frame, from_=10, to=1500, 
+                                   variable=self.scale_bar_var, orient=tk.HORIZONTAL,
+                                   command=lambda v: self.update_scale_bar(float(v)))
+        scale_bar_scale.pack(fill=tk.X, pady=2)
+        self.scale_bar_label = ttk.Label(viz_frame, text=f"{self.scale_bar_length_angstroms:.0f} Å")
+        self.scale_bar_label.pack(anchor=tk.W)
+        
         # Image Enhancement section
         enhance_frame = ttk.LabelFrame(scrollable_frame, text="Image Enhancement", padding=10)
         enhance_frame.pack(fill=tk.X, padx=5, pady=5)
@@ -893,6 +910,7 @@ class ParticleMapperGUI:
                     pixel_size = float(np.median(self.matched_data['pixel_size']))
                     self.pixel_size_entry.delete(0, tk.END)
                     self.pixel_size_entry.insert(0, f"{pixel_size:.3f}")
+                    self.pixel_size_angstroms = pixel_size
                     # Auto-calculate projection size
                     model_size = self._calculate_model_dimensions()
                     if model_size is not None:
@@ -1313,6 +1331,7 @@ class ParticleMapperGUI:
                     pixel_size = float(np.median(self.matched_data['pixel_size']))
                     self.pixel_size_entry.delete(0, tk.END)
                     self.pixel_size_entry.insert(0, f"{pixel_size:.3f}")
+                    self.pixel_size_angstroms = pixel_size
                     print(f"Using pixel size from data: {pixel_size:.3f} Å/pixel")
                 else:
                     messagebox.showwarning("Pixel Size Required", 
@@ -1321,6 +1340,7 @@ class ParticleMapperGUI:
                     return
             else:
                 pixel_size = float(pixel_size_str)
+                self.pixel_size_angstroms = pixel_size
         except ValueError:
             messagebox.showerror("Invalid Input", "Pixel size must be a number (e.g., 1.1)")
             return
@@ -2238,6 +2258,10 @@ class ParticleMapperGUI:
         
         print(f"=== Drawn {particles_drawn} particles, {projections_drawn} projections ===\n")
         
+        # Draw scale bar if enabled
+        if self.show_scale_bar and self.pixel_size_angstroms is not None:
+            self._draw_scale_bar(img_width, img_height)
+        
         # CRITICAL: After all drawing is complete, explicitly reset axis limits to image dimensions
         # This prevents matplotlib from auto-adjusting limits when projections extend beyond boundaries
         # We do this BEFORE restoring zoom to ensure consistent viewport size
@@ -2489,6 +2513,66 @@ class ParticleMapperGUI:
         self.arrow_length = val
         self.arrow_label.config(text=f"{val} px")
         self.update_display()
+    
+    def toggle_scale_bar(self):
+        """Toggle scale bar display."""
+        self.show_scale_bar = self.show_scale_bar_var.get()
+        self.update_display(use_cache=False)
+    
+    def update_scale_bar(self, val):
+        """Update scale bar length."""
+        self.scale_bar_length_angstroms = val
+        self.scale_bar_label.config(text=f"{val:.0f} Å")
+        if self.show_scale_bar:
+            self.update_display(use_cache=False)
+    
+    def _draw_scale_bar(self, img_width, img_height):
+        """Draw a scale bar on the micrograph display.
+        
+        Args:
+            img_width: Width of the image in pixels
+            img_height: Height of the image in pixels
+        """
+        if self.pixel_size_angstroms is None or self.pixel_size_angstroms <= 0:
+            return
+        
+        # Calculate scale bar length in pixels
+        scale_bar_length_pixels = self.scale_bar_length_angstroms / self.pixel_size_angstroms
+        
+        # Position scale bar in bottom-right corner with some padding
+        padding = 20  # pixels from edge
+        bar_height = 4  # pixels
+        bar_y = padding  # Distance from bottom
+        bar_x_start = img_width - scale_bar_length_pixels - padding
+        bar_x_end = img_width - padding
+        
+        # Draw the scale bar (white rectangle)
+        from matplotlib.patches import Rectangle
+        scale_bar_rect = Rectangle(
+            (bar_x_start, bar_y), 
+            scale_bar_length_pixels, 
+            bar_height,
+            facecolor='white', 
+            edgecolor='white',
+            linewidth=1,
+            zorder=20
+        )
+        self.ax.add_patch(scale_bar_rect)
+        
+        # Add text label above the scale bar
+        label_text = f"{self.scale_bar_length_angstroms:.0f} Å"
+        self.ax.text(
+            (bar_x_start + bar_x_end) / 2,  # Center of bar
+            bar_y + bar_height + 8,  # Above the bar
+            label_text,
+            color='white',
+            fontsize=10,
+            fontweight='bold',
+            ha='center',
+            va='bottom',
+            zorder=21,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.5, edgecolor='none')
+        )
     
     def update_lowpass(self, val):
         self.lowpass_A = val
