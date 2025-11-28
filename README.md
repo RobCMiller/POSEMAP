@@ -1,8 +1,8 @@
-# POSEMAP
+# POSEMAP 🕺🗺️
 
 **Pose-Oriented Single-particle EM Micrograph Annotation & Projection**
 
-POSEMAP is a Python toolkit for mapping cryo-EM reconstructions and atomic models back onto their originating micrographs using particle pose metadata from cryoSPARC. It ingests cryoSPARC `.cs` files containing particle poses (Euler angles in ZYZ convention, 2D shifts, CTF parameters), generates pose-consistent 2D projections of 3D structures using PyMOL, and overlays these projections onto micrographs for visualization, quality control, and downstream analysis. POSEMAP is designed as a modular Python library that can be integrated into existing cryo-EM processing pipelines or used interactively via its Tkinter-based GUI.
+POSEMAP is a Python toolkit for mapping cryo-EM reconstructions and corresponding atomic models back onto their originating micrographs using particle pose metadata from cryoSPARC refinement files (.star file integration coming soon!). The code takes in cryoSPARC `.cs` files containing particle poses (Euler angles in ZYZ convention, 2D shifts, CTF parameters) as inputs, generates pose-consistent 2D projections of 3D structures using the PyMOL API, and overlays these projections onto micrographs for visualization, quality control, and downstream analysis. POSEMAP is designed as a modular Python library that can be integrated into existing cryo-EM processing pipelines or used interactively via its Tkinter-based GUI.
 
 ## Features
 
