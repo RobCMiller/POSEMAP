@@ -211,19 +211,30 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
 
 def get_particle_orientation_arrow(euler_angles: np.ndarray, length: float = 50.0) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Get arrow direction for visualizing particle orientation.
+    Get arrow direction for visualizing particle viewing direction.
+    
+    This arrow represents the direction from which the particle is being viewed
+    in the micrograph. Specifically, it shows the projection of the Z-axis of the
+    model's coordinate system onto the micrograph plane after applying the particle's
+    rotation (Euler angles). The Z-axis in the model coordinate system points along
+    the viewing direction (down the beam path in cryo-EM).
+    
+    In the model's coordinate system:
+    - Z-axis = [0, 0, 1] points along the viewing direction (beam path)
+    - After rotation by Euler angles, this becomes R @ [0, 0, 1]
+    - The arrow shows the 2D projection of this rotated Z-axis onto the XY plane
     
     Parameters:
     -----------
     euler_angles : np.ndarray
-        Euler angles [phi, theta, psi] in radians
+        Euler angles [phi, theta, psi] in radians (ZYZ convention)
     length : float
         Arrow length in pixels
         
     Returns:
     --------
     dx, dy : float
-        Arrow direction components
+        Arrow direction components in micrograph pixel coordinates
     """
     # The viewing direction is along the Z axis after rotation
     # We can get this from the rotation matrix
@@ -262,6 +273,214 @@ def get_particle_axes(euler_angles: np.ndarray, length: float = 30.0) -> Dict[st
     }
     
     return axes
+
+
+def calculate_vector_from_two_points(point1: np.ndarray, point2: np.ndarray) -> np.ndarray:
+    """
+    Calculate a normalized vector from point1 to point2.
+    
+    Useful for converting ChimeraX marker positions to a direction vector.
+    
+    Parameters:
+    -----------
+    point1 : np.ndarray
+        3D coordinates [x, y, z] of first point
+    point2 : np.ndarray
+        3D coordinates [x, y, z] of second point
+        
+    Returns:
+    --------
+    np.ndarray
+        Normalized 3D unit vector pointing from point1 to point2
+    """
+    vec = np.array(point2, dtype=float) - np.array(point1, dtype=float)
+    norm = np.linalg.norm(vec)
+    if norm < 1e-10:
+        raise ValueError("Points are identical, cannot determine direction")
+    return vec / norm
+
+
+def calculate_custom_vector_from_pdb(pdb_data: Dict, 
+                                     method: str = 'user_defined',
+                                     vector: Optional[np.ndarray] = None,
+                                     chain_ids: Optional[List[str]] = None,
+                                     atom_names: Optional[List[str]] = None,
+                                     residue_names: Optional[List[str]] = None,
+                                     from_center_to: Optional[str] = None) -> np.ndarray:
+    """
+    Calculate a custom 3D vector in the model's coordinate system from PDB structure data.
+    
+    This function allows you to define a structural axis (e.g., ribosome exit tunnel)
+    by various methods:
+    - 'user_defined': Use a manually specified 3D vector
+    - 'chain_com': Calculate vector from center of mass of one chain to another
+    - 'atom_selection': Calculate vector from center of mass of selected atoms
+    - 'chain_axis': Calculate principal axis of a specific chain
+    
+    Parameters:
+    -----------
+    pdb_data : dict
+        PDB structure data from load_pdb_structure()
+    method : str
+        Method to calculate vector: 'user_defined', 'chain_com', 'atom_selection', 'chain_axis'
+    vector : np.ndarray, optional
+        For 'user_defined': 3D vector [x, y, z] in model coordinate system
+    chain_ids : list of str, optional
+        For 'chain_com' or 'chain_axis': list of chain IDs to use
+    atom_names : list of str, optional
+        For 'atom_selection': list of atom names to select (e.g., ['CA', 'P'])
+    residue_names : list of str, optional
+        For 'atom_selection': list of residue names to select
+    from_center_to : str, optional
+        For 'chain_com': 'first_to_second' or 'second_to_first' (direction)
+        
+    Returns:
+    --------
+    np.ndarray
+        3D unit vector [x, y, z] in model coordinate system (normalized)
+    """
+    coords = pdb_data['coords']
+    chain_ids_data = pdb_data['chain_ids']
+    
+    if method == 'user_defined':
+        if vector is None:
+            raise ValueError("vector must be provided for 'user_defined' method")
+        vec = np.array(vector, dtype=float)
+        if vec.shape != (3,):
+            raise ValueError(f"vector must be shape (3,), got {vec.shape}")
+        # Normalize
+        norm = np.linalg.norm(vec)
+        if norm < 1e-10:
+            raise ValueError("vector has zero length")
+        return vec / norm
+    
+    elif method == 'chain_com':
+        if chain_ids is None or len(chain_ids) < 2:
+            raise ValueError("chain_com method requires at least 2 chain IDs")
+        
+        # Calculate center of mass for each chain
+        coms = []
+        for chain_id in chain_ids[:2]:
+            mask = chain_ids_data == chain_id
+            if not np.any(mask):
+                raise ValueError(f"Chain {chain_id} not found in structure")
+            chain_coords = coords[mask]
+            com = np.mean(chain_coords, axis=0)
+            coms.append(com)
+        
+        # Calculate vector from first to second (or reverse)
+        if from_center_to == 'second_to_first':
+            vec = coms[0] - coms[1]
+        else:  # default: first_to_second
+            vec = coms[1] - coms[0]
+        
+        # Normalize
+        norm = np.linalg.norm(vec)
+        if norm < 1e-10:
+            raise ValueError("Chains have identical center of mass")
+        return vec / norm
+    
+    elif method == 'atom_selection':
+        # Select atoms based on criteria
+        mask = np.ones(len(coords), dtype=bool)
+        
+        if atom_names is not None:
+            atom_mask = np.isin(pdb_data['atom_names'], atom_names)
+            mask = mask & atom_mask
+        
+        if residue_names is not None:
+            residue_mask = np.isin(pdb_data['residue_names'], residue_names)
+            mask = mask & residue_mask
+        
+        if chain_ids is not None:
+            chain_mask = np.isin(chain_ids_data, chain_ids)
+            mask = mask & chain_mask
+        
+        if not np.any(mask):
+            raise ValueError("No atoms match selection criteria")
+        
+        selected_coords = coords[mask]
+        
+        # Calculate principal axis using PCA
+        # Center the coordinates
+        centered = selected_coords - np.mean(selected_coords, axis=0)
+        
+        # Compute covariance matrix
+        cov = np.cov(centered.T)
+        
+        # Get eigenvector with largest eigenvalue (principal axis)
+        eigenvals, eigenvecs = np.linalg.eigh(cov)
+        principal_idx = np.argmax(eigenvals)
+        vec = eigenvecs[:, principal_idx]
+        
+        # Normalize (should already be normalized, but ensure)
+        norm = np.linalg.norm(vec)
+        if norm < 1e-10:
+            raise ValueError("Could not determine principal axis")
+        return vec / norm
+    
+    elif method == 'chain_axis':
+        if chain_ids is None or len(chain_ids) == 0:
+            raise ValueError("chain_axis method requires at least 1 chain ID")
+        
+        # Use first chain
+        chain_id = chain_ids[0]
+        mask = chain_ids_data == chain_id
+        if not np.any(mask):
+            raise ValueError(f"Chain {chain_id} not found in structure")
+        
+        chain_coords = coords[mask]
+        
+        # Calculate principal axis using PCA
+        centered = chain_coords - np.mean(chain_coords, axis=0)
+        cov = np.cov(centered.T)
+        eigenvals, eigenvecs = np.linalg.eigh(cov)
+        principal_idx = np.argmax(eigenvals)
+        vec = eigenvecs[:, principal_idx]
+        
+        # Normalize
+        norm = np.linalg.norm(vec)
+        if norm < 1e-10:
+            raise ValueError("Could not determine principal axis")
+        return vec / norm
+    
+    else:
+        raise ValueError(f"Unknown method: {method}")
+
+
+def project_custom_vector(vector_3d: np.ndarray, euler_angles: np.ndarray, length: float = 50.0) -> Tuple[float, float]:
+    """
+    Project a custom 3D vector (in model coordinate system) onto the micrograph plane.
+    
+    This function takes a vector defined in the model's coordinate system (e.g., 
+    pointing along a structural axis like the ribosome exit tunnel) and projects
+    it onto the 2D micrograph plane after applying the particle's rotation.
+    
+    Parameters:
+    -----------
+    vector_3d : np.ndarray
+        3D unit vector [x, y, z] in model coordinate system
+    euler_angles : np.ndarray
+        Euler angles [phi, theta, psi] in radians (ZYZ convention)
+    length : float
+        Arrow length in pixels
+        
+    Returns:
+    --------
+    dx, dy : float
+        Arrow direction components in micrograph pixel coordinates
+    """
+    # Get rotation matrix
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    
+    # Rotate the custom vector
+    rotated_vector = R @ vector_3d
+    
+    # Project onto XY plane (micrograph plane)
+    dx = rotated_vector[0] * length
+    dy = rotated_vector[1] * length
+    
+    return dx, dy
 
 
 def fractional_to_pixel_coords(center_x_frac: float, center_y_frac: float, 

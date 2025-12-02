@@ -32,7 +32,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from particle_mapper import (
     load_cs_file, match_particles, load_volume, project_volume,
     get_particle_orientation_arrow, get_particle_axes,
-    fractional_to_pixel_coords, load_pdb_structure, project_pdb_structure
+    fractional_to_pixel_coords, load_pdb_structure, project_pdb_structure,
+    calculate_custom_vector_from_pdb, project_custom_vector,
+    calculate_vector_from_two_points
 )
 from scipy.ndimage import gaussian_filter
 
@@ -107,6 +109,14 @@ class ParticleMapperGUI:
         self.arrow_length = 90  # 3x longer default (was 30)
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
+        
+        # Second arrow (custom structural vector) settings
+        self.show_custom_arrow = False
+        self.custom_arrow_length = 180  # Doubled from 90 for better visibility
+        self.custom_arrow_color = '#FF6B6B'  # Default red color to distinguish from viewing direction arrow
+        self.custom_vector_3d = None  # 3D vector in model coordinate system (normalized)
+        self.custom_vector_method = 'user_defined'  # 'user_defined', 'chain_com', 'atom_selection', 'chain_axis'
+        self.custom_vector_params = {}  # Parameters for vector calculation (chain_ids, etc.)
         
         # Cache for fast projection toggle
         self.cached_blank_image = None  # Cached image without projections
@@ -608,6 +618,99 @@ class ParticleMapperGUI:
         scale_bar_scale.pack(fill=tk.X, pady=2)
         self.scale_bar_label = ttk.Label(viz_frame, text=f"{self.scale_bar_length_angstroms:.0f} Å")
         self.scale_bar_label.pack(anchor=tk.W)
+        
+        # Separator for custom arrow section
+        ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
+        ttk.Label(viz_frame, text="Custom Structural Vector", font=('TkDefaultFont', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        
+        # Custom arrow toggle
+        self.show_custom_arrow_var = tk.BooleanVar(value=self.show_custom_arrow)
+        ttk.Checkbutton(viz_frame, text="Show Custom Vector Arrow", 
+                       variable=self.show_custom_arrow_var,
+                       command=self.toggle_custom_arrow).pack(anchor=tk.W)
+        
+        # Custom arrow method selection
+        method_frame = ttk.Frame(viz_frame)
+        method_frame.pack(fill=tk.X, pady=(5, 5))
+        ttk.Label(method_frame, text="Vector Method:").pack(side=tk.LEFT, padx=(0, 5))
+        self.custom_vector_method_var = tk.StringVar(value='user_defined')
+        method_combo = ttk.Combobox(method_frame, textvariable=self.custom_vector_method_var,
+                                   values=['user_defined', 'from_markers', 'chain_com', 'atom_selection', 'chain_axis'],
+                                   state='readonly', width=15)
+        method_combo.pack(side=tk.LEFT, padx=2)
+        method_combo.bind('<<ComboboxSelected>>', self.on_custom_vector_method_changed)
+        
+        # Custom arrow vector input (for user_defined method)
+        self.custom_vector_frame = ttk.Frame(viz_frame)
+        self.custom_vector_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(self.custom_vector_frame, text="Vector (x, y, z):").pack(anchor=tk.W)
+        vector_input_frame = ttk.Frame(self.custom_vector_frame)
+        vector_input_frame.pack(fill=tk.X, pady=2)
+        self.custom_vector_x_entry = ttk.Entry(vector_input_frame, width=8)
+        self.custom_vector_x_entry.insert(0, "0.0")
+        self.custom_vector_x_entry.pack(side=tk.LEFT, padx=2)
+        self.custom_vector_y_entry = ttk.Entry(vector_input_frame, width=8)
+        self.custom_vector_y_entry.insert(0, "0.0")
+        self.custom_vector_y_entry.pack(side=tk.LEFT, padx=2)
+        self.custom_vector_z_entry = ttk.Entry(vector_input_frame, width=8)
+        self.custom_vector_z_entry.insert(0, "1.0")
+        self.custom_vector_z_entry.pack(side=tk.LEFT, padx=2)
+        ttk.Button(vector_input_frame, text="Update", width=8,
+                  command=self.update_custom_vector).pack(side=tk.LEFT, padx=5)
+        
+        # Marker positions input (for from_markers method)
+        self.custom_markers_frame = ttk.Frame(viz_frame)
+        # Don't pack initially - will be shown when from_markers method is selected
+        ttk.Label(self.custom_markers_frame, text="ChimeraX Marker Positions:").pack(anchor=tk.W)
+        ttk.Label(self.custom_markers_frame, text="Marker 1 (x, y, z):").pack(anchor=tk.W, pady=(5,0))
+        marker1_frame = ttk.Frame(self.custom_markers_frame)
+        marker1_frame.pack(fill=tk.X, pady=2)
+        self.marker1_x_entry = ttk.Entry(marker1_frame, width=10)
+        self.marker1_x_entry.pack(side=tk.LEFT, padx=2)
+        self.marker1_y_entry = ttk.Entry(marker1_frame, width=10)
+        self.marker1_y_entry.pack(side=tk.LEFT, padx=2)
+        self.marker1_z_entry = ttk.Entry(marker1_frame, width=10)
+        self.marker1_z_entry.pack(side=tk.LEFT, padx=2)
+        ttk.Label(self.custom_markers_frame, text="Marker 2 (x, y, z):").pack(anchor=tk.W, pady=(5,0))
+        marker2_frame = ttk.Frame(self.custom_markers_frame)
+        marker2_frame.pack(fill=tk.X, pady=2)
+        self.marker2_x_entry = ttk.Entry(marker2_frame, width=10)
+        self.marker2_x_entry.pack(side=tk.LEFT, padx=2)
+        self.marker2_y_entry = ttk.Entry(marker2_frame, width=10)
+        self.marker2_y_entry.pack(side=tk.LEFT, padx=2)
+        self.marker2_z_entry = ttk.Entry(marker2_frame, width=10)
+        self.marker2_z_entry.pack(side=tk.LEFT, padx=2)
+        ttk.Button(self.custom_markers_frame, text="Calculate Vector (Marker 1 → Marker 2)", width=30,
+                  command=self.update_custom_vector_from_markers).pack(pady=5)
+        
+        # Chain selection (for chain_com and chain_axis methods)
+        self.custom_chain_frame = ttk.Frame(viz_frame)
+        # Don't pack initially - will be shown when chain methods are selected
+        ttk.Label(self.custom_chain_frame, text="Chain IDs (comma-separated):").pack(anchor=tk.W)
+        self.custom_chain_entry = ttk.Entry(self.custom_chain_frame, width=20)
+        self.custom_chain_entry.pack(fill=tk.X, pady=2)
+        ttk.Button(self.custom_chain_frame, text="Update from Chains", width=15,
+                  command=self.update_custom_vector_from_chains).pack(pady=2)
+        
+        # Custom arrow length (doubled range for better visibility)
+        ttk.Label(viz_frame, text="Custom Arrow Length (px):").pack(anchor=tk.W, pady=(10,0))
+        self.custom_arrow_var = tk.IntVar(value=self.custom_arrow_length)
+        custom_arrow_scale = ttk.Scale(viz_frame, from_=20, to=200, 
+                                      variable=self.custom_arrow_var, orient=tk.HORIZONTAL,
+                                      command=lambda v: self.update_custom_arrow_length(int(float(v))))
+        custom_arrow_scale.pack(fill=tk.X, pady=2)
+        self.custom_arrow_label = ttk.Label(viz_frame, text=f"{self.custom_arrow_length} px")
+        self.custom_arrow_label.pack(anchor=tk.W)
+        
+        # Custom arrow color
+        color_frame = ttk.Frame(viz_frame)
+        color_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(color_frame, text="Custom Arrow Color:").pack(side=tk.LEFT, padx=(0, 5))
+        self.custom_arrow_color_entry = ttk.Entry(color_frame, width=10)
+        self.custom_arrow_color_entry.insert(0, self.custom_arrow_color)
+        self.custom_arrow_color_entry.pack(side=tk.LEFT, padx=2)
+        ttk.Button(color_frame, text="Pick", width=8,
+                  command=self.pick_custom_arrow_color).pack(side=tk.LEFT, padx=2)
         
         # Image Enhancement section
         enhance_frame = ttk.LabelFrame(scrollable_frame, text="Image Enhancement", padding=10)
@@ -2254,6 +2357,57 @@ class ParticleMapperGUI:
                 except Exception as e:
                     print(f"Error drawing orientation {i}: {e}")
             
+            # Draw custom structural vector arrow if enabled
+            if self.show_custom_arrow and self.custom_vector_3d is not None:
+                try:
+                    dx, dy = project_custom_vector(self.custom_vector_3d, pose, length=self.custom_arrow_length)
+                    
+                    # Calculate the Z-component (out-of-plane component) for visual indication
+                    from scipy.spatial.transform import Rotation
+                    rot = Rotation.from_euler('ZYZ', pose, degrees=False)
+                    R = rot.as_matrix()
+                    rotated_vector = R @ self.custom_vector_3d
+                    z_component = rotated_vector[2]  # Z-component: positive = out of plane, negative = into plane
+                    
+                    # Visual indicators for in/out of plane:
+                    # - Line style: solid for in-plane (|z| < 0.3), dashed for out-of-plane
+                    # - Line width: thicker for more out-of-plane
+                    # - Alpha: brighter for more out-of-plane
+                    abs_z = abs(z_component)
+                    if abs_z < 0.3:
+                        linestyle = '-'  # Solid line for mostly in-plane
+                        linewidth = 1.5
+                        alpha = 0.6
+                    else:
+                        linestyle = '--' if z_component > 0 else ':'  # Dashed for out, dotted for in
+                        linewidth = 2.0 + abs_z * 1.0  # Thicker for more out-of-plane
+                        alpha = 0.8 + abs_z * 0.2  # Brighter for more out-of-plane
+                    
+                    # Draw arrow with style based on out-of-plane component
+                    self.ax.arrow(x_pixel, y_pixel, dx, dy,
+                                 head_width=self.custom_arrow_length*0.3,
+                                 head_length=self.custom_arrow_length*0.2,
+                                 fc=self.custom_arrow_color, ec=self.custom_arrow_color, 
+                                 alpha=alpha, linewidth=linewidth, linestyle=linestyle, zorder=17)
+                    
+                    # Add a small perpendicular indicator line to show depth
+                    # Draw a short line perpendicular to the arrow direction
+                    if abs_z > 0.1:  # Only show if significantly out-of-plane
+                        perp_length = 5.0 * abs_z  # Length proportional to out-of-plane component
+                        # Perpendicular direction (rotate arrow direction by 90 degrees)
+                        arrow_angle = np.arctan2(dy, dx)
+                        perp_angle = arrow_angle + np.pi/2
+                        perp_dx = np.cos(perp_angle) * perp_length
+                        perp_dy = np.sin(perp_angle) * perp_length
+                        # Draw perpendicular line at arrow midpoint
+                        mid_x = x_pixel + dx/2
+                        mid_y = y_pixel + dy/2
+                        self.ax.plot([mid_x - perp_dx/2, mid_x + perp_dx/2],
+                                    [mid_y - perp_dy/2, mid_y + perp_dy/2],
+                                    color=self.custom_arrow_color, linewidth=2, alpha=0.9, zorder=18)
+                except Exception as e:
+                    print(f"Error drawing custom arrow {i}: {e}")
+            
             particles_drawn += 1
         
         print(f"=== Drawn {particles_drawn} particles, {projections_drawn} projections ===\n")
@@ -2526,6 +2680,184 @@ class ParticleMapperGUI:
         if self.show_scale_bar:
             self.update_display(use_cache=False)
     
+    def toggle_custom_arrow(self):
+        """Toggle custom structural vector arrow display."""
+        self.show_custom_arrow = self.show_custom_arrow_var.get()
+        if self.show_custom_arrow and self.custom_vector_3d is None:
+            # Try to initialize with default user-defined vector if not set
+            try:
+                x = float(self.custom_vector_x_entry.get())
+                y = float(self.custom_vector_y_entry.get())
+                z = float(self.custom_vector_z_entry.get())
+                self.custom_vector_3d = np.array([x, y, z], dtype=float)
+                norm = np.linalg.norm(self.custom_vector_3d)
+                if norm > 1e-10:
+                    self.custom_vector_3d = self.custom_vector_3d / norm
+                else:
+                    messagebox.showwarning("Warning", "Custom vector has zero length. Please set a valid vector.")
+                    self.show_custom_arrow = False
+                    self.show_custom_arrow_var.set(False)
+                    return
+            except ValueError:
+                messagebox.showwarning("Warning", "Invalid vector values. Please enter numeric values.")
+                self.show_custom_arrow = False
+                self.show_custom_arrow_var.set(False)
+                return
+        self.update_display(use_cache=False)
+    
+    def on_custom_vector_method_changed(self, event=None):
+        """Handle change in custom vector calculation method."""
+        method = self.custom_vector_method_var.get()
+        self.custom_vector_method = method
+        
+        # Show/hide appropriate input frames
+        if method == 'user_defined':
+            self.custom_vector_frame.pack(fill=tk.X, pady=5)
+            self.custom_markers_frame.pack_forget()
+            self.custom_chain_frame.pack_forget()
+        elif method == 'from_markers':
+            self.custom_vector_frame.pack_forget()
+            self.custom_markers_frame.pack(fill=tk.X, pady=5)
+            self.custom_chain_frame.pack_forget()
+        elif method in ['chain_com', 'chain_axis']:
+            self.custom_vector_frame.pack_forget()
+            self.custom_markers_frame.pack_forget()
+            self.custom_chain_frame.pack(fill=tk.X, pady=5)
+        elif method == 'atom_selection':
+            # For now, just show chain frame (can be extended later)
+            self.custom_vector_frame.pack_forget()
+            self.custom_markers_frame.pack_forget()
+            self.custom_chain_frame.pack(fill=tk.X, pady=5)
+    
+    def update_custom_vector(self):
+        """Update custom vector from user-defined input."""
+        try:
+            x = float(self.custom_vector_x_entry.get())
+            y = float(self.custom_vector_y_entry.get())
+            z = float(self.custom_vector_z_entry.get())
+            vec = np.array([x, y, z], dtype=float)
+            norm = np.linalg.norm(vec)
+            if norm < 1e-10:
+                messagebox.showerror("Error", "Vector has zero length")
+                return
+            self.custom_vector_3d = vec / norm
+            self.custom_vector_method = 'user_defined'
+            messagebox.showinfo("Success", f"Custom vector updated: [{x:.3f}, {y:.3f}, {z:.3f}] (normalized)")
+            if self.show_custom_arrow:
+                self.update_display(use_cache=False)
+        except ValueError:
+            messagebox.showerror("Error", "Invalid vector values. Please enter numeric values.")
+    
+    def update_custom_vector_from_markers(self):
+        """Update custom vector from two ChimeraX marker positions."""
+        try:
+            # Get marker positions
+            m1_x = float(self.marker1_x_entry.get())
+            m1_y = float(self.marker1_y_entry.get())
+            m1_z = float(self.marker1_z_entry.get())
+            m2_x = float(self.marker2_x_entry.get())
+            m2_y = float(self.marker2_y_entry.get())
+            m2_z = float(self.marker2_z_entry.get())
+            
+            point1 = np.array([m1_x, m1_y, m1_z])
+            point2 = np.array([m2_x, m2_y, m2_z])
+            
+            # Calculate vector from marker 1 to marker 2
+            self.custom_vector_3d = calculate_vector_from_two_points(point1, point2)
+            self.custom_vector_method = 'from_markers'
+            
+            messagebox.showinfo("Success", 
+                              f"Vector calculated from markers:\n"
+                              f"Marker 1: ({m1_x:.1f}, {m1_y:.1f}, {m1_z:.1f})\n"
+                              f"Marker 2: ({m2_x:.1f}, {m2_y:.1f}, {m2_z:.1f})\n"
+                              f"Vector: [{self.custom_vector_3d[0]:.6f}, {self.custom_vector_3d[1]:.6f}, {self.custom_vector_3d[2]:.6f}]")
+            
+            # Also update the user_defined fields for reference
+            self.custom_vector_x_entry.delete(0, tk.END)
+            self.custom_vector_x_entry.insert(0, f"{self.custom_vector_3d[0]:.6f}")
+            self.custom_vector_y_entry.delete(0, tk.END)
+            self.custom_vector_y_entry.insert(0, f"{self.custom_vector_3d[1]:.6f}")
+            self.custom_vector_z_entry.delete(0, tk.END)
+            self.custom_vector_z_entry.insert(0, f"{self.custom_vector_3d[2]:.6f}")
+            
+            if self.show_custom_arrow:
+                self.update_display(use_cache=False)
+        except ValueError as e:
+            messagebox.showerror("Error", f"Invalid marker positions: {str(e)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to calculate vector: {str(e)}")
+    
+    def update_custom_vector_from_chains(self):
+        """Update custom vector from chain selection."""
+        if not hasattr(self, 'pdb_data') or self.pdb_data is None:
+            messagebox.showerror("Error", "No PDB structure loaded. Please load a structure first.")
+            return
+        
+        method = self.custom_vector_method_var.get()
+        if method not in ['chain_com', 'chain_axis', 'atom_selection']:
+            messagebox.showerror("Error", "Chain-based methods require 'chain_com' or 'chain_axis' method")
+            return
+        
+        try:
+            chain_str = self.custom_chain_entry.get().strip()
+            if not chain_str:
+                messagebox.showerror("Error", "Please enter chain IDs (comma-separated)")
+                return
+            
+            chain_ids = [c.strip() for c in chain_str.split(',')]
+            
+            if method == 'chain_com' and len(chain_ids) < 2:
+                messagebox.showerror("Error", "chain_com method requires at least 2 chain IDs")
+                return
+            
+            # Calculate vector
+            if method == 'chain_com':
+                self.custom_vector_3d = calculate_custom_vector_from_pdb(
+                    self.pdb_data,
+                    method='chain_com',
+                    chain_ids=chain_ids,
+                    from_center_to='first_to_second'
+                )
+            elif method == 'chain_axis':
+                self.custom_vector_3d = calculate_custom_vector_from_pdb(
+                    self.pdb_data,
+                    method='chain_axis',
+                    chain_ids=chain_ids[:1]  # Use first chain only
+                )
+            elif method == 'atom_selection':
+                # For atom selection, we'd need more parameters - for now, use chain axis
+                self.custom_vector_3d = calculate_custom_vector_from_pdb(
+                    self.pdb_data,
+                    method='chain_axis',
+                    chain_ids=chain_ids[:1]
+                )
+            
+            self.custom_vector_method = method
+            self.custom_vector_params = {'chain_ids': chain_ids}
+            messagebox.showinfo("Success", f"Custom vector calculated from chains: {chain_ids}\nVector: [{self.custom_vector_3d[0]:.3f}, {self.custom_vector_3d[1]:.3f}, {self.custom_vector_3d[2]:.3f}]")
+            if self.show_custom_arrow:
+                self.update_display(use_cache=False)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to calculate vector: {str(e)}")
+    
+    def update_custom_arrow_length(self, val):
+        """Update custom arrow length."""
+        self.custom_arrow_length = val
+        self.custom_arrow_label.config(text=f"{val} px")
+        if self.show_custom_arrow:
+            self.update_display(use_cache=False)
+    
+    def pick_custom_arrow_color(self):
+        """Open color picker for custom arrow color."""
+        from tkinter import colorchooser
+        color = colorchooser.askcolor(title="Pick Custom Arrow Color", color=self.custom_arrow_color)
+        if color[1]:  # color[1] is the hex string
+            self.custom_arrow_color = color[1]
+            self.custom_arrow_color_entry.delete(0, tk.END)
+            self.custom_arrow_color_entry.insert(0, self.custom_arrow_color)
+            if self.show_custom_arrow:
+                self.update_display(use_cache=False)
+    
     def _draw_scale_bar(self, img_width, img_height):
         """Draw a scale bar on the micrograph display.
         
@@ -2787,7 +3119,7 @@ class ParticleMapperGUI:
                 try:
                     self._generate_all_projections(self.current_micrograph_idx, 
                                                  base_filename=base_name, 
-                                                 limit=self.projection_generation_limit,
+                                                 limit=None,  # Generate all
                                                  background=True)
                     # Update display when done
                     self.root.after(0, self.update_display)
@@ -2810,6 +3142,15 @@ class ParticleMapperGUI:
     
     def open_chimerax(self, particle_idx=None):
         """Open the PDB structure in ChimeraX, optionally with a specific particle's view."""
+        # Add confirmation dialog
+        if particle_idx is not None:
+            confirm_msg = f"Open particle {particle_idx+1} in ChimeraX?"
+        else:
+            confirm_msg = "Open structure in ChimeraX?"
+        
+        if not messagebox.askyesno("Confirm", confirm_msg):
+            return
+        
         if self.pdb_path is None:
             pdb_path = self.pdb_entry.get()
         else:
@@ -2853,6 +3194,37 @@ class ParticleMapperGUI:
                 pose = self.current_particles['poses'][particle_idx]
                 view_cmd = self._euler_to_chimerax_view(pose)
                 
+                # Add custom vector arrow visualization if defined
+                vector_arrow_cmd = ""
+                if self.show_custom_arrow and self.custom_vector_3d is not None:
+                    # Calculate the rotated vector in world space
+                    from scipy.spatial.transform import Rotation
+                    rot = Rotation.from_euler('ZYZ', pose, degrees=False)
+                    R = rot.as_matrix()
+                    rotated_vector = R @ self.custom_vector_3d
+                    
+                    # Draw arrow from center of structure
+                    # Arrow length: 50 Angstroms
+                    arrow_length = 50.0
+                    start_point = [0.0, 0.0, 0.0]  # Center of structure
+                    end_point = [
+                        start_point[0] + rotated_vector[0] * arrow_length,
+                        start_point[1] + rotated_vector[1] * arrow_length,
+                        start_point[2] + rotated_vector[2] * arrow_length
+                    ]
+                    
+                    # Convert custom arrow color from hex to RGB (0-1 range)
+                    hex_color = self.custom_arrow_color.lstrip('#')
+                    r = int(hex_color[0:2], 16) / 255.0
+                    g = int(hex_color[2:4], 16) / 255.0
+                    b = int(hex_color[4:6], 16) / 255.0
+                    
+                    # Draw arrow using ChimeraX graphics
+                    # Format: graphics arrow x1,y1,z1 x2,y2,z2 radius color
+                    vector_arrow_cmd = f"""
+graphics arrow {start_point[0]:.3f},{start_point[1]:.3f},{start_point[2]:.3f} {end_point[0]:.3f},{end_point[1]:.3f},{end_point[2]:.3f} radius 2 color {r:.3f},{g:.3f},{b:.3f}
+"""
+                
                 # Set window size multiple times to prevent resizing
                 # ChimeraX resizes during various operations, so we set it at key points
                 # Try to disable auto-resize behavior if possible
@@ -2871,6 +3243,7 @@ cofr centerOfView
 view
 color #1 #48B8D0
 color #1 & nucleic #62466B
+{vector_arrow_cmd}
 """
                 # Write temporary script in working directory
                 import uuid
