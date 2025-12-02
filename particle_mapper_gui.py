@@ -131,6 +131,8 @@ class ParticleMapperGUI:
         self.custom_vector_3d = None  # 3D vector in model coordinate system (normalized)
         self.custom_vector_method = 'user_defined'  # 'user_defined', 'chain_com', 'atom_selection', 'chain_axis'
         self.custom_vector_params = {}  # Parameters for vector calculation (chain_ids, etc.)
+        self.marker_positions = None  # Store marker positions [point1, point2] when using from_markers method
+        self.show_arrows_at_markers = False  # Toggle to show arrows at marker positions
         
         # Cache for fast projection toggle
         self.cached_blank_image = None  # Cached image without projections
@@ -186,6 +188,12 @@ class ParticleMapperGUI:
         
         # Setup GUI
         self.setup_gui()
+        
+        # Auto-load vector from vector_val.txt if present
+        self._auto_load_vector_file()
+        
+        # Auto-load vector from vector_val.txt if present
+        self._auto_load_vector_file()
         
         # Register cleanup on window close
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -726,6 +734,12 @@ class ParticleMapperGUI:
         self.custom_arrow_color_entry.pack(side=tk.LEFT, padx=2)
         ttk.Button(color_frame, text="Pick", width=8,
                   command=self.pick_custom_arrow_color).pack(side=tk.LEFT, padx=2)
+        
+        # Toggle for showing arrows at marker positions
+        self.show_arrows_at_markers_var = tk.BooleanVar(value=self.show_arrows_at_markers)
+        ttk.Checkbutton(viz_frame, text="Show Arrows at Marker Positions (longer, not from particle center)", 
+                       variable=self.show_arrows_at_markers_var,
+                       command=self.toggle_arrows_at_markers).pack(anchor=tk.W, pady=(5,0))
         
         # Image Enhancement section
         enhance_frame = ttk.LabelFrame(scrollable_frame, text="Image Enhancement", padding=10)
@@ -2458,6 +2472,49 @@ class ParticleMapperGUI:
                         self.ax.plot([mid_x - perp_dx/2, mid_x + perp_dx/2],
                                     [mid_y - perp_dy/2, mid_y + perp_dy/2],
                                     color=self.custom_arrow_color, linewidth=2, alpha=0.9, zorder=18)
+                    
+                    # Draw arrows at marker positions if enabled
+                    if self.show_arrows_at_markers and self.marker_positions is not None:
+                        # Project marker positions onto micrograph plane
+                        # Marker positions are in 3D model coordinates, need to project them
+                        from scipy.spatial.transform import Rotation
+                        rot = Rotation.from_euler('ZYZ', pose, degrees=False)
+                        R = rot.as_matrix()
+                        
+                        # Project each marker position onto the micrograph plane
+                        for marker_pos in self.marker_positions:
+                            # Rotate marker position by particle rotation
+                            rotated_marker = R @ marker_pos
+                            
+                            # Project onto XY plane (micrograph plane)
+                            # The marker position is in model coordinates, we need to convert to micrograph coordinates
+                            # For now, we'll draw it relative to the particle center
+                            # Scale marker position to micrograph coordinates (assuming similar scale)
+                            # Use a longer arrow length for marker positions
+                            marker_arrow_length = self.custom_arrow_length * 2.0  # 2x longer
+                            
+                            # Project the rotated marker direction onto XY plane
+                            marker_dx = rotated_marker[0] * marker_arrow_length
+                            marker_dy = rotated_marker[1] * marker_arrow_length
+                            
+                            # Draw arrow at marker position (offset from particle center by marker position)
+                            # Convert marker 3D position to 2D offset on micrograph
+                            marker_offset_x = rotated_marker[0] * (self.projection_size / 2.0)  # Scale to projection size
+                            marker_offset_y = rotated_marker[1] * (self.projection_size / 2.0)
+                            
+                            marker_x = x_pixel + marker_offset_x
+                            marker_y = y_pixel + marker_offset_y
+                            
+                            # Draw arrow from marker position along the custom vector direction
+                            # The arrow should point along the custom vector direction from the marker position
+                            marker_vec_dx = rotated_vector[0] * marker_arrow_length
+                            marker_vec_dy = rotated_vector[1] * marker_arrow_length
+                            
+                            self.ax.arrow(marker_x, marker_y, marker_vec_dx, marker_vec_dy,
+                                         head_width=marker_arrow_length*0.3,
+                                         head_length=marker_arrow_length*0.2,
+                                         fc=self.custom_arrow_color, ec=self.custom_arrow_color,
+                                         alpha=alpha*0.8, linewidth=linewidth, linestyle='-', zorder=19)
                 except Exception as e:
                     print(f"Error drawing custom arrow {i}: {e}")
             
@@ -2733,6 +2790,34 @@ class ParticleMapperGUI:
         if self.show_scale_bar:
             self.update_display(use_cache=False)
     
+    def _auto_load_vector_file(self):
+        """Auto-load vector from vector_val.txt if present in current directory."""
+        try:
+            vector_file = Path.cwd() / 'vector_val.txt'
+            if vector_file.exists():
+                with open(vector_file, 'r') as f:
+                    lines = [line.strip() for line in f.readlines() if line.strip() and not line.strip().startswith('#')]
+                    if len(lines) >= 3:
+                        x = float(lines[0])
+                        y = float(lines[1])
+                        z = float(lines[2])
+                        vec = np.array([x, y, z], dtype=float)
+                        norm = np.linalg.norm(vec)
+                        if norm > 1e-10:
+                            self.custom_vector_3d = vec / norm
+                            self.custom_vector_method = 'from_markers'
+                            # Update UI fields
+                            if hasattr(self, 'custom_vector_x_entry'):
+                                self.custom_vector_x_entry.delete(0, tk.END)
+                                self.custom_vector_x_entry.insert(0, f"{self.custom_vector_3d[0]:.6f}")
+                                self.custom_vector_y_entry.delete(0, tk.END)
+                                self.custom_vector_y_entry.insert(0, f"{self.custom_vector_3d[1]:.6f}")
+                                self.custom_vector_z_entry.delete(0, tk.END)
+                                self.custom_vector_z_entry.insert(0, f"{self.custom_vector_3d[2]:.6f}")
+                            print(f"Auto-loaded vector from {vector_file}: [{self.custom_vector_3d[0]:.6f}, {self.custom_vector_3d[1]:.6f}, {self.custom_vector_3d[2]:.6f}]")
+        except Exception as e:
+            print(f"Could not auto-load vector from vector_val.txt: {e}")
+    
     def toggle_custom_arrow(self):
         """Toggle custom structural vector arrow display."""
         self.show_custom_arrow = self.show_custom_arrow_var.get()
@@ -2815,15 +2900,40 @@ class ParticleMapperGUI:
             point1 = np.array([m1_x, m1_y, m1_z])
             point2 = np.array([m2_x, m2_y, m2_z])
             
+            # Store marker positions for drawing arrows at marker locations
+            self.marker_positions = [point1, point2]
+            
             # Calculate vector from marker 1 to marker 2
             self.custom_vector_3d = calculate_vector_from_two_points(point1, point2)
             self.custom_vector_method = 'from_markers'
+            
+            # Print vector value
+            vector_str = f"[{self.custom_vector_3d[0]:.6f}, {self.custom_vector_3d[1]:.6f}, {self.custom_vector_3d[2]:.6f}]"
+            print(f"Custom vector from markers: {vector_str}")
+            print(f"  Marker 1: ({m1_x:.1f}, {m1_y:.1f}, {m1_z:.1f})")
+            print(f"  Marker 2: ({m2_x:.1f}, {m2_y:.1f}, {m2_z:.1f})")
+            
+            # Save to vector_val.txt file
+            try:
+                vector_file = Path.cwd() / 'vector_val.txt'
+                with open(vector_file, 'w') as f:
+                    f.write(f"# Custom vector calculated from ChimeraX markers\n")
+                    f.write(f"# Marker 1: ({m1_x:.1f}, {m1_y:.1f}, {m1_z:.1f})\n")
+                    f.write(f"# Marker 2: ({m2_x:.1f}, {m2_y:.1f}, {m2_z:.1f})\n")
+                    f.write(f"# Vector (normalized): {vector_str}\n")
+                    f.write(f"{self.custom_vector_3d[0]:.10f}\n")
+                    f.write(f"{self.custom_vector_3d[1]:.10f}\n")
+                    f.write(f"{self.custom_vector_3d[2]:.10f}\n")
+                print(f"Saved vector to {vector_file}")
+            except Exception as e:
+                print(f"Warning: Could not save vector to file: {e}")
             
             messagebox.showinfo("Success", 
                               f"Vector calculated from markers:\n"
                               f"Marker 1: ({m1_x:.1f}, {m1_y:.1f}, {m1_z:.1f})\n"
                               f"Marker 2: ({m2_x:.1f}, {m2_y:.1f}, {m2_z:.1f})\n"
-                              f"Vector: [{self.custom_vector_3d[0]:.6f}, {self.custom_vector_3d[1]:.6f}, {self.custom_vector_3d[2]:.6f}]")
+                              f"Vector: {vector_str}\n\n"
+                              f"Saved to vector_val.txt")
             
             # Also update the user_defined fields for reference
             self.custom_vector_x_entry.delete(0, tk.END)
@@ -2899,6 +3009,16 @@ class ParticleMapperGUI:
         self.custom_arrow_label.config(text=f"{val} px")
         if self.show_custom_arrow:
             self.update_display(use_cache=False)
+    
+    def toggle_arrows_at_markers(self):
+        """Toggle showing arrows at marker positions."""
+        self.show_arrows_at_markers = self.show_arrows_at_markers_var.get()
+        if self.show_arrows_at_markers and (self.marker_positions is None or self.custom_vector_3d is None):
+            messagebox.showwarning("Warning", "No marker positions available. Please calculate vector from markers first.")
+            self.show_arrows_at_markers = False
+            self.show_arrows_at_markers_var.set(False)
+            return
+        self.update_display(use_cache=False)
     
     def pick_custom_arrow_color(self):
         """Open color picker for custom arrow color."""
