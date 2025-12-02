@@ -1146,6 +1146,16 @@ class ParticleMapperGUI:
         # Normalize all micrograph paths in matched_data by filename
         matched_filenames = np.array([get_filename_from_path(p) for p in self.matched_data['micrograph_paths']])
         
+        num_files = len(self.micrograph_files)
+        # Skip file size calculation if there are too many files (performance optimization)
+        # File stat() calls can be slow on network filesystems
+        show_file_sizes = num_files < 500
+        
+        # Update status
+        if num_files > 100:
+            self.status_var.set(f"Updating image list ({num_files} micrographs)...")
+            self.root.update()
+        
         for idx, mg_file in enumerate(self.micrograph_files):
             mg_name = mg_file.name
             
@@ -1153,15 +1163,29 @@ class ParticleMapperGUI:
             mask = matched_filenames == mg_name
             num_particles = np.sum(mask)
             
-            # Get file size
-            if mg_file.exists():
-                size_mb = mg_file.stat().st_size / (1024 * 1024)
-                size_str = f"{size_mb:.1f} MB"
+            # Get file size (skip for large lists to avoid blocking)
+            if show_file_sizes:
+                if mg_file.exists():
+                    try:
+                        size_mb = mg_file.stat().st_size / (1024 * 1024)
+                        size_str = f"{size_mb:.1f} MB"
+                    except:
+                        size_str = "N/A"
+                else:
+                    size_str = "N/A"
+                display_text = f"{idx}: {mg_name[:50]}... Picks: {num_particles}, Size: {size_str}"
             else:
-                size_str = "N/A"
+                display_text = f"{idx}: {mg_name[:50]}... Picks: {num_particles}"
             
-            display_text = f"{idx}: {mg_name[:50]}... Picks: {num_particles}, Size: {size_str}"
             self.image_listbox.insert(tk.END, display_text)
+            
+            # Update GUI periodically for large lists to keep it responsive
+            if num_files > 100 and idx % 100 == 0:
+                self.root.update()
+        
+        # Clear status message
+        if num_files > 100:
+            self.status_var.set(f"Ready - {num_files} micrographs loaded")
     
     def find_micrograph_file(self, micrograph_path_str):
         """Find micrograph file by matching filename."""
