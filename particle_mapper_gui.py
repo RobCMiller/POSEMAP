@@ -2473,50 +2473,52 @@ class ParticleMapperGUI:
                                     [mid_y - perp_dy/2, mid_y + perp_dy/2],
                                     color=self.custom_arrow_color, linewidth=2, alpha=0.9, zorder=18)
                     
-                    # Draw arrows at marker positions if enabled
-                    if self.show_arrows_at_markers and self.marker_positions is not None:
-                        # Project marker positions onto micrograph plane
-                        # Marker positions are in 3D model coordinates, need to project them
-                        from scipy.spatial.transform import Rotation
-                        rot = Rotation.from_euler('ZYZ', pose, degrees=False)
-                        R = rot.as_matrix()
-                        
-                        # Project each marker position onto the micrograph plane
-                        for marker_pos in self.marker_positions:
-                            # Rotate marker position by particle rotation
-                            rotated_marker = R @ marker_pos
-                            
-                            # Project onto XY plane (micrograph plane)
-                            # The marker position is in model coordinates, we need to convert to micrograph coordinates
-                            # For now, we'll draw it relative to the particle center
-                            # Scale marker position to micrograph coordinates (assuming similar scale)
-                            # Use a longer arrow length for marker positions
-                            marker_arrow_length = self.custom_arrow_length * 2.0  # 2x longer
-                            
-                            # Project the rotated marker direction onto XY plane
-                            marker_dx = rotated_marker[0] * marker_arrow_length
-                            marker_dy = rotated_marker[1] * marker_arrow_length
-                            
-                            # Draw arrow at marker position (offset from particle center by marker position)
-                            # Convert marker 3D position to 2D offset on micrograph
-                            marker_offset_x = rotated_marker[0] * (self.projection_size / 2.0)  # Scale to projection size
-                            marker_offset_y = rotated_marker[1] * (self.projection_size / 2.0)
-                            
-                            marker_x = x_pixel + marker_offset_x
-                            marker_y = y_pixel + marker_offset_y
-                            
-                            # Draw arrow from marker position along the custom vector direction
-                            # The arrow should point along the custom vector direction from the marker position
-                            marker_vec_dx = rotated_vector[0] * marker_arrow_length
-                            marker_vec_dy = rotated_vector[1] * marker_arrow_length
-                            
-                            self.ax.arrow(marker_x, marker_y, marker_vec_dx, marker_vec_dy,
-                                         head_width=marker_arrow_length*0.3,
-                                         head_length=marker_arrow_length*0.2,
-                                         fc=self.custom_arrow_color, ec=self.custom_arrow_color,
-                                         alpha=alpha*0.8, linewidth=linewidth, linestyle='-', zorder=19)
                 except Exception as e:
                     print(f"Error drawing custom arrow {i}: {e}")
+            
+            # Draw arrows at marker positions if enabled (independent of regular custom arrow)
+            if self.show_arrows_at_markers and self.marker_positions is not None and self.custom_vector_3d is not None:
+                try:
+                    from scipy.spatial.transform import Rotation
+                    rot = Rotation.from_euler('ZYZ', pose, degrees=False)
+                    R = rot.as_matrix()
+                    
+                    # Rotate the custom vector for this particle
+                    rotated_vector = R @ self.custom_vector_3d
+                    
+                    # Use a longer arrow length for marker positions
+                    marker_arrow_length = self.custom_arrow_length * 2.0  # 2x longer
+                    
+                    # Get pixel size for coordinate conversion (use default if not set)
+                    pixel_size = self.pixel_size_angstroms if self.pixel_size_angstroms is not None else 1.0
+                    
+                    # Project each marker position onto the micrograph plane
+                    for marker_pos in self.marker_positions:
+                        # Rotate marker position by particle rotation
+                        rotated_marker = R @ marker_pos
+                        
+                        # Convert marker position from Angstroms to pixels
+                        # Marker positions are in 3D model coordinates (Angstroms)
+                        # Project onto XY plane and convert to pixel coordinates
+                        marker_offset_x_pixels = rotated_marker[0] / pixel_size
+                        marker_offset_y_pixels = rotated_marker[1] / pixel_size
+                        
+                        # Marker position on micrograph (relative to particle center)
+                        marker_x = x_pixel + marker_offset_x_pixels
+                        marker_y = y_pixel + marker_offset_y_pixels
+                        
+                        # Project the custom vector direction onto XY plane for arrow direction
+                        marker_vec_dx = rotated_vector[0] * marker_arrow_length
+                        marker_vec_dy = rotated_vector[1] * marker_arrow_length
+                        
+                        # Draw arrow from marker position along the custom vector direction
+                        self.ax.arrow(marker_x, marker_y, marker_vec_dx, marker_vec_dy,
+                                     head_width=marker_arrow_length*0.3,
+                                     head_length=marker_arrow_length*0.2,
+                                     fc=self.custom_arrow_color, ec=self.custom_arrow_color,
+                                     alpha=0.9, linewidth=2.5, linestyle='-', zorder=19)
+                except Exception as e:
+                    print(f"Error drawing marker position arrow {i}: {e}")
             
             particles_drawn += 1
         
