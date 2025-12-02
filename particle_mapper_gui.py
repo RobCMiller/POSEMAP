@@ -42,6 +42,20 @@ from scipy.ndimage import gaussian_filter
 class ParticleMapperGUI:
     """Redesigned GUI for visualizing particles on micrographs."""
     
+    @staticmethod
+    def _get_default_button_color():
+        """Get the default button background color (cross-platform)."""
+        try:
+            # Try to get the default button color from ttk style
+            style = ttk.Style()
+            default_color = style.lookup('TButton', 'background')
+            if default_color:
+                return default_color
+        except:
+            pass
+        # Fallback: return empty string to use system default
+        return ''
+    
     def __init__(self, root, refinement_cs_path=None, passthrough_cs_path=None,
                  pdb_path=None, micrograph_dir=None):
         """Initialize the GUI."""
@@ -485,9 +499,10 @@ class ParticleMapperGUI:
                                     font=('TkDefaultFont', 8), foreground='green')
             status_label.pack(anchor=tk.W, pady=(2, 0))
         
+        default_button_color = self._get_default_button_color()
         self.load_data_button = tk.Button(files_frame, text="Load All Data", 
                                           command=self.load_all_data,
-                                          bg='SystemButtonFace',
+                                          bg=default_button_color,
                                           relief=tk.RAISED)
         self.load_data_button.pack(pady=10)
         
@@ -962,7 +977,8 @@ class ParticleMapperGUI:
             # Soft burnt orange color
             self.load_data_button.config(bg='#D2691E', activebackground='#CD853F')
         else:
-            self.load_data_button.config(bg='SystemButtonFace', activebackground='SystemButtonFace')
+            default_button_color = self._get_default_button_color()
+            self.load_data_button.config(bg=default_button_color, activebackground=default_button_color)
     
     def load_all_data(self):
         """Load all data files."""
@@ -1102,7 +1118,8 @@ class ParticleMapperGUI:
             self.update_image_list()
             
             # Reset button color after loading
-            self.load_data_button.config(bg='SystemButtonFace')
+            default_button_color = self._get_default_button_color()
+            self.load_data_button.config(bg=default_button_color)
             
             # Don't automatically load first micrograph - let user select
             self.status_var.set(f"Loaded {len(self.matched_data['uids'])} particles, {len(self.micrograph_paths)} micrographs. Select an image to view.")
