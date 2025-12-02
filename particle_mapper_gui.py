@@ -1095,17 +1095,25 @@ class ParticleMapperGUI:
             
             # Create micrograph_paths list from actual files, using the filename as the key
             # Store both the actual file path and the matching CS path for each micrograph
+            
+            # Pre-compute a dictionary mapping filenames to CS paths for O(1) lookup
+            # This avoids O(n*m) nested loops
+            self.status_var.set("Building micrograph index...")
+            self.root.update()
+            
+            filename_to_cs_path = {}
+            for cs_path in self.matched_data['micrograph_paths']:
+                filename = get_filename_from_path(cs_path)
+                if filename not in filename_to_cs_path:
+                    filename_to_cs_path[filename] = normalize_path(cs_path)
+            
             self.micrograph_files = []  # Actual file paths
             self.micrograph_paths = []  # CS file paths (for particle matching)
             
             for mrc_file in actual_mrc_files:
                 self.micrograph_files.append(mrc_file)
-                # Find matching CS path by filename
-                matching_cs_path = None
-                for cs_path in np.unique(self.matched_data['micrograph_paths']):
-                    if get_filename_from_path(cs_path) == mrc_file.name:
-                        matching_cs_path = normalize_path(cs_path)
-                        break
+                # Look up matching CS path from pre-computed dictionary
+                matching_cs_path = filename_to_cs_path.get(mrc_file.name)
                 if matching_cs_path:
                     self.micrograph_paths.append(matching_cs_path)
                 else:
@@ -1143,9 +1151,6 @@ class ParticleMapperGUI:
         def get_filename_from_path(path_str):
             return Path(normalize_path(path_str)).name
         
-        # Normalize all micrograph paths in matched_data by filename
-        matched_filenames = np.array([get_filename_from_path(p) for p in self.matched_data['micrograph_paths']])
-        
         num_files = len(self.micrograph_files)
         # Skip file size calculation if there are too many files (performance optimization)
         # File stat() calls can be slow on network filesystems
@@ -1156,12 +1161,19 @@ class ParticleMapperGUI:
             self.status_var.set(f"Updating image list ({num_files} micrographs)...")
             self.root.update()
         
+        # Pre-compute particle counts per micrograph using a dictionary
+        # This avoids O(n*m) comparisons (3487 files * 137k particles = ~477M comparisons!)
+        # Instead, we do a single pass through particles: O(m)
+        filename_to_count = {}
+        for cs_path in self.matched_data['micrograph_paths']:
+            filename = get_filename_from_path(cs_path)
+            filename_to_count[filename] = filename_to_count.get(filename, 0) + 1
+        
         for idx, mg_file in enumerate(self.micrograph_files):
             mg_name = mg_file.name
             
-            # Count particles for this micrograph by filename match
-            mask = matched_filenames == mg_name
-            num_particles = np.sum(mask)
+            # Get particle count from pre-computed dictionary
+            num_particles = filename_to_count.get(mg_name, 0)
             
             # Get file size (skip for large lists to avoid blocking)
             if show_file_sizes:
