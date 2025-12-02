@@ -2427,13 +2427,22 @@ class ParticleMapperGUI:
             # Draw custom structural vector arrow if enabled
             if self.show_custom_arrow and self.custom_vector_3d is not None:
                 try:
-                    dx, dy = project_custom_vector(self.custom_vector_3d, pose, length=self.custom_arrow_length)
-                    
-                    # Calculate the Z-component (out-of-plane component) for visual indication
+                    # CRITICAL: The custom vector is already a direction vector (normalized)
+                    # It's defined in the model's coordinate system (centered at origin)
+                    # So we can directly rotate and project it
                     from scipy.spatial.transform import Rotation
                     rot = Rotation.from_euler('ZYZ', pose, degrees=False)
                     R = rot.as_matrix()
                     rotated_vector = R @ self.custom_vector_3d
+                    
+                    # Get pixel size for proper conversion
+                    pixel_size = self.pixel_size_angstroms if self.pixel_size_angstroms is not None else 1.0
+                    
+                    # Project onto XY plane and convert to pixels
+                    # Arrow length is in pixels, so we multiply by pixel_size to get Angstroms, then divide by pixel_size
+                    # Actually, project_custom_vector expects length in pixels, so we pass it directly
+                    dx, dy = project_custom_vector(self.custom_vector_3d, pose, length=self.custom_arrow_length)
+                    
                     z_component = rotated_vector[2]  # Z-component: positive = out of plane, negative = into plane
                     
                     # Visual indicators for in/out of plane:
@@ -2483,6 +2492,14 @@ class ParticleMapperGUI:
                     rot = Rotation.from_euler('ZYZ', pose, degrees=False)
                     R = rot.as_matrix()
                     
+                    # CRITICAL: Marker positions are in ChimeraX/PDB absolute coordinates
+                    # The structure is centered during projection, so we need to center the markers too
+                    # Calculate structure center from PDB data
+                    if hasattr(self, 'pdb_data') and self.pdb_data is not None:
+                        structure_center = np.mean(self.pdb_data['coords'], axis=0)
+                    else:
+                        structure_center = np.array([0.0, 0.0, 0.0])
+                    
                     # Rotate the custom vector for this particle
                     rotated_vector = R @ self.custom_vector_3d
                     
@@ -2494,20 +2511,25 @@ class ParticleMapperGUI:
                     
                     # Project each marker position onto the micrograph plane
                     for marker_pos in self.marker_positions:
-                        # Rotate marker position by particle rotation
-                        rotated_marker = R @ marker_pos
+                        # CRITICAL: Marker positions are in ChimeraX/PDB absolute coordinates (Angstroms)
+                        # The structure is centered during projection (see project_pdb_structure: coords - center)
+                        # So we MUST center the marker positions the same way
+                        centered_marker = marker_pos - structure_center
                         
-                        # Convert marker position from Angstroms to pixels
-                        # Marker positions are in 3D model coordinates (Angstroms)
-                        # Project onto XY plane and convert to pixel coordinates
+                        # Rotate centered marker position by particle rotation (same as structure)
+                        rotated_marker = R @ centered_marker
+                        
+                        # Project onto XY plane (drop Z coordinate) and convert from Angstroms to pixels
                         marker_offset_x_pixels = rotated_marker[0] / pixel_size
                         marker_offset_y_pixels = rotated_marker[1] / pixel_size
                         
-                        # Marker position on micrograph (relative to particle center)
+                        # Marker position on micrograph (offset from particle center)
                         marker_x = x_pixel + marker_offset_x_pixels
                         marker_y = y_pixel + marker_offset_y_pixels
                         
-                        # Project the custom vector direction onto XY plane for arrow direction
+                        # Arrow direction: project the custom vector (already rotated) onto XY plane
+                        # marker_arrow_length is in pixels, rotated_vector is unit vector
+                        # So we multiply by marker_arrow_length to get pixel offset
                         marker_vec_dx = rotated_vector[0] * marker_arrow_length
                         marker_vec_dy = rotated_vector[1] * marker_arrow_length
                         
@@ -2519,6 +2541,8 @@ class ParticleMapperGUI:
                                      alpha=0.9, linewidth=2.5, linestyle='-', zorder=19)
                 except Exception as e:
                     print(f"Error drawing marker position arrow {i}: {e}")
+                    import traceback
+                    traceback.print_exc()
             
             particles_drawn += 1
         
