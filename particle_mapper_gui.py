@@ -165,6 +165,7 @@ class ParticleMapperGUI:
         self.current_projection_files = []  # List of temporary projection PNG files for current micrograph
         self.projection_generation_limit = 1  # Only generate first 1 projection by default
         self.all_projections_generated = False  # Track if all projections have been generated
+        self._generating_projections = False  # Flag to prevent multiple simultaneous generations
         
         # Zoom functionality
         self.zoom_mode = False  # Whether zoom box selection is active
