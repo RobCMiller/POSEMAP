@@ -123,10 +123,10 @@ class ParticleMapperGUI:
         self.arrow_length = 90  # 3x longer default (was 30)
         
         # Rotation correction angles (in degrees) - hardcoded defaults, no GUI controls
-        # Try removing corrections to see if they're causing the rotation issue
+        # Restore corrections - they were needed for proper alignment
         self.rotation_correction_x = 0.0
-        self.rotation_correction_y = 0.0  # Try no correction
-        self.rotation_correction_z = 0.0  # Try no correction
+        self.rotation_correction_y = 180.0  # 180° around Y axis
+        self.rotation_correction_z = 180.0  # 180° around Z axis
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
         
@@ -2375,9 +2375,9 @@ class ParticleMapperGUI:
                             except (ValueError, AttributeError):
                                 pixel_size = 1.0  # Default fallback
                         # Convert shifts from Angstroms to pixels
-                        # Try applying shifts directly (not negated) - shifts represent how to move projection to match particle
-                        shift_x_px = shift[0] / pixel_size
-                        shift_y_px = shift[1] / pixel_size
+                        # Apply shifts to projection position (negated - shifts move particle, so projection moves opposite)
+                        shift_x_px = -shift[0] / pixel_size
+                        shift_y_px = -shift[1] / pixel_size
                     
                     extent = [x_pixel - half_size + shift_x_px, x_pixel + half_size + shift_x_px,
                              y_pixel - half_size + shift_y_px, y_pixel + half_size + shift_y_px]
