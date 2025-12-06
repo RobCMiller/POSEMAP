@@ -2375,9 +2375,9 @@ class ParticleMapperGUI:
                             except (ValueError, AttributeError):
                                 pixel_size = 1.0  # Default fallback
                         # Convert shifts from Angstroms to pixels
-                        # Apply shifts to projection position (opposite direction - shifts move particle, so projection moves opposite)
-                        shift_x_px = -shift[0] / pixel_size
-                        shift_y_px = -shift[1] / pixel_size
+                        # Try applying shifts directly (not negated) - shifts represent how to move projection to match particle
+                        shift_x_px = shift[0] / pixel_size
+                        shift_y_px = shift[1] / pixel_size
                     
                     extent = [x_pixel - half_size + shift_x_px, x_pixel + half_size + shift_x_px,
                              y_pixel - half_size + shift_y_px, y_pixel + half_size + shift_y_px]
