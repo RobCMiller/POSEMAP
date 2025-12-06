@@ -852,23 +852,23 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # If R rotates from model to view, and we want to rotate the model to view space,
     # then we should apply R to model coordinates. So we use R directly.
     
-    # CRITICAL: Try different rotation combinations to find the correct one
+    # CRITICAL: Determine correct rotation for PyMOL transform_object
+    # 
     # The fallback function uses: coords_rotated = R @ coords_centered
     # This means R rotates from model space to view space
     #
-    # For PyMOL's transform_object, we need to determine:
-    # 1. Should we use R or R.T?
-    # 2. Do we need a 180° in-plane rotation correction?
-    # 3. If so, should it be applied before or after R?
+    # For PyMOL's transform_object, we need to determine the correct transformation.
+    # PyMOL's transform_object applies: new_coords = transform @ old_coords
     #
-    # Let's try: R_180_z @ R (apply 180° rotation BEFORE the main rotation)
-    # This might be needed if PyMOL's coordinate system is flipped relative to our expectation
-    R_180_z = np.array([[-1.0, 0.0, 0.0],
-                        [0.0, -1.0, 0.0],
-                        [0.0, 0.0, 1.0]])
-    
-    # Try applying 180° rotation BEFORE R (instead of after)
-    R_transform = R_180_z @ R
+    # If R rotates from model to view: view_coords = R @ model_coords
+    # Then to transform the model: we want new_coords = R @ old_coords
+    # So transform = R
+    #
+    # However, there might be coordinate system issues. Let's try R.T instead,
+    # as PyMOL might apply transformations in a different way.
+    # Actually, let's try without any 180° correction first, just using R directly
+    # to match the fallback function exactly.
+    R_transform = R
     
     # PyMOL's transform_object expects a 4x4 transformation matrix
     # The matrix format is: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
