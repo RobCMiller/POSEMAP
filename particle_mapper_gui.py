@@ -2365,24 +2365,29 @@ class ParticleMapperGUI:
                                             largest_contour = max(contours, key=contour_area)
                                             
                                             # Convert contour coordinates from image space to data space
-                                            # extent = [left, right, bottom, top]
-                                            # origin='lower' means y increases upward
+                                            # CRITICAL: With origin='lower', matplotlib's imshow maps:
+                                            # - Array row 0 (first row) -> extent[2] (bottom of data coordinates)
+                                            # - Array row H-1 (last row) -> extent[3] (top of data coordinates)
+                                            # - Array col 0 (first col) -> extent[0] (left of data coordinates)
+                                            # - Array col W-1 (last col) -> extent[1] (right of data coordinates)
+                                            #
+                                            # skimage.measure.find_contours returns (row, col) where:
+                                            # - row=0 is the TOP of the image (in standard image coordinates)
+                                            # - row increases downward
+                                            # - col=0 is left, col increases rightward
+                                            #
+                                            # BUT with origin='lower', array row 0 is at the BOTTOM
+                                            # So we need to flip the row coordinate:
+                                            # - contour row r (where r=0 is top) maps to array row (H-1-r) (which is at bottom)
+                                            # - For pixel centers: y = extent[2] + ((H-1-r) + 0.5) * y_scale
+                                            # - Simplifying: y = extent[2] + (H - 0.5 - r) * y_scale
+                                            #
+                                            # For x (col), no flipping needed: x = extent[0] + (col + 0.5) * x_scale
                                             x_scale = (extent[1] - extent[0]) / rgba.shape[1]
                                             y_scale = (extent[3] - extent[2]) / rgba.shape[0]
-                                            
-                                            # Convert from (row, col) to (x, y) in data coordinates
-                                            # skimage find_contours returns (row, col) where:
-                                            # - row=0 is top of image, increases downward
-                                            # - col=0 is left of image, increases rightward
-                                            # With origin='lower', matplotlib maps:
-                                            # - array row 0 -> extent[2] (bottom)
-                                            # - array row (shape[0]-1) -> extent[3] (top)
-                                            # So: y = extent[2] + (shape[0] - 1 - row) * y_scale
-                                            # But we need to account for pixel centers, so:
-                                            # x = extent[0] + (col + 0.5) * x_scale
-                                            # y = extent[2] + (rgba.shape[0] - 0.5 - row) * y_scale
+                                            H = rgba.shape[0]
                                             x_coords = extent[0] + (largest_contour[:, 1] + 0.5) * x_scale
-                                            y_coords = extent[2] + (rgba.shape[0] - 0.5 - largest_contour[:, 0]) * y_scale
+                                            y_coords = extent[2] + (H - 0.5 - largest_contour[:, 0]) * y_scale
                                             
                                             # Draw outline in color #F2570C (only outer perimeter)
                                             self.ax.plot(x_coords, y_coords, color='#F2570C', 
@@ -2825,13 +2830,14 @@ class ParticleMapperGUI:
             self.update_display(use_cache=False)
     
     def _auto_load_vector_file(self):
-        """Auto-load vector from vector_val.txt if present in current directory."""
+        """Auto-load vector and marker positions from vector_val.txt if present in current directory."""
         try:
             vector_file = Path.cwd() / 'vector_val.txt'
             if vector_file.exists():
                 with open(vector_file, 'r') as f:
                     lines = [line.strip() for line in f.readlines() if line.strip() and not line.strip().startswith('#')]
                     if len(lines) >= 3:
+                        # First 3 lines are the vector
                         x = float(lines[0])
                         y = float(lines[1])
                         z = float(lines[2])
@@ -2840,6 +2846,38 @@ class ParticleMapperGUI:
                         if norm > 1e-10:
                             self.custom_vector_3d = vec / norm
                             self.custom_vector_method = 'from_markers'
+                            
+                            # Try to load marker positions if available (lines 4-9)
+                            if len(lines) >= 9:
+                                try:
+                                    m1_x = float(lines[3])
+                                    m1_y = float(lines[4])
+                                    m1_z = float(lines[5])
+                                    m2_x = float(lines[6])
+                                    m2_y = float(lines[7])
+                                    m2_z = float(lines[8])
+                                    self.marker_positions = [
+                                        np.array([m1_x, m1_y, m1_z]),
+                                        np.array([m2_x, m2_y, m2_z])
+                                    ]
+                                    # Update marker entry fields if they exist
+                                    if hasattr(self, 'marker1_x_entry'):
+                                        self.marker1_x_entry.delete(0, tk.END)
+                                        self.marker1_x_entry.insert(0, f"{m1_x:.1f}")
+                                        self.marker1_y_entry.delete(0, tk.END)
+                                        self.marker1_y_entry.insert(0, f"{m1_y:.1f}")
+                                        self.marker1_z_entry.delete(0, tk.END)
+                                        self.marker1_z_entry.insert(0, f"{m1_z:.1f}")
+                                        self.marker2_x_entry.delete(0, tk.END)
+                                        self.marker2_x_entry.insert(0, f"{m2_x:.1f}")
+                                        self.marker2_y_entry.delete(0, tk.END)
+                                        self.marker2_y_entry.insert(0, f"{m2_y:.1f}")
+                                        self.marker2_z_entry.delete(0, tk.END)
+                                        self.marker2_z_entry.insert(0, f"{m2_z:.1f}")
+                                    print(f"Auto-loaded vector and markers from {vector_file}")
+                                except (ValueError, IndexError):
+                                    print(f"Auto-loaded vector from {vector_file} (marker positions not found or invalid)")
+                            
                             # Update UI fields
                             if hasattr(self, 'custom_vector_x_entry'):
                                 self.custom_vector_x_entry.delete(0, tk.END)
@@ -2848,7 +2886,7 @@ class ParticleMapperGUI:
                                 self.custom_vector_y_entry.insert(0, f"{self.custom_vector_3d[1]:.6f}")
                                 self.custom_vector_z_entry.delete(0, tk.END)
                                 self.custom_vector_z_entry.insert(0, f"{self.custom_vector_3d[2]:.6f}")
-                            print(f"Auto-loaded vector from {vector_file}: [{self.custom_vector_3d[0]:.6f}, {self.custom_vector_3d[1]:.6f}, {self.custom_vector_3d[2]:.6f}]")
+                            print(f"Auto-loaded vector: [{self.custom_vector_3d[0]:.6f}, {self.custom_vector_3d[1]:.6f}, {self.custom_vector_3d[2]:.6f}]")
         except Exception as e:
             print(f"Could not auto-load vector from vector_val.txt: {e}")
     
@@ -2947,18 +2985,28 @@ class ParticleMapperGUI:
             print(f"  Marker 1: ({m1_x:.1f}, {m1_y:.1f}, {m1_z:.1f})")
             print(f"  Marker 2: ({m2_x:.1f}, {m2_y:.1f}, {m2_z:.1f})")
             
-            # Save to vector_val.txt file
+            # Save to vector_val.txt file with marker positions
             try:
                 vector_file = Path.cwd() / 'vector_val.txt'
                 with open(vector_file, 'w') as f:
                     f.write(f"# Custom vector calculated from ChimeraX markers\n")
-                    f.write(f"# Marker 1: ({m1_x:.1f}, {m1_y:.1f}, {m1_z:.1f})\n")
-                    f.write(f"# Marker 2: ({m2_x:.1f}, {m2_y:.1f}, {m2_z:.1f})\n")
+                    f.write(f"# Marker 1 (x, y, z): {m1_x:.6f}, {m1_y:.6f}, {m1_z:.6f}\n")
+                    f.write(f"# Marker 2 (x, y, z): {m2_x:.6f}, {m2_y:.6f}, {m2_z:.6f}\n")
                     f.write(f"# Vector (normalized): {vector_str}\n")
+                    f.write(f"# Format: vector_x, vector_y, vector_z (one per line)\n")
                     f.write(f"{self.custom_vector_3d[0]:.10f}\n")
                     f.write(f"{self.custom_vector_3d[1]:.10f}\n")
                     f.write(f"{self.custom_vector_3d[2]:.10f}\n")
-                print(f"Saved vector to {vector_file}")
+                    f.write(f"# Marker positions (for reference):\n")
+                    f.write(f"# marker1_x, marker1_y, marker1_z\n")
+                    f.write(f"{m1_x:.10f}\n")
+                    f.write(f"{m1_y:.10f}\n")
+                    f.write(f"{m1_z:.10f}\n")
+                    f.write(f"# marker2_x, marker2_y, marker2_z\n")
+                    f.write(f"{m2_x:.10f}\n")
+                    f.write(f"{m2_y:.10f}\n")
+                    f.write(f"{m2_z:.10f}\n")
+                print(f"Saved vector and marker positions to {vector_file}")
             except Exception as e:
                 print(f"Warning: Could not save vector to file: {e}")
             
