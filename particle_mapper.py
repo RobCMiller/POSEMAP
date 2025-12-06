@@ -818,6 +818,11 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
         ])
     
     # Center, set origin, and apply rotation
+    # CRITICAL: PyMOL's cmd.center() centers the structure on its center of mass (COM).
+    # The rotation is applied around the origin (set by cmd.origin()), which is at the COM.
+    # The projection is rendered centered in the image, and we place it at the particle center
+    # from cryoSPARC. If the structure's COM doesn't match the particle center from cryoSPARC,
+    # there will be a small offset. This is typically negligible but can cause slight misalignment.
     script_lines.append(f'cmd.center("{rep_obj}")')
     script_lines.append(f'cmd.origin("{rep_obj}")')
     

@@ -645,10 +645,22 @@ class ParticleMapperGUI:
         
         # Projection fine-tuning offset controls
         ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
-        ttk.Label(viz_frame, text="Projection Fine-Tuning", font=('TkDefaultFont', 9, 'bold')).pack(anchor=tk.W, pady=(5, 5))
         
-        offset_frame = ttk.Frame(viz_frame)
-        offset_frame.pack(fill=tk.X, pady=5)
+        # Collapsible fine-tuning section
+        fine_tuning_frame = ttk.LabelFrame(viz_frame, text="Projection Fine-Tuning (Advanced)", padding=5)
+        fine_tuning_frame.pack(fill=tk.X, pady=5)
+        
+        # Toggle button to show/hide fine-tuning controls
+        self.fine_tuning_expanded = tk.BooleanVar(value=False)
+        toggle_button = ttk.Checkbutton(fine_tuning_frame, text="Show Fine-Tuning Controls", 
+                                        variable=self.fine_tuning_expanded,
+                                        command=lambda: self._toggle_fine_tuning(fine_tuning_frame))
+        toggle_button.pack(anchor=tk.W, pady=(0, 5))
+        
+        # Container for fine-tuning controls (initially hidden)
+        offset_frame = ttk.Frame(fine_tuning_frame)
+        # Store reference for toggle function
+        self.fine_tuning_offset_frame = offset_frame
         
         # X offset slider
         ttk.Label(offset_frame, text="X Offset (pixels):").pack(anchor=tk.W, pady=(5, 0))
@@ -707,6 +719,9 @@ class ParticleMapperGUI:
         apply_rot_button = ttk.Button(offset_frame, text="Apply Rotation & Regenerate", 
                                      command=self.apply_rotation_correction_and_regenerate)
         apply_rot_button.pack(pady=(15, 5))
+        
+        # Initially hide the fine-tuning controls (they start collapsed)
+        # They will be shown/hidden by the toggle function
         
         # Scale bar controls
         ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
@@ -2429,8 +2444,18 @@ class ParticleMapperGUI:
                     
                     # Overlay the unique projection for this particle
                     # Calculate extent in data coordinates using float precision for sub-pixel accuracy
-                    # Projection is centered at particle center (x_pixel, y_pixel) which already includes shifts
-                    # Apply small offset adjustments for fine-tuning
+                    # 
+                    # CRITICAL CENTERING ISSUE:
+                    # The projection is rendered centered in its image (structure centered at image center).
+                    # We place the projection image centered at the particle center from cryoSPARC (x_pixel, y_pixel).
+                    # However, if the structure's center of mass (used by PyMOL's cmd.center()) doesn't exactly
+                    # match the particle center from cryoSPARC, there will be a small offset. This is typically
+                    # negligible (< 1 pixel) but can cause slight misalignment, especially if:
+                    # 1. The structure's center of mass differs from the particle center
+                    # 2. The rotation center (structure COM) doesn't match the particle center
+                    # 3. There are small coordinate system differences between cryoSPARC and PyMOL
+                    #
+                    # The projection_offset_x/y sliders allow manual fine-tuning to correct for these small offsets.
                     half_size = self.projection_size / 2.0  # Use float division
                     center_x = x_pixel + self.projection_offset_x
                     center_y = y_pixel + self.projection_offset_y
@@ -3301,6 +3326,15 @@ class ParticleMapperGUI:
         self.custom_arrow_label.config(text=f"{val} px")
         if self.show_custom_arrow:
             self.update_display(use_cache=False)
+    
+    def _toggle_fine_tuning(self, parent_frame):
+        """Toggle visibility of fine-tuning controls."""
+        if self.fine_tuning_expanded.get():
+            # Show controls
+            self.fine_tuning_offset_frame.pack(fill=tk.X, pady=5)
+        else:
+            # Hide controls
+            self.fine_tuning_offset_frame.pack_forget()
     
     def toggle_arrows_at_markers(self):
         """Toggle showing arrows at marker positions."""
