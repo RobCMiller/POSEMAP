@@ -2819,40 +2819,6 @@ class ParticleMapperGUI:
         self.alpha_label.config(text=f"{val:.2f}")
         self.update_display()
     
-    def apply_rotation_correction(self):
-        """Apply rotation correction angles and regenerate projections."""
-        # Update angles from sliders
-        self.rotation_correction_x = self.rot_x_var.get()
-        self.rotation_correction_y = self.rot_y_var.get()
-        self.rotation_correction_z = self.rot_z_var.get()
-        
-        # Clear projection cache and regenerate with new rotation correction
-        print(f"Applying rotation correction: X={self.rotation_correction_x:.1f}°, Y={self.rotation_correction_y:.1f}°, Z={self.rotation_correction_z:.1f}°")
-        
-        # Reset generation flag to allow new generation
-        self._generating_projections = False
-        
-        # Clear cache for current micrograph
-        if self.current_micrograph_idx is not None:
-            with self.cache_lock:
-                keys_to_remove = [k for k in self.projection_cache.keys() if k[0] == self.current_micrograph_idx]
-                for key in keys_to_remove:
-                    del self.projection_cache[key]
-                print(f"Cleared {len(keys_to_remove)} cached projections")
-        
-        # Reset the all_projections_generated flag so Generate All button is enabled
-        self.all_projections_generated = False
-        if hasattr(self, 'generate_all_button'):
-            self.generate_all_button.config(state=tk.NORMAL)
-        
-        # Actually generate projections for current micrograph
-        if self.current_micrograph_idx is not None and self.current_particles is not None:
-            # Generate all projections for current micrograph in background
-            self.generate_remaining_projections()
-        else:
-            # Just update display if no micrograph loaded
-            self.update_display(use_cache=False)
-    
     def update_size(self, val):
         """Update projection size - FAST: just resize cached arrays, don't regenerate from PDB."""
         old_size = self.projection_size
