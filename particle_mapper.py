@@ -827,15 +827,17 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # vectors from the model's coordinate system to the camera/view coordinate system.
     # 
     # To visualize the model as it appears in the micrograph, we need to rotate the MODEL
-    # by R^T (transpose), because:
-    # - R rotates vectors: v_camera = R @ v_model
-    # - To rotate the model to match the camera view, we apply R^T to model coordinates
-    # - This is because if we want model coordinates in camera space: v_camera = R @ v_model
-    #   then to transform the model itself: model_camera = R^T @ model_original
+    # by R (not R.T), because:
+    # - R rotates vectors: v_view = R @ v_model
+    # - To rotate the model to match the view, we apply R to model coordinates: model_view = R @ model_original
+    # - PyMOL's transform_object applies the transformation to object coordinates
+    # - So we use R directly to rotate the model to the correct orientation
     #
-    # However, PyMOL's transform_object applies the transformation to object coordinates,
-    # so we use R^T to rotate the model to the correct orientation.
-    R_transform = R.T  # Use transpose to rotate model to match camera view
+    # Note: In project_volume, R.T is used because we're going the opposite direction:
+    #   - We have coordinates in view space and want to find them in volume space
+    #   - So we use R.T to rotate from view space back to volume space
+    # But for PyMOL, we want to rotate the model to view space, so we use R directly.
+    R_transform = R  # Use R directly to rotate model to match camera view
     
     # PyMOL's transform_object expects a 4x4 transformation matrix in row-major format
     # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
