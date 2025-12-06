@@ -2481,14 +2481,28 @@ class ParticleMapperGUI:
                                         pixel_size = float(self.pixel_size_entry.get().strip())
                                     except (ValueError, AttributeError):
                                         pixel_size = 1.0
+                                
+                                # Get shifts if available
+                                shifts_angstroms = None
+                                if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
+                                    shift = self.current_particles['shifts'][i]
+                                    shifts_angstroms = (shift[0], shift[1])
+                                
                                 auto_offset_x, auto_offset_y = calculate_com_offset_correction(
                                     self.pdb_data, euler_angles,
-                                    (x_pixel, y_pixel), pixel_size, self.projection_size
+                                    (x_pixel, y_pixel), pixel_size, self.projection_size,
+                                    shifts_angstroms=shifts_angstroms
                                 )
+                                
+                                # Debug output for first few particles
+                                if i < 3:
+                                    print(f"Particle {i}: Auto COM offset = ({auto_offset_x:.2f}, {auto_offset_y:.2f}) pixels")
                             except Exception as e:
                                 # If calculation fails, use zero offset
                                 if i < 3:  # Only warn for first few
                                     print(f"Warning: Failed to calculate COM offset for particle {i}: {e}")
+                                    import traceback
+                                    traceback.print_exc()
                     
                     half_size = self.projection_size / 2.0  # Use float division
                     center_x = x_pixel + self.projection_offset_x + auto_offset_x
