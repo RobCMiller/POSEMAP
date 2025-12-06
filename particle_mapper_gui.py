@@ -2358,9 +2358,12 @@ class ParticleMapperGUI:
                     # Overlay the unique projection for this particle
                     # Calculate extent in data coordinates using float precision for sub-pixel accuracy
                     # Projection is centered at particle center (x_pixel, y_pixel) which already includes shifts
+                    # Apply small offset adjustments for fine-tuning
                     half_size = self.projection_size / 2.0  # Use float division
-                    extent = [x_pixel - half_size, x_pixel + half_size,
-                             y_pixel - half_size, y_pixel + half_size]
+                    center_x = x_pixel + self.projection_offset_x
+                    center_y = y_pixel + self.projection_offset_y
+                    extent = [center_x - half_size, center_x + half_size,
+                             center_y - half_size, center_y + half_size]
                     
                     # CRITICAL: projection is now an RGBA array (0-1 range) directly from PDB rendering
                     # It already has the correct colors and transparency - just apply user's alpha setting
