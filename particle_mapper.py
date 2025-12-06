@@ -852,34 +852,30 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # If R rotates from model to view, and we want to rotate the model to view space,
     # then we should apply R to model coordinates. So we use R directly.
     
-    # CRITICAL: Determine correct rotation for PyMOL transform_object
+    # CRITICAL: Try using sequential rotations instead of transform_object
     # 
-    # We've tried multiple combinations:
-    # 1. R directly - didn't work
-    # 2. R.T - didn't work  
-    # 3. R @ R_180_z (180° after) - didn't work
-    # 4. R_180_z @ R (180° before) - didn't work
+    # We've tried multiple matrix combinations with transform_object, none worked.
+    # Let's try sequential rotations with PyMOL's rotate command.
+    # 
+    # ZYZ convention: first rotate around Z by phi, then Y by theta, then Z by psi
+    # These are intrinsic rotations (each rotation is in the rotated coordinate system)
     #
-    # Let's try: R.T @ R_180_z (transpose with 180° rotation)
-    # This might be needed if PyMOL's transform_object applies the inverse transformation
-    R_180_z = np.array([[-1.0, 0.0, 0.0],
-                        [0.0, -1.0, 0.0],
-                        [0.0, 0.0, 1.0]])
-    
-    # Try R.T with 180° rotation correction
-    R_transform = R.T @ R_180_z
-    
-    # PyMOL's transform_object expects a 4x4 transformation matrix
-    # The matrix format is: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
-    # This is row-major format where each row of the 3x3 rotation matrix is followed by translation
-    transform_list = [
-        R_transform[0,0], R_transform[0,1], R_transform[0,2], 0.0,  # First row + tx
-        R_transform[1,0], R_transform[1,1], R_transform[1,2], 0.0,  # Second row + ty
-        R_transform[2,0], R_transform[2,1], R_transform[2,2], 0.0,  # Third row + tz
-        0.0, 0.0, 0.0, 1.0                                           # Bottom row
-    ]
-    transform_str = ', '.join([f'{x:.10f}' for x in transform_list])
-    script_lines.append(f'cmd.transform_object("{rep_obj}", [{transform_str}], homogenous=0)')
+    # PyMOL's rotate command: rotate axis, angle, object
+    # Rotations are applied sequentially in the object's coordinate system
+    #
+    # For ZYZ Euler angles, we apply:
+    # 1. Rotate around Z by phi
+    # 2. Rotate around Y by theta (in the rotated coordinate system)
+    # 3. Rotate around Z by psi (in the twice-rotated coordinate system)
+    #
+    # However, PyMOL's rotate might apply rotations in a different order or convention.
+    # Let's try the direct sequential rotations first.
+    if abs(phi_deg) > 1e-6:
+        script_lines.append(f'cmd.rotate("z", {phi_deg}, object="{rep_obj}")')
+    if abs(theta_deg) > 1e-6:
+        script_lines.append(f'cmd.rotate("y", {theta_deg}, object="{rep_obj}")')
+    if abs(psi_deg) > 1e-6:
+        script_lines.append(f'cmd.rotate("z", {psi_deg}, object="{rep_obj}")')
     
     # Zoom and set viewport
     script_lines.append(f'cmd.zoom("{rep_obj}", complete=1)')
