@@ -123,9 +123,10 @@ class ParticleMapperGUI:
         self.arrow_length = 90  # 3x longer default (was 30)
         
         # Rotation correction flags for troubleshooting
+        # Default: Y+Z flip (180° around both Y and Z axes) - this was found to be the best
         self.rotation_flip_x = False
-        self.rotation_flip_y = False
-        self.rotation_flip_z = False
+        self.rotation_flip_y = True
+        self.rotation_flip_z = True
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
         
