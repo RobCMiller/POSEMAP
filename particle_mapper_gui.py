@@ -1823,10 +1823,8 @@ class ParticleMapperGUI:
                     if not background:
                         if completed <= 3 or completed % 5 == 0:
                             self.root.after(0, self.update_display)
-                    elif background:
-                        # Update display more frequently in background mode so user sees progress
-                        if completed <= 5 or completed % 3 == 0:
-                            self.root.after(0, self.update_display)
+                    # Note: In background mode, we don't update display here to avoid thread issues
+                    # The final update will be handled by the caller
                         
             except Exception as e:
                 print(f"ERROR: Exception processing future for particle {particle_idx+1}: {e}")
@@ -1862,8 +1860,14 @@ class ParticleMapperGUI:
             if not background:
                 self.update_display()
         
-        # Schedule UI update on main thread
-        self.root.after(0, update_ui_final)
+        # Schedule UI update on main thread (only if not already in background thread)
+        if not background:
+            # We're in the main thread, can call directly
+            update_ui_final()
+        else:
+            # We're in a background thread - don't call root.after() here
+            # The caller (generate_in_background) will handle the UI update
+            pass
     
     def _cleanup_projection_cache(self):
         """Clean up projection cache for the previous micrograph."""
@@ -1952,7 +1956,13 @@ class ParticleMapperGUI:
                         num_cached = len([k for k in self.projection_cache.keys() 
                                         if k[0] == micrograph_idx])
                     print(f"Background generation complete: {num_cached} projections cached")
-                    self.root.after(0, self.update_display)
+                    # Schedule UI update on main thread - wrap in try/except to handle thread issues
+                    try:
+                        self.root.after(0, self.update_display)
+                    except RuntimeError as e:
+                        # Main thread is not in main loop - this can happen in some edge cases
+                        # Just skip the UI update, it will happen on next user interaction
+                        print(f"Note: Could not schedule UI update: {e}")
             except Exception as e:
                 print(f"Error in background generation: {e}")
                 import traceback
