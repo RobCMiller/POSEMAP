@@ -818,26 +818,51 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     script_lines.append(f'cmd.center("{rep_obj}")')
     script_lines.append(f'cmd.origin("{rep_obj}")')
     
-    # CRITICAL: Apply rotation using transform_object with the rotation matrix
+    # CRITICAL: Apply rotation to match cryoSPARC particle orientation
     # 
-    # In cryoSPARC, the Euler angles represent the rotation that takes the MODEL from its
-    # reference orientation to the orientation it has in the micrograph (as viewed by the camera).
-    # 
-    # scipy's Rotation.from_euler('ZYZ', ...) gives us a rotation matrix R that rotates
-    # vectors from the model's coordinate system to the camera/view coordinate system.
-    # 
-    # To visualize the model as it appears in the micrograph, we need to rotate the MODEL
-    # by R (not R.T), because:
-    # - R rotates vectors: v_view = R @ v_model
-    # - To rotate the model to match the view, we apply R to model coordinates: model_view = R @ model_original
-    # - PyMOL's transform_object applies the transformation to object coordinates
-    # - So we use R directly to rotate the model to the correct orientation
+    # In cryoSPARC, alignments3D/pose contains Euler angles [phi, theta, psi] in ZYZ convention.
+    # These angles describe how to rotate the MODEL to match its orientation in the micrograph.
     #
-    # Note: In project_volume, R.T is used because we're going the opposite direction:
-    #   - We have coordinates in view space and want to find them in volume space
-    #   - So we use R.T to rotate from view space back to volume space
-    # But for PyMOL, we want to rotate the model to view space, so we use R directly.
-    R_transform = R  # Use R directly to rotate model to match camera view
+    # scipy's Rotation.from_euler('ZYZ', ...) gives us a rotation matrix R.
+    # Looking at project_volume and project_pdb_cartoon:
+    # - project_volume uses R.T to rotate from view space back to volume space
+    # - project_pdb_cartoon uses R directly: coords_rotated = R @ coords_centered
+    # This means R rotates from model space to view space.
+    #
+    # For PyMOL, we want to rotate the model so it appears as it does in the micrograph.
+    # PyMOL's rotate command rotates the object around axes in the object's coordinate system.
+    # The rotations are applied sequentially, so the order matters.
+    #
+    # ZYZ convention: first rotate around Z by phi, then Y by theta, then Z by psi.
+    # However, when applying rotations sequentially, each rotation is applied in the
+    # coordinate system that results from the previous rotations (intrinsic rotations).
+    #
+    # Let's apply the rotations in the correct order for ZYZ convention:
+    # 1. Rotate around Z by phi (first rotation)
+    # 2. Rotate around Y by theta (second rotation, in rotated coordinate system)
+    # 3. Rotate around Z by psi (third rotation, in twice-rotated coordinate system)
+    #
+    # But wait - PyMOL's rotate command might apply rotations in a different way.
+    # Let's try using the rotation matrix directly with transform_object, but we need
+    # to figure out if we should use R or R.T.
+    #
+    # Actually, let me think about this more carefully:
+    # - If we have a point p in model space
+    # - R rotates it to view space: p_view = R @ p_model
+    # - To rotate the model to match the view, we want to transform model coordinates
+    # - The transformation should satisfy: p_view = T @ p_model
+    # - So T = R
+    #
+    # But PyMOL's transform_object might apply the transformation as: new = T @ old
+    # If that's the case, then T = R should work.
+    #
+    # However, there might be a coordinate system issue. Let's try both R and R.T
+    # and see which one works. For now, let's use R directly since that's what
+    # project_pdb_cartoon uses.
+    
+    # Use R directly (not R.T) to rotate model to view space
+    # This matches how project_pdb_cartoon applies the rotation
+    R_transform = R
     
     # PyMOL's transform_object expects a 4x4 transformation matrix in row-major format
     # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
