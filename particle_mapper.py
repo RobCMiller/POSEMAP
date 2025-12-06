@@ -606,18 +606,29 @@ def calculate_com_offset_correction(pdb_data: Dict, euler_angles: np.ndarray,
     # Let's calculate the offset by NOT centering at COM first, then seeing where
     # the COM ends up after rotation and projection, then comparing to particle center.
     
-    # Get rotation matrix
-    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    # CRITICAL: The previous calculation was wrong. Let me reconsider:
+    #
+    # PyMOL centers the structure at its COM BEFORE rotation. This means:
+    # 1. Structure COM in PDB coords -> PyMOL centers it -> COM becomes (0,0,0) in centered coords
+    # 2. After rotation, COM is still at (0,0,0) in rotated coords  
+    # 3. After projection, COM is at (0,0) in projection image (center of image)
+    # 4. We place projection image centered at particle_center_pixel
+    # 5. So structure COM appears at particle_center_pixel in micrograph coords
+    #
+    # The projection image center = structure COM (after PyMOL centering).
+    # When we place the projection centered at particle_center_pixel, the COM appears
+    # at particle_center_pixel. So they should already align, and offset should be 0.
+    #
+    # The problem: We can't directly compare PDB coordinates to cryoSPARC volume coordinates
+    # without knowing the transformation. The structure COM in PDB coords might not match
+    # the particle center in volume coords.
+    #
+    # Since we don't know the PDB->volume transformation, we can't calculate the offset.
+    # The fine-tuning sliders can be used to manually correct for any systematic offsets.
     
-    # Calculate where the structure COM would be after rotation (without centering)
-    # This tells us where the COM is in the rotated coordinate system
-    com_rotated = R @ com_pdb
-    
-    # Project to 2D (X, Y coordinates in Angstroms)
-    com_2d_angstroms = com_rotated[:2]
-    
-    # Convert to pixels
-    com_2d_pixels = com_2d_angstroms / pixel_size
+    # Return zero offset - the calculation needs to be reconsidered
+    offset_x = 0.0
+    offset_y = 0.0
     
     # Now, PyMOL centers the structure at its COM before rotation, which means
     # the COM becomes (0,0,0) in the centered coordinate system. After rotation,
