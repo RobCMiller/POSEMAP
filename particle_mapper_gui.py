@@ -122,11 +122,14 @@ class ParticleMapperGUI:
         self.pixel_size_angstroms = None  # Pixel size in Angstroms per pixel (for auto-scaling)
         self.arrow_length = 90  # 3x longer default (was 30)
         
-        # Rotation correction angles (in degrees) - hardcoded defaults, no GUI controls
-        # Fine-tune corrections slightly to fix small offset
+        # Rotation correction angles (in degrees) - can be fine-tuned via GUI
+        # Base corrections: Y=180°, Z=180° work well but may need fine-tuning
         self.rotation_correction_x = 0.0
         self.rotation_correction_y = 180.0  # 180° around Y axis
         self.rotation_correction_z = 180.0  # 180° around Z axis
+        self.rotation_correction_x_var = None  # Will be set in GUI setup
+        self.rotation_correction_y_var = None  # Will be set in GUI setup
+        self.rotation_correction_z_var = None  # Will be set in GUI setup
         # Small offset adjustments (in pixels) to fine-tune projection position
         # User found these values work well: X=-16.9, Y=20.0
         self.projection_offset_x = -16.9  # Small X offset in pixels
@@ -2873,6 +2876,58 @@ class ParticleMapperGUI:
                 self.offset_y_label.config(text=f"{value:.1f} px")
         # Update display immediately
         self.update_display()
+    
+    def update_rotation_correction(self, axis, value):
+        """Update rotation correction angle from slider (without regenerating)."""
+        if axis == 'x':
+            self.rotation_correction_x = value
+            if hasattr(self, 'rot_x_label'):
+                self.rot_x_label.config(text=f"{value:.1f}°")
+        elif axis == 'y':
+            self.rotation_correction_y = value
+            if hasattr(self, 'rot_y_label'):
+                self.rot_y_label.config(text=f"{value:.1f}°")
+        elif axis == 'z':
+            self.rotation_correction_z = value
+            if hasattr(self, 'rot_z_label'):
+                self.rot_z_label.config(text=f"{value:.1f}°")
+        # Don't update display immediately - user clicks "Apply" button to regenerate
+    
+    def apply_rotation_correction_and_regenerate(self):
+        """Apply rotation corrections and regenerate projections."""
+        # Update angles from sliders
+        if hasattr(self, 'rotation_correction_x_var'):
+            self.rotation_correction_x = self.rotation_correction_x_var.get()
+        if hasattr(self, 'rotation_correction_y_var'):
+            self.rotation_correction_y = self.rotation_correction_y_var.get()
+        if hasattr(self, 'rotation_correction_z_var'):
+            self.rotation_correction_z = self.rotation_correction_z_var.get()
+        
+        print(f"Applying rotation corrections: X={self.rotation_correction_x:.1f}°, Y={self.rotation_correction_y:.1f}°, Z={self.rotation_correction_z:.1f}°")
+        
+        # Reset generation flag to allow new generation
+        self._generating_projections = False
+        
+        # Clear cache for current micrograph
+        if self.current_micrograph_idx is not None:
+            with self.cache_lock:
+                keys_to_remove = [k for k in self.projection_cache.keys() if k[0] == self.current_micrograph_idx]
+                for key in keys_to_remove:
+                    del self.projection_cache[key]
+                print(f"Cleared {len(keys_to_remove)} cached projections")
+        
+        # Reset the all_projections_generated flag so Generate All button is enabled
+        self.all_projections_generated = False
+        if hasattr(self, 'generate_all_button'):
+            self.generate_all_button.config(state=tk.NORMAL)
+        
+        # Regenerate projections for current micrograph
+        if self.current_micrograph_idx is not None and self.current_particles is not None:
+            # Generate all projections for current micrograph in foreground
+            self.generate_remaining_projections()
+        else:
+            # Just update display if no micrograph loaded
+            self.update_display(use_cache=False)
     
     def update_size(self, val):
         """Update projection size - FAST: just resize cached arrays, don't regenerate from PDB."""
