@@ -1896,6 +1896,9 @@ class ParticleMapperGUI:
         
         # Update button state and status (schedule on main thread)
         def update_ui_final():
+            # Reset generation flag when generation completes
+            self._generating_projections = False
+            
             if limit is not None and num_to_generate < num_particles:
                 remaining = num_particles - cached_count
                 self.status_var.set(f"Ready - {cached_count}/{num_particles} projections cached ({remaining} remaining)")
@@ -1916,9 +1919,14 @@ class ParticleMapperGUI:
             # We're in the main thread, can call directly
             update_ui_final()
         else:
-            # We're in a background thread - don't call root.after() here
-            # The caller (generate_in_background) will handle the UI update
-            pass
+            # We're in a background thread - schedule on main thread
+            # Also reset flag immediately since we're done generating
+            self._generating_projections = False
+            try:
+                self.root.after(0, update_ui_final)
+            except RuntimeError:
+                # Main thread not in main loop - flag already reset above
+                pass
     
     def _cleanup_projection_cache(self):
         """Clean up projection cache for the previous micrograph."""
