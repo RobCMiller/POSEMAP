@@ -2269,25 +2269,25 @@ class ParticleMapperGUI:
             
             # Apply 2D shifts from refinement (in Angstroms, convert to pixels)
             # cryoSPARC's alignments3D/shift contains [shift_x, shift_y] in Angstroms
-            # NOTE: Shifts represent sub-pixel corrections from refinement
-            # They should be applied to the particle center position
-            if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
-                shift = self.current_particles['shifts'][i]  # [shift_x, shift_y] in Angstroms
-                # Get pixel size from particle data or GUI entry field
-                if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i:
-                    pixel_size = self.current_particles['pixel_size'][i]
-                else:
-                    # Fallback to GUI entry field
-                    try:
-                        pixel_size = float(self.pixel_size_entry.get().strip())
-                    except (ValueError, AttributeError):
-                        pixel_size = 1.0  # Default fallback
-                # Convert shifts from Angstroms to pixels
-                # cryoSPARC shifts are 2D shifts in the micrograph plane
-                # They represent sub-pixel corrections from refinement
-                # Apply shifts directly (no negation) - shifts move the particle center
-                x_pixel += shift[0] / pixel_size
-                y_pixel += shift[1] / pixel_size
+            # NOTE: TEMPORARILY DISABLED to test if shifts are causing the offset
+            # The particle center from passthrough should already be correct
+            # if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
+            #     shift = self.current_particles['shifts'][i]  # [shift_x, shift_y] in Angstroms
+            #     # Get pixel size from particle data or GUI entry field
+            #     if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i:
+            #         pixel_size = self.current_particles['pixel_size'][i]
+            #     else:
+            #         # Fallback to GUI entry field
+            #         try:
+            #             pixel_size = float(self.pixel_size_entry.get().strip())
+            #         except (ValueError, AttributeError):
+            #             pixel_size = 1.0  # Default fallback
+            #     # Convert shifts from Angstroms to pixels
+            #     # cryoSPARC shifts are 2D shifts in the micrograph plane
+            #     # They represent sub-pixel corrections from refinement
+            #     # Apply shifts directly (no negation) - shifts move the particle center
+            #     x_pixel += shift[0] / pixel_size
+            #     y_pixel += shift[1] / pixel_size
             
             # Keep pixel coordinates as float for sub-pixel accuracy
             # Only convert to int for bounds checking
