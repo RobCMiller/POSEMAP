@@ -122,11 +122,10 @@ class ParticleMapperGUI:
         self.pixel_size_angstroms = None  # Pixel size in Angstroms per pixel (for auto-scaling)
         self.arrow_length = 90  # 3x longer default (was 30)
         
-        # Rotation correction angles for troubleshooting (in degrees)
-        # Default: Y+Z flip (180° around both Y and Z axes) - this was found to be the best
-        self.rotation_correction_x = 0.0  # Rotation around X axis in degrees
-        self.rotation_correction_y = 180.0  # Rotation around Y axis in degrees
-        self.rotation_correction_z = 180.0  # Rotation around Z axis in degrees
+        # Rotation correction angles (in degrees) - hardcoded defaults, no GUI controls
+        self.rotation_correction_x = 0.0
+        self.rotation_correction_y = 180.0  # Default: 180° around Y axis
+        self.rotation_correction_z = 180.0  # Default: 180° around Z axis
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
         
@@ -633,48 +632,6 @@ class ParticleMapperGUI:
         arrow_scale.pack(fill=tk.X, pady=2)
         self.arrow_label = ttk.Label(viz_frame, text=f"{self.arrow_length} px")
         self.arrow_label.pack(anchor=tk.W)
-        
-        # Rotation correction controls (for troubleshooting)
-        ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
-        ttk.Label(viz_frame, text="Rotation Correction (Troubleshooting)", font=('TkDefaultFont', 9, 'bold')).pack(anchor=tk.W, pady=(5, 5))
-        
-        correction_frame = ttk.Frame(viz_frame)
-        correction_frame.pack(fill=tk.X, pady=5)
-        
-        # X-axis rotation slider
-        ttk.Label(correction_frame, text="Rotate X (degrees):").pack(anchor=tk.W, pady=(5, 0))
-        self.rot_x_var = tk.DoubleVar(value=self.rotation_correction_x)
-        rot_x_scale = ttk.Scale(correction_frame, from_=-180.0, to=180.0, 
-                                variable=self.rot_x_var, orient=tk.HORIZONTAL,
-                                command=lambda v: self.update_rotation_slider('x', float(v)))
-        rot_x_scale.pack(fill=tk.X, pady=2)
-        self.rot_x_label = ttk.Label(correction_frame, text=f"{self.rotation_correction_x:.1f}°")
-        self.rot_x_label.pack(anchor=tk.W)
-        
-        # Y-axis rotation slider
-        ttk.Label(correction_frame, text="Rotate Y (degrees):").pack(anchor=tk.W, pady=(10, 0))
-        self.rot_y_var = tk.DoubleVar(value=self.rotation_correction_y)
-        rot_y_scale = ttk.Scale(correction_frame, from_=-180.0, to=180.0, 
-                                variable=self.rot_y_var, orient=tk.HORIZONTAL,
-                                command=lambda v: self.update_rotation_slider('y', float(v)))
-        rot_y_scale.pack(fill=tk.X, pady=2)
-        self.rot_y_label = ttk.Label(correction_frame, text=f"{self.rotation_correction_y:.1f}°")
-        self.rot_y_label.pack(anchor=tk.W)
-        
-        # Z-axis rotation slider
-        ttk.Label(correction_frame, text="Rotate Z (degrees):").pack(anchor=tk.W, pady=(10, 0))
-        self.rot_z_var = tk.DoubleVar(value=self.rotation_correction_z)
-        rot_z_scale = ttk.Scale(correction_frame, from_=-180.0, to=180.0, 
-                                variable=self.rot_z_var, orient=tk.HORIZONTAL,
-                                command=lambda v: self.update_rotation_slider('z', float(v)))
-        rot_z_scale.pack(fill=tk.X, pady=2)
-        self.rot_z_label = ttk.Label(correction_frame, text=f"{self.rotation_correction_z:.1f}°")
-        self.rot_z_label.pack(anchor=tk.W)
-        
-        # Apply button
-        apply_button = ttk.Button(correction_frame, text="Apply Rotation Correction", 
-                                 command=self.apply_rotation_correction)
-        apply_button.pack(pady=(15, 5))
         
         # Scale bar controls
         self.show_scale_bar_var = tk.BooleanVar(value=self.show_scale_bar)
