@@ -2244,8 +2244,21 @@ class ParticleMapperGUI:
         for i in range(len(self.current_particles['poses'])):
             x_frac = self.current_particles['center_x_frac'][i]
             y_frac = self.current_particles['center_y_frac'][i]
-            x_pixel = int(x_frac * mg_shape[1])
-            y_pixel = int(y_frac * mg_shape[0])
+            x_pixel = x_frac * mg_shape[1]
+            y_pixel = y_frac * mg_shape[0]
+            
+            # Apply 2D shifts from refinement (in Angstroms, convert to pixels)
+            # cryoSPARC's alignments3D/shift contains [shift_x, shift_y] in Angstroms
+            if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
+                shift = self.current_particles['shifts'][i]  # [shift_x, shift_y] in Angstroms
+                pixel_size = self.current_particles['pixel_size'][i] if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i else self.pixel_size
+                # Convert shifts from Angstroms to pixels
+                x_pixel += shift[0] / pixel_size
+                y_pixel += shift[1] / pixel_size
+            
+            # Convert to integer for pixel coordinates
+            x_pixel = int(x_pixel)
+            y_pixel = int(y_pixel)
             
             if x_pixel < 0 or x_pixel >= display_image.shape[1] or \
                y_pixel < 0 or y_pixel >= display_image.shape[0]:
