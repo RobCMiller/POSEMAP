@@ -2270,25 +2270,22 @@ class ParticleMapperGUI:
             
             # Apply 2D shifts from refinement (in Angstroms, convert to pixels)
             # cryoSPARC's alignments3D/shift contains [shift_x, shift_y] in Angstroms
-            # NOTE: TEMPORARILY DISABLED to test if shifts are causing the offset
-            # The particle center from passthrough should already be correct
-            # if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
-            #     shift = self.current_particles['shifts'][i]  # [shift_x, shift_y] in Angstroms
-            #     # Get pixel size from particle data or GUI entry field
-            #     if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i:
-            #         pixel_size = self.current_particles['pixel_size'][i]
-            #     else:
-            #         # Fallback to GUI entry field
-            #         try:
-            #             pixel_size = float(self.pixel_size_entry.get().strip())
-            #         except (ValueError, AttributeError):
-            #             pixel_size = 1.0  # Default fallback
-            #     # Convert shifts from Angstroms to pixels
-            #     # cryoSPARC shifts are 2D shifts in the micrograph plane
-            #     # They represent sub-pixel corrections from refinement
-            #     # Apply shifts directly (no negation) - shifts move the particle center
-            #     x_pixel += shift[0] / pixel_size
-            #     y_pixel += shift[1] / pixel_size
+            # Apply shifts to particle center position
+            if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
+                shift = self.current_particles['shifts'][i]  # [shift_x, shift_y] in Angstroms
+                # Get pixel size from particle data or GUI entry field
+                if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i:
+                    pixel_size = self.current_particles['pixel_size'][i]
+                else:
+                    # Fallback to GUI entry field
+                    try:
+                        pixel_size = float(self.pixel_size_entry.get().strip())
+                    except (ValueError, AttributeError):
+                        pixel_size = 1.0  # Default fallback
+                # Convert shifts from Angstroms to pixels
+                # Apply shifts directly to particle center (shifts represent how particle moved during refinement)
+                x_pixel += shift[0] / pixel_size
+                y_pixel += shift[1] / pixel_size
             
             # Keep pixel coordinates as float for sub-pixel accuracy
             # Only convert to int for bounds checking
@@ -2357,30 +2354,10 @@ class ParticleMapperGUI:
                     
                     # Overlay the unique projection for this particle
                     # Calculate extent in data coordinates using float precision for sub-pixel accuracy
+                    # Projection is centered at particle center (x_pixel, y_pixel) which already includes shifts
                     half_size = self.projection_size / 2.0  # Use float division
-                    
-                    # Apply 2D shifts from refinement to the projection position (not particle center)
-                    # cryoSPARC shifts are sub-pixel corrections that should offset the projection
-                    shift_x_px = 0.0
-                    shift_y_px = 0.0
-                    if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
-                        shift = self.current_particles['shifts'][i]  # [shift_x, shift_y] in Angstroms
-                        # Get pixel size from particle data or GUI entry field
-                        if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i:
-                            pixel_size = self.current_particles['pixel_size'][i]
-                        else:
-                            # Fallback to GUI entry field
-                            try:
-                                pixel_size = float(self.pixel_size_entry.get().strip())
-                            except (ValueError, AttributeError):
-                                pixel_size = 1.0  # Default fallback
-                        # Convert shifts from Angstroms to pixels
-                        # Apply shifts to projection position (negated - shifts move particle, so projection moves opposite)
-                        shift_x_px = -shift[0] / pixel_size
-                        shift_y_px = -shift[1] / pixel_size
-                    
-                    extent = [x_pixel - half_size + shift_x_px, x_pixel + half_size + shift_x_px,
-                             y_pixel - half_size + shift_y_px, y_pixel + half_size + shift_y_px]
+                    extent = [x_pixel - half_size, x_pixel + half_size,
+                             y_pixel - half_size, y_pixel + half_size]
                     
                     # CRITICAL: projection is now an RGBA array (0-1 range) directly from PDB rendering
                     # It already has the correct colors and transparency - just apply user's alpha setting
