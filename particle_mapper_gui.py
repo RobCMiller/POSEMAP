@@ -2820,8 +2820,19 @@ class ParticleMapperGUI:
                 for key in keys_to_remove:
                     del self.projection_cache[key]
                 print(f"Cleared {len(keys_to_remove)} cached projections")
-        # Regenerate projections
-        self.update_display(use_cache=False)
+        
+        # Reset the all_projections_generated flag so Generate All button is enabled
+        self.all_projections_generated = False
+        if hasattr(self, 'generate_all_button'):
+            self.generate_all_button.config(state=tk.NORMAL)
+        
+        # Actually generate projections for current micrograph
+        if self.current_micrograph_idx is not None and self.current_particles is not None:
+            # Generate all projections for current micrograph in background
+            self.generate_remaining_projections()
+        else:
+            # Just update display if no micrograph loaded
+            self.update_display(use_cache=False)
     
     def update_size(self, val):
         """Update projection size - FAST: just resize cached arrays, don't regenerate from PDB."""
