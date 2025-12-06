@@ -676,7 +676,7 @@ class ParticleMapperGUI:
         # X rotation slider
         ttk.Label(offset_frame, text="Rotate X (degrees):").pack(anchor=tk.W, pady=(5, 0))
         self.rotation_correction_x_var = tk.DoubleVar(value=self.rotation_correction_x)
-        rot_x_scale = ttk.Scale(offset_frame, from_=-10.0, to=10.0, 
+        rot_x_scale = ttk.Scale(offset_frame, from_=-180.0, to=180.0, 
                                 variable=self.rotation_correction_x_var, orient=tk.HORIZONTAL,
                                 command=lambda v: self.update_rotation_correction('x', float(v)))
         rot_x_scale.pack(fill=tk.X, pady=2)
