@@ -121,6 +121,11 @@ class ParticleMapperGUI:
         self.base_projection_size = None  # Store original size from ChimeraX generation
         self.pixel_size_angstroms = None  # Pixel size in Angstroms per pixel (for auto-scaling)
         self.arrow_length = 90  # 3x longer default (was 30)
+        
+        # Rotation correction flags for troubleshooting
+        self.rotation_flip_x = False
+        self.rotation_flip_y = False
+        self.rotation_flip_z = False
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
         
@@ -626,6 +631,27 @@ class ParticleMapperGUI:
         arrow_scale.pack(fill=tk.X, pady=2)
         self.arrow_label = ttk.Label(viz_frame, text=f"{self.arrow_length} px")
         self.arrow_label.pack(anchor=tk.W)
+        
+        # Rotation correction controls (for troubleshooting)
+        ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
+        ttk.Label(viz_frame, text="Rotation Correction (Troubleshooting)", font=('TkDefaultFont', 9, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        
+        correction_frame = ttk.Frame(viz_frame)
+        correction_frame.pack(fill=tk.X, pady=5)
+        
+        self.flip_x_var = tk.BooleanVar(value=self.rotation_flip_x)
+        self.flip_y_var = tk.BooleanVar(value=self.rotation_flip_y)
+        self.flip_z_var = tk.BooleanVar(value=self.rotation_flip_z)
+        
+        ttk.Checkbutton(correction_frame, text="Flip X (180° around X)", 
+                       variable=self.flip_x_var,
+                       command=lambda: self.update_rotation_correction('x')).pack(anchor=tk.W, pady=2)
+        ttk.Checkbutton(correction_frame, text="Flip Y (180° around Y)", 
+                       variable=self.flip_y_var,
+                       command=lambda: self.update_rotation_correction('y')).pack(anchor=tk.W, pady=2)
+        ttk.Checkbutton(correction_frame, text="Flip Z (180° around Z)", 
+                       variable=self.flip_z_var,
+                       command=lambda: self.update_rotation_correction('z')).pack(anchor=tk.W, pady=2)
         
         # Scale bar controls
         self.show_scale_bar_var = tk.BooleanVar(value=self.show_scale_bar)
@@ -1681,6 +1707,9 @@ class ParticleMapperGUI:
             chain_color_map=chain_color_map,
             default_protein_color=self.default_protein_color,
             default_nucleic_color=self.default_nucleic_color,
+            rotation_flip_x=self.rotation_flip_x,
+            rotation_flip_y=self.rotation_flip_y,
+            rotation_flip_z=self.rotation_flip_z,
             pdb_path=pdb_path,
             chimerax_path=chimerax_path
         )

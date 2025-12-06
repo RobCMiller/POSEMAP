@@ -622,7 +622,10 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
                         default_nucleic_color: str = '#3B1F2B',  # Updated to match new style
                         ribbon_width: float = 5.0,
                         pdb_path: Optional[str] = None,
-                        pymol_path: Optional[str] = None) -> np.ndarray:
+                        pymol_path: Optional[str] = None,
+                        rotation_flip_x: bool = False,
+                        rotation_flip_y: bool = False,
+                        rotation_flip_z: bool = False) -> np.ndarray:
     """
     Project a structure file (.pdb or .cif) using fast pseudo-surface rendering (CA/P spheres).
     Uses only CA atoms for protein and P atoms for nucleic acids for speed.
@@ -978,7 +981,10 @@ def project_pdb_structure(pdb_data: Dict, euler_angles: np.ndarray,
                           atom_radius: float = 2.5,
                           line_width: float = 0.5,
                           pdb_path: Optional[str] = None,
-                          chimerax_path: Optional[str] = None) -> np.ndarray:
+                          chimerax_path: Optional[str] = None,
+                          rotation_flip_x: bool = False,
+                          rotation_flip_y: bool = False,
+                          rotation_flip_z: bool = False) -> np.ndarray:
     """
     Project a PDB structure at given Euler angles to a 2D RGBA image.
     
@@ -1002,7 +1008,10 @@ def project_pdb_structure(pdb_data: Dict, euler_angles: np.ndarray,
         # Use PyMOL API for proper structural rendering with correct rotation
         return project_pdb_cartoon_pymol(pdb_data, euler_angles, output_size,
                                          chain_color_map, default_protein_color, default_nucleic_color,
-                                         pdb_path=pdb_path, pymol_path=chimerax_path)  # Reuse chimerax_path param for pymol_path
+                                         pdb_path=pdb_path, pymol_path=chimerax_path,
+                                         rotation_flip_x=rotation_flip_x,
+                                         rotation_flip_y=rotation_flip_y,
+                                         rotation_flip_z=rotation_flip_z)  # Reuse chimerax_path param for pymol_path
     
     # If no pdb_path provided, raise error (ChimeraX rendering requires it)
     if not pdb_path:
