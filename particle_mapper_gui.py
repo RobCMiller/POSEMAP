@@ -1829,14 +1829,18 @@ class ParticleMapperGUI:
                 for f in futures:
                     if not f.done():
                         f.cancel()
-                break
+                # Reset generation flag
+                self._generating_projections = False
+                return
             
             if background and self.current_micrograph_idx != micrograph_idx:
                 print(f"Background preloading cancelled (micrograph changed)")
                 for f in futures:
                     if not f.done():
                         f.cancel()
-                break
+                # Reset generation flag
+                self._generating_projections = False
+                return
             
             particle_idx = futures[future]
             try:
