@@ -883,9 +883,9 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
         rot_y_rad = np.deg2rad(rotation_correction_y)
         rot_z_rad = np.deg2rad(rotation_correction_z)
         
-        # Create rotation from Euler angles (XYZ intrinsic convention)
-        # This applies rotations in order: X, then Y, then Z
-        rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
+        # Create rotation from Euler angles (ZYX extrinsic convention - try different order)
+        # Try ZYX instead of XYZ to see if order matters
+        rot_correction = Rot.from_euler('ZYX', [rot_z_rad, rot_y_rad, rot_x_rad], degrees=False)
         R_correction = rot_correction.as_matrix()
     else:
         R_correction = np.eye(3)  # No correction
