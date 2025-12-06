@@ -1101,7 +1101,15 @@ def project_pdb_structure(pdb_data: Dict, euler_angles: np.ndarray,
     
     # Scale to fit output size
     scale = min(output_size) / max_range if max_range > 1e-6 else 1.0
-    coords_scaled = (coords_2d - min_coords) * scale
+    # Center the structure in the output image
+    # Calculate center of bounding box
+    bbox_center = (min_coords + max_coords) / 2.0
+    # Translate coordinates so structure center is at origin, then scale
+    coords_centered = coords_2d - bbox_center
+    coords_scaled = coords_centered * scale
+    # Translate to center of output image
+    output_center = np.array([output_size[1] / 2.0, output_size[0] / 2.0])
+    coords_scaled = coords_scaled + output_center
     
     # Sort atoms by depth (Z coordinate after rotation) - render back to front
     z_coords = coords_rotated[:, 2]
