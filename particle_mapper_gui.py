@@ -2245,10 +2245,16 @@ class ParticleMapperGUI:
                         markerfacecolor='#F42C04', markeredgecolor='#4d4d4f', 
                         markeredgewidth=1.5, alpha=1.0, zorder=15, linestyle='None')
             
+            # Load projection data if needed (for either projection display or outline)
+            # We need the projection data even if only drawing outline
+            projection = None
+            rgba = None
+            extent = None
+            
             # Draw projection overlay - ALWAYS show per-particle projections (this is the core feature)
             # Only skip if explicitly disabled by user
             # Show all projections that are cached (check cache, not limit)
-            if self.show_projections:
+            if self.show_projections or self.show_outlines:
                 try:
                     # CRITICAL: Each particle gets its own unique PDB-generated projection based on its 3D pose
                     cache_key = (self.current_micrograph_idx, i)
@@ -2340,21 +2346,40 @@ class ParticleMapperGUI:
                             elif self.projection_alpha < 0.99 and abs(alpha_max - self.projection_alpha) > 0.01:
                                 print(f"    WARNING: Alpha max is {alpha_max:.3f}, expected {self.projection_alpha:.2f}")
                         
-                        # Draw with proper transparency - use the original RGBA directly
-                        # Note: extent is [left, right, bottom, top] in data coordinates
-                        # origin='lower' means y-axis increases upward (standard for images)
-                        self.ax.imshow(rgba, extent=extent, origin='lower', 
-                                      interpolation='bilinear', zorder=10, aspect='auto')
-                        
-                        # Draw outline if enabled
-                        if self.show_outlines:
-                            try:
-                                # Use matplotlib's contour function directly - this ensures perfect alignment
-                                # with imshow since it uses the same coordinate system
-                                from scipy.ndimage import binary_erosion
-                                
-                                # Create binary mask from alpha channel (structure pixels)
-                                alpha_mask = rgba[:, :, 3] > 0.01
+                        # Draw projection if enabled (but prepare rgba for outline too)
+                        if self.show_projections:
+                            # Draw with proper transparency - use the original RGBA directly
+                            # Note: extent is [left, right, bottom, top] in data coordinates
+                            # origin='lower' means y-axis increases upward (standard for images)
+                            self.ax.imshow(rgba, extent=extent, origin='lower', 
+                                          interpolation='bilinear', zorder=10, aspect='auto')
+                            projections_drawn += 1
+                    else:
+                        # Fallback: if it's not RGBA, skip it
+                        if i < 3:
+                            print(f"    Warning: Projection is not RGBA format, shape={projection.shape}, skipping")
+                        continue
+                except Exception as e:
+                    print(f"Error loading projection for particle {i}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    continue
+            
+            # Draw outline if enabled (independent of projection display)
+            if self.show_outlines and projection is not None and extent is not None:
+                try:
+                    # Use matplotlib's contour function directly - this ensures perfect alignment
+                    # with imshow since it uses the same coordinate system
+                    from scipy.ndimage import binary_erosion
+                    
+                    # Create binary mask from alpha channel (structure pixels)
+                    # Use original alpha from projection for structure detection (not modified by projection_alpha)
+                    if len(projection.shape) == 3 and projection.shape[2] == 4:
+                        original_alpha = projection[:, :, 3].copy()
+                    else:
+                        # Fallback if projection is not RGBA
+                        continue
+                    alpha_mask = original_alpha > 0.01
                                 
                                 if alpha_mask.any():
                                     # Erode to find edge (boundary between structure and background)
@@ -2365,8 +2390,8 @@ class ParticleMapperGUI:
                                     # extent = [left, right, bottom, top]
                                     # With origin='lower', array row 0 is at bottom, row H-1 is at top
                                     # So we create y coordinates from bottom to top
-                                    x = np.linspace(extent[0], extent[1], rgba.shape[1])
-                                    y = np.linspace(extent[2], extent[3], rgba.shape[0])
+                                    x = np.linspace(extent[0], extent[1], projection.shape[1])
+                                    y = np.linspace(extent[2], extent[3], projection.shape[0])
                                     X, Y = np.meshgrid(x, y)
                                     
                                     # Draw contour at edge - matplotlib's contour automatically handles
@@ -2380,16 +2405,6 @@ class ParticleMapperGUI:
                                     print(f"    Warning: Could not draw outline: {e}")
                                     import traceback
                                     traceback.print_exc()
-                    else:
-                        # Fallback: if it's not RGBA, skip it
-                        if i < 3:
-                            print(f"    Warning: Projection is not RGBA format, shape={projection.shape}, skipping")
-                        continue
-                    projections_drawn += 1
-                except Exception as e:
-                    print(f"Error projecting particle {i}: {e}")
-                    import traceback
-                    traceback.print_exc()
             
             # Draw orientation arrow if enabled (markers already drawn above)
             if self.show_orientations:
