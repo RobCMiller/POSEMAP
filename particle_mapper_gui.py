@@ -644,14 +644,16 @@ class ParticleMapperGUI:
         self.flip_z_var = tk.BooleanVar(value=self.rotation_flip_z)
         
         ttk.Checkbutton(correction_frame, text="Flip X (180° around X)", 
-                       variable=self.flip_x_var,
-                       command=lambda: self.update_rotation_correction('x')).pack(anchor=tk.W, pady=2)
+                       variable=self.flip_x_var).pack(anchor=tk.W, pady=2)
         ttk.Checkbutton(correction_frame, text="Flip Y (180° around Y)", 
-                       variable=self.flip_y_var,
-                       command=lambda: self.update_rotation_correction('y')).pack(anchor=tk.W, pady=2)
+                       variable=self.flip_y_var).pack(anchor=tk.W, pady=2)
         ttk.Checkbutton(correction_frame, text="Flip Z (180° around Z)", 
-                       variable=self.flip_z_var,
-                       command=lambda: self.update_rotation_correction('z')).pack(anchor=tk.W, pady=2)
+                       variable=self.flip_z_var).pack(anchor=tk.W, pady=2)
+        
+        # Apply button
+        apply_button = ttk.Button(correction_frame, text="Apply Rotation Correction", 
+                                 command=self.apply_rotation_correction)
+        apply_button.pack(pady=(10, 5))
         
         # Scale bar controls
         self.show_scale_bar_var = tk.BooleanVar(value=self.show_scale_bar)
@@ -2802,23 +2804,22 @@ class ParticleMapperGUI:
         self.alpha_label.config(text=f"{val:.2f}")
         self.update_display()
     
-    def update_rotation_correction(self, axis):
-        """Update rotation correction flags and regenerate projections."""
-        if axis == 'x':
-            self.rotation_flip_x = self.flip_x_var.get()
-        elif axis == 'y':
-            self.rotation_flip_y = self.flip_y_var.get()
-        elif axis == 'z':
-            self.rotation_flip_z = self.flip_z_var.get()
+    def apply_rotation_correction(self):
+        """Apply rotation correction flags and regenerate projections."""
+        # Update flags from checkboxes
+        self.rotation_flip_x = self.flip_x_var.get()
+        self.rotation_flip_y = self.flip_y_var.get()
+        self.rotation_flip_z = self.flip_z_var.get()
         
         # Clear projection cache and regenerate with new rotation correction
-        print(f"Rotation correction updated: flip_x={self.rotation_flip_x}, flip_y={self.rotation_flip_y}, flip_z={self.rotation_flip_z}")
+        print(f"Applying rotation correction: flip_x={self.rotation_flip_x}, flip_y={self.rotation_flip_y}, flip_z={self.rotation_flip_z}")
         # Clear cache for current micrograph
         if self.current_micrograph_idx is not None:
             with self.cache_lock:
                 keys_to_remove = [k for k in self.projection_cache.keys() if k[0] == self.current_micrograph_idx]
                 for key in keys_to_remove:
                     del self.projection_cache[key]
+                print(f"Cleared {len(keys_to_remove)} cached projections")
         # Regenerate projections
         self.update_display(use_cache=False)
     
