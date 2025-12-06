@@ -2269,6 +2269,8 @@ class ParticleMapperGUI:
             
             # Apply 2D shifts from refinement (in Angstroms, convert to pixels)
             # cryoSPARC's alignments3D/shift contains [shift_x, shift_y] in Angstroms
+            # NOTE: Shifts represent sub-pixel corrections from refinement
+            # They should be applied to the particle center position
             if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
                 shift = self.current_particles['shifts'][i]  # [shift_x, shift_y] in Angstroms
                 # Get pixel size from particle data or GUI entry field
@@ -2281,8 +2283,11 @@ class ParticleMapperGUI:
                     except (ValueError, AttributeError):
                         pixel_size = 1.0  # Default fallback
                 # Convert shifts from Angstroms to pixels
-                x_pixel += shift[0] / pixel_size
-                y_pixel += shift[1] / pixel_size
+                # Try negating shifts - cryoSPARC shifts might be in opposite direction
+                # Positive shift_x typically means shift right, positive shift_y means shift up
+                # But we need to verify the coordinate system convention
+                x_pixel -= shift[0] / pixel_size  # Try negating X shift
+                y_pixel -= shift[1] / pixel_size  # Try negating Y shift
             
             # Convert to integer for pixel coordinates
             x_pixel = int(x_pixel)
