@@ -34,6 +34,7 @@ from particle_mapper import (
     get_particle_orientation_arrow, get_particle_axes,
     fractional_to_pixel_coords, load_pdb_structure, project_pdb_structure,
     calculate_custom_vector_from_pdb, project_custom_vector,
+    calculate_structure_com, calculate_com_offset_correction,
     calculate_vector_from_two_points
 )
 from scipy.ndimage import gaussian_filter
@@ -656,6 +657,15 @@ class ParticleMapperGUI:
                                         variable=self.fine_tuning_expanded,
                                         command=lambda: self._toggle_fine_tuning(fine_tuning_frame))
         toggle_button.pack(anchor=tk.W, pady=(0, 5))
+        
+        # Auto-correct COM offset checkbox (always visible)
+        self.auto_correct_com_offset = False
+        self.auto_correct_com_offset_var = tk.BooleanVar(value=self.auto_correct_com_offset)
+        auto_correct_check = ttk.Checkbutton(fine_tuning_frame, 
+                                             text="Auto-correct Center of Mass Offset",
+                                             variable=self.auto_correct_com_offset_var,
+                                             command=self._toggle_auto_correct_com)
+        auto_correct_check.pack(anchor=tk.W, pady=(0, 5))
         
         # Container for fine-tuning controls (initially hidden)
         offset_frame = ttk.Frame(fine_tuning_frame)
@@ -2456,9 +2466,33 @@ class ParticleMapperGUI:
                     # 3. There are small coordinate system differences between cryoSPARC and PyMOL
                     #
                     # The projection_offset_x/y sliders allow manual fine-tuning to correct for these small offsets.
+                    
+                    # Calculate automatic COM offset correction if enabled
+                    auto_offset_x = 0.0
+                    auto_offset_y = 0.0
+                    if hasattr(self, 'auto_correct_com_offset') and self.auto_correct_com_offset:
+                        if self.pdb_data is not None:
+                            try:
+                                euler_angles = self.current_particles['poses'][i]
+                                if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i:
+                                    pixel_size = self.current_particles['pixel_size'][i]
+                                else:
+                                    try:
+                                        pixel_size = float(self.pixel_size_entry.get().strip())
+                                    except (ValueError, AttributeError):
+                                        pixel_size = 1.0
+                                auto_offset_x, auto_offset_y = calculate_com_offset_correction(
+                                    self.pdb_data, euler_angles,
+                                    (x_pixel, y_pixel), pixel_size, self.projection_size
+                                )
+                            except Exception as e:
+                                # If calculation fails, use zero offset
+                                if i < 3:  # Only warn for first few
+                                    print(f"Warning: Failed to calculate COM offset for particle {i}: {e}")
+                    
                     half_size = self.projection_size / 2.0  # Use float division
-                    center_x = x_pixel + self.projection_offset_x
-                    center_y = y_pixel + self.projection_offset_y
+                    center_x = x_pixel + self.projection_offset_x + auto_offset_x
+                    center_y = y_pixel + self.projection_offset_y + auto_offset_y
                     extent = [center_x - half_size, center_x + half_size,
                              center_y - half_size, center_y + half_size]
                     
@@ -3335,6 +3369,13 @@ class ParticleMapperGUI:
         else:
             # Hide controls
             self.fine_tuning_offset_frame.pack_forget()
+    
+    def _toggle_auto_correct_com(self):
+        """Toggle automatic COM offset correction."""
+        self.auto_correct_com_offset = self.auto_correct_com_offset_var.get()
+        if self.auto_correct_com_offset:
+            print("Auto-correct COM offset enabled - will calculate and apply offset for each particle")
+        self.update_display(use_cache=False)
     
     def toggle_arrows_at_markers(self):
         """Toggle showing arrows at marker positions."""

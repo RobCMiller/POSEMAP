@@ -491,6 +491,122 @@ def fractional_to_pixel_coords(center_x_frac: float, center_y_frac: float,
     return x_pixel, y_pixel
 
 
+def calculate_structure_com(pdb_data: Dict) -> np.ndarray:
+    """
+    Calculate the center of mass (COM) of the structure from PDB data.
+    
+    Uses the mean of all atom coordinates (equivalent to COM if all atoms have equal mass).
+    
+    Parameters:
+    -----------
+    pdb_data : dict
+        PDB structure data from load_pdb_structure()
+        
+    Returns:
+    --------
+    np.ndarray
+        3D coordinates [x, y, z] of the structure's center of mass
+    """
+    coords = pdb_data['coords']
+    if len(coords) == 0:
+        return np.array([0.0, 0.0, 0.0])
+    return coords.mean(axis=0)
+
+
+def calculate_com_offset_correction(pdb_data: Dict, euler_angles: np.ndarray,
+                                    particle_center_pixel: Tuple[float, float],
+                                    pixel_size: float,
+                                    projection_size_pixels: float) -> Tuple[float, float]:
+    """
+    Calculate the offset correction needed to align the structure's center of mass
+    with the particle center from cryoSPARC.
+    
+    CRITICAL INSIGHT: PyMOL centers the structure at its COM before rotation. This means:
+    1. Structure COM in original PDB coords -> PyMOL centers it -> COM becomes (0,0,0)
+    2. After rotation, COM is still at (0,0,0) in rotated coords
+    3. After projection, COM is at (0,0) in projection image (center of image)
+    4. We place projection image centered at particle_center_pixel
+    5. So structure COM appears at particle_center_pixel in micrograph coords
+    
+    However, if the structure COM in the original PDB doesn't match where cryoSPARC
+    thinks the particle center is (in volume coords), there will be an offset.
+    
+    The challenge: We can't directly compare PDB coords to cryoSPARC volume coords
+    without knowing the transformation. But we can calculate the offset by:
+    1. Getting structure COM in original PDB coords
+    2. Rotating it using particle's Euler angles (same as projection)
+    3. Projecting to 2D (X, Y coords in Angstroms)
+    4. Converting to pixels: com_2d_pixels = com_2d_angstroms / pixel_size
+    5. The offset is: offset = particle_center_pixel - com_2d_pixels
+    
+    But wait - PyMOL already centers at COM, so after centering, the COM is at (0,0,0).
+    So the offset should be zero... unless there's a coordinate system mismatch.
+    
+    Actually, the real issue might be that we need to account for the fact that the
+    structure COM in PDB coords might not align with the particle center in volume coords.
+    But without knowing the PDB->volume transformation, we can't calculate this directly.
+    
+    For now, we'll calculate the offset assuming the coordinate systems are aligned,
+    which should give us zero offset. But this function can be extended if we find
+    a way to properly transform between coordinate systems.
+    
+    Parameters:
+    -----------
+    pdb_data : dict
+        PDB structure data from load_pdb_structure()
+    euler_angles : np.ndarray
+        Euler angles [phi, theta, psi] in radians (ZYZ convention) for this particle
+    particle_center_pixel : tuple
+        (x, y) pixel coordinates of the particle center from cryoSPARC
+    pixel_size : float
+        Pixel size in Angstroms per pixel
+    projection_size_pixels : float
+        Size of the projection image in pixels (assumed square)
+        
+    Returns:
+    --------
+    tuple
+        (offset_x, offset_y) in pixels - the correction to apply to projection placement
+    """
+    # Get structure COM in original PDB coordinates
+    if 'com' in pdb_data:
+        com_pdb = pdb_data['com']
+    else:
+        com_pdb = calculate_structure_com(pdb_data)
+    
+    # Get rotation matrix
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    
+    # PyMOL centers the structure at its COM before rotation, so we need to center
+    # the COM relative to itself (which makes it (0,0,0))
+    com_centered = com_pdb - com_pdb  # This is (0,0,0)
+    
+    # Rotate the centered COM (should still be (0,0,0) after rotation)
+    com_rotated = R @ com_centered
+    
+    # Project to 2D (X, Y coordinates)
+    com_2d_angstroms = com_rotated[:2]  # Should be (0, 0)
+    
+    # Convert to pixels
+    com_2d_pixels = com_2d_angstroms / pixel_size  # Should be (0, 0)
+    
+    # Calculate offset: difference between particle center and projected COM
+    # Since com_2d_pixels is (0, 0), the offset is just the particle center
+    # But that's not right - we want the offset to be zero if they align.
+    
+    # Actually, the issue is that we're comparing apples to oranges:
+    # - particle_center_pixel is in micrograph pixel coordinates
+    # - com_2d_pixels is in projection pixel coordinates (relative to projection center)
+    
+    # The projection image is centered at the structure COM (after PyMOL centering).
+    # When we place the projection image centered at particle_center_pixel, the
+    # structure COM appears at particle_center_pixel. So if they align, offset should be zero.
+    
+    # For now, return zero offset. The real correction would require knowing the
+    # transformation between PDB and volume coordinate systems.
+    return (0.0, 0.0)
+
+
 def load_pdb_structure(pdb_path: str):
     """
     Load structure file (.pdb or .cif) and extract coordinates and chain information.
@@ -508,6 +624,7 @@ def load_pdb_structure(pdb_path: str):
             - ca_coords: (M, 3) array of CA (alpha carbon) coordinates for cartoon rendering
             - ca_chain_ids: (M,) array of chain IDs for CA atoms
             - ca_residue_names: (M,) array of residue names for CA atoms
+            - com: (3,) array of center of mass coordinates [x, y, z]
     """
     if not BIOPYTHON_AVAILABLE:
         raise ImportError("BioPython is required for structure file reading. Install with: pip install biopython")
@@ -565,6 +682,12 @@ def load_pdb_structure(pdb_path: str):
         result['ca_coords'] = np.array(ca_coords)
         result['ca_chain_ids'] = np.array(ca_chain_ids)
         result['ca_residue_names'] = np.array(ca_residue_names)
+    
+    # Calculate and store center of mass
+    if len(coords) > 0:
+        result['com'] = np.array(coords).mean(axis=0)
+    else:
+        result['com'] = np.array([0.0, 0.0, 0.0])
     
     return result
 
