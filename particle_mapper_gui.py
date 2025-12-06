@@ -639,7 +639,35 @@ class ParticleMapperGUI:
         self.arrow_label = ttk.Label(viz_frame, text=f"{self.arrow_length} px")
         self.arrow_label.pack(anchor=tk.W)
         
+        # Projection fine-tuning offset controls
+        ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
+        ttk.Label(viz_frame, text="Projection Fine-Tuning", font=('TkDefaultFont', 9, 'bold')).pack(anchor=tk.W, pady=(5, 5))
+        
+        offset_frame = ttk.Frame(viz_frame)
+        offset_frame.pack(fill=tk.X, pady=5)
+        
+        # X offset slider
+        ttk.Label(offset_frame, text="X Offset (pixels):").pack(anchor=tk.W, pady=(5, 0))
+        self.projection_offset_x_var = tk.DoubleVar(value=self.projection_offset_x)
+        offset_x_scale = ttk.Scale(offset_frame, from_=-20.0, to=20.0, 
+                                   variable=self.projection_offset_x_var, orient=tk.HORIZONTAL,
+                                   command=lambda v: self.update_projection_offset('x', float(v)))
+        offset_x_scale.pack(fill=tk.X, pady=2)
+        self.offset_x_label = ttk.Label(offset_frame, text=f"{self.projection_offset_x:.1f} px")
+        self.offset_x_label.pack(anchor=tk.W)
+        
+        # Y offset slider
+        ttk.Label(offset_frame, text="Y Offset (pixels):").pack(anchor=tk.W, pady=(10, 0))
+        self.projection_offset_y_var = tk.DoubleVar(value=self.projection_offset_y)
+        offset_y_scale = ttk.Scale(offset_frame, from_=-20.0, to=20.0, 
+                                   variable=self.projection_offset_y_var, orient=tk.HORIZONTAL,
+                                   command=lambda v: self.update_projection_offset('y', float(v)))
+        offset_y_scale.pack(fill=tk.X, pady=2)
+        self.offset_y_label = ttk.Label(offset_frame, text=f"{self.projection_offset_y:.1f} px")
+        self.offset_y_label.pack(anchor=tk.W)
+        
         # Scale bar controls
+        ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
         self.show_scale_bar_var = tk.BooleanVar(value=self.show_scale_bar)
         ttk.Checkbutton(viz_frame, text="Show Scale Bar", 
                        variable=self.show_scale_bar_var,
