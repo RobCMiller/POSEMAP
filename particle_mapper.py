@@ -852,18 +852,23 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # If R rotates from model to view, and we want to rotate the model to view space,
     # then we should apply R to model coordinates. So we use R directly.
     
-    # CRITICAL: Apply 180° in-plane rotation correction
-    # Based on ChimeraX integration, we found that projections appear rotated 180° in-plane
-    # This is likely due to coordinate system convention differences (Y-axis flip or similar)
-    # Apply 180° rotation around Z axis: R_180_z = [[-1,0,0],[0,-1,0],[0,0,1]]
+    # CRITICAL: Try different rotation combinations to find the correct one
+    # The fallback function uses: coords_rotated = R @ coords_centered
+    # This means R rotates from model space to view space
+    #
+    # For PyMOL's transform_object, we need to determine:
+    # 1. Should we use R or R.T?
+    # 2. Do we need a 180° in-plane rotation correction?
+    # 3. If so, should it be applied before or after R?
+    #
+    # Let's try: R_180_z @ R (apply 180° rotation BEFORE the main rotation)
+    # This might be needed if PyMOL's coordinate system is flipped relative to our expectation
     R_180_z = np.array([[-1.0, 0.0, 0.0],
                         [0.0, -1.0, 0.0],
                         [0.0, 0.0, 1.0]])
     
-    # Apply the 180° correction to the rotation matrix
-    # R rotates from model space to view space
-    # After applying R, we need to apply the 180° Z rotation to correct for coordinate system mismatch
-    R_transform = R @ R_180_z
+    # Try applying 180° rotation BEFORE R (instead of after)
+    R_transform = R_180_z @ R
     
     # PyMOL's transform_object expects a 4x4 transformation matrix
     # The matrix format is: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
