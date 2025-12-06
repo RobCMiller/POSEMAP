@@ -2839,6 +2839,10 @@ class ParticleMapperGUI:
         
         # Clear projection cache and regenerate with new rotation correction
         print(f"Applying rotation correction: flip_x={self.rotation_flip_x}, flip_y={self.rotation_flip_y}, flip_z={self.rotation_flip_z}")
+        
+        # Reset generation flag to allow new generation
+        self._generating_projections = False
+        
         # Clear cache for current micrograph
         if self.current_micrograph_idx is not None:
             with self.cache_lock:
