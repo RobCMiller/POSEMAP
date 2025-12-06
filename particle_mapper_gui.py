@@ -2802,6 +2802,26 @@ class ParticleMapperGUI:
         self.alpha_label.config(text=f"{val:.2f}")
         self.update_display()
     
+    def update_rotation_correction(self, axis):
+        """Update rotation correction flags and regenerate projections."""
+        if axis == 'x':
+            self.rotation_flip_x = self.flip_x_var.get()
+        elif axis == 'y':
+            self.rotation_flip_y = self.flip_y_var.get()
+        elif axis == 'z':
+            self.rotation_flip_z = self.flip_z_var.get()
+        
+        # Clear projection cache and regenerate with new rotation correction
+        print(f"Rotation correction updated: flip_x={self.rotation_flip_x}, flip_y={self.rotation_flip_y}, flip_z={self.rotation_flip_z}")
+        # Clear cache for current micrograph
+        if self.current_micrograph_idx is not None:
+            with self.cache_lock:
+                keys_to_remove = [k for k in self.projection_cache.keys() if k[0] == self.current_micrograph_idx]
+                for key in keys_to_remove:
+                    del self.projection_cache[key]
+        # Regenerate projections
+        self.update_display(use_cache=False)
+    
     def update_size(self, val):
         """Update projection size - FAST: just resize cached arrays, don't regenerate from PDB."""
         old_size = self.projection_size
