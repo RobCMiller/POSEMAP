@@ -2380,31 +2380,31 @@ class ParticleMapperGUI:
                         # Fallback if projection is not RGBA
                         continue
                     alpha_mask = original_alpha > 0.01
-                                
-                                if alpha_mask.any():
-                                    # Erode to find edge (boundary between structure and background)
-                                    eroded = binary_erosion(alpha_mask)
-                                    edge = alpha_mask & ~eroded
-                                    
-                                    # Create coordinate arrays matching the extent used by imshow
-                                    # extent = [left, right, bottom, top]
-                                    # With origin='lower', array row 0 is at bottom, row H-1 is at top
-                                    # So we create y coordinates from bottom to top
-                                    x = np.linspace(extent[0], extent[1], projection.shape[1])
-                                    y = np.linspace(extent[2], extent[3], projection.shape[0])
-                                    X, Y = np.meshgrid(x, y)
-                                    
-                                    # Draw contour at edge - matplotlib's contour automatically handles
-                                    # the coordinate system matching with imshow when using the same X, Y grids
-                                    # Note: edge array is indexed as [row, col] where row=0 is bottom (with origin='lower')
-                                    # and contour expects the same indexing, so this should align perfectly
-                                    self.ax.contour(X, Y, edge.astype(float), levels=[0.5], 
-                                                   colors=['#F2570C'], linewidths=2, zorder=11)
-                            except Exception as e:
-                                if i < 3:
-                                    print(f"    Warning: Could not draw outline: {e}")
-                                    import traceback
-                                    traceback.print_exc()
+                    
+                    if alpha_mask.any():
+                        # Erode to find edge (boundary between structure and background)
+                        eroded = binary_erosion(alpha_mask)
+                        edge = alpha_mask & ~eroded
+                        
+                        # Create coordinate arrays matching the extent used by imshow
+                        # extent = [left, right, bottom, top]
+                        # With origin='lower', array row 0 is at bottom, row H-1 is at top
+                        # So we create y coordinates from bottom to top
+                        x = np.linspace(extent[0], extent[1], projection.shape[1])
+                        y = np.linspace(extent[2], extent[3], projection.shape[0])
+                        X, Y = np.meshgrid(x, y)
+                        
+                        # Draw contour at edge - matplotlib's contour automatically handles
+                        # the coordinate system matching with imshow when using the same X, Y grids
+                        # Note: edge array is indexed as [row, col] where row=0 is bottom (with origin='lower')
+                        # and contour expects the same indexing, so this should align perfectly
+                        self.ax.contour(X, Y, edge.astype(float), levels=[0.5], 
+                                       colors=['#F2570C'], linewidths=2, zorder=11)
+                except Exception as e:
+                    if i < 3:
+                        print(f"    Warning: Could not draw outline: {e}")
+                        import traceback
+                        traceback.print_exc()
             
             # Draw orientation arrow if enabled (markers already drawn above)
             if self.show_orientations:
