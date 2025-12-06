@@ -868,17 +868,31 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # 2. Rotate around Y by theta (in the rotated coordinate system)
     # 3. Rotate around Z by psi (in the twice-rotated coordinate system)
     #
-    # CRITICAL: Try applying rotations in REVERSE order
-    # scipy computes: R = R_z(psi) @ R_y(theta) @ R_z(phi)
-    # This means: first phi, then theta, then psi (right-to-left multiplication)
-    # But PyMOL might apply rotations in the opposite order
-    # Try: Z(psi), Y(theta), Z(phi) - reverse order
-    if abs(psi_deg) > 1e-6:
-        script_lines.append(f'cmd.rotate("z", {psi_deg}, object="{rep_obj}")')
-    if abs(theta_deg) > 1e-6:
-        script_lines.append(f'cmd.rotate("y", {theta_deg}, object="{rep_obj}")')
-    if abs(phi_deg) > 1e-6:
-        script_lines.append(f'cmd.rotate("z", {phi_deg}, object="{rep_obj}")')
+    # CRITICAL: Go back to using transform_object with rotation matrix
+    # But this time, let's try transposing the ENTIRE matrix format
+    # PyMOL's transform_object might expect column-major instead of row-major
+    # Or maybe we need to transpose the rotation matrix itself
+    #
+    # The fallback function uses: coords_rotated = R @ coords_centered
+    # This means R rotates from model space to view space
+    # For transform_object, we want to apply R to model coordinates
+    # So we should use R directly
+    #
+    # But maybe PyMOL's matrix format expects the transpose?
+    # Let's try using R.T in the matrix format
+    R_transform = R.T  # Try transpose
+    
+    # PyMOL's transform_object expects a 4x4 transformation matrix
+    # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
+    # This is row-major format
+    transform_list = [
+        R_transform[0,0], R_transform[0,1], R_transform[0,2], 0.0,  # First row + tx
+        R_transform[1,0], R_transform[1,1], R_transform[1,2], 0.0,  # Second row + ty
+        R_transform[2,0], R_transform[2,1], R_transform[2,2], 0.0,  # Third row + tz
+        0.0, 0.0, 0.0, 1.0                                           # Bottom row
+    ]
+    transform_str = ', '.join([f'{x:.10f}' for x in transform_list])
+    script_lines.append(f'cmd.transform_object("{rep_obj}", [{transform_str}], homogenous=0)')
     
     # Zoom and set viewport
     script_lines.append(f'cmd.zoom("{rep_obj}", complete=1)')
