@@ -2357,8 +2357,29 @@ class ParticleMapperGUI:
                     # Overlay the unique projection for this particle
                     # Calculate extent in data coordinates using float precision for sub-pixel accuracy
                     half_size = self.projection_size / 2.0  # Use float division
-                    extent = [x_pixel - half_size, x_pixel + half_size,
-                             y_pixel - half_size, y_pixel + half_size]
+                    
+                    # Apply 2D shifts from refinement to the projection position (not particle center)
+                    # cryoSPARC shifts are sub-pixel corrections that should offset the projection
+                    shift_x_px = 0.0
+                    shift_y_px = 0.0
+                    if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
+                        shift = self.current_particles['shifts'][i]  # [shift_x, shift_y] in Angstroms
+                        # Get pixel size from particle data or GUI entry field
+                        if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i:
+                            pixel_size = self.current_particles['pixel_size'][i]
+                        else:
+                            # Fallback to GUI entry field
+                            try:
+                                pixel_size = float(self.pixel_size_entry.get().strip())
+                            except (ValueError, AttributeError):
+                                pixel_size = 1.0  # Default fallback
+                        # Convert shifts from Angstroms to pixels
+                        # Apply shifts to projection position (opposite direction - shifts move particle, so projection moves opposite)
+                        shift_x_px = -shift[0] / pixel_size
+                        shift_y_px = -shift[1] / pixel_size
+                    
+                    extent = [x_pixel - half_size + shift_x_px, x_pixel + half_size + shift_x_px,
+                             y_pixel - half_size + shift_y_px, y_pixel + half_size + shift_y_px]
                     
                     # CRITICAL: projection is now an RGBA array (0-1 range) directly from PDB rendering
                     # It already has the correct colors and transparency - just apply user's alpha setting
