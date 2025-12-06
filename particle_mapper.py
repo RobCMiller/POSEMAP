@@ -890,8 +890,8 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     else:
         R_correction = np.eye(3)  # No correction
     
-    # Apply correction AFTER the main rotation
-    R_transform = R @ R_correction
+    # Apply correction BEFORE the main rotation (try this order)
+    R_transform = R_correction @ R
     
     # PyMOL's transform_object expects a 4x4 transformation matrix
     # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
