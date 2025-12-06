@@ -871,28 +871,24 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # 2. Rotate around Y by theta (in the rotated coordinate system)
     # 3. Rotate around Z by psi (in the twice-rotated coordinate system)
     #
-    # CRITICAL: Apply rotation corrections based on user-selected flags
+    # CRITICAL: Apply rotation corrections based on user-selected angles (in degrees)
     # These allow troubleshooting to find the correct rotation correction
-    R_correction = np.eye(3)  # Start with identity matrix
+    from scipy.spatial.transform import Rotation as Rot
     
-    # Apply 180° rotations around X, Y, or Z axes as requested
-    if rotation_flip_x:
-        R_180_x = np.array([[1.0, 0.0, 0.0],
-                            [0.0, -1.0, 0.0],
-                            [0.0, 0.0, -1.0]])
-        R_correction = R_correction @ R_180_x
-    
-    if rotation_flip_y:
-        R_180_y = np.array([[-1.0, 0.0, 0.0],
-                            [0.0, 1.0, 0.0],
-                            [0.0, 0.0, -1.0]])
-        R_correction = R_correction @ R_180_y
-    
-    if rotation_flip_z:
-        R_180_z = np.array([[-1.0, 0.0, 0.0],
-                            [0.0, -1.0, 0.0],
-                            [0.0, 0.0, 1.0]])
-        R_correction = R_correction @ R_180_z
+    # Build rotation correction matrix from X, Y, Z rotation angles
+    # Apply rotations in order: X, then Y, then Z (intrinsic rotations)
+    if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
+        # Convert degrees to radians
+        rot_x_rad = np.deg2rad(rotation_correction_x)
+        rot_y_rad = np.deg2rad(rotation_correction_y)
+        rot_z_rad = np.deg2rad(rotation_correction_z)
+        
+        # Create rotation from Euler angles (XYZ intrinsic convention)
+        # This applies rotations in order: X, then Y, then Z
+        rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
+        R_correction = rot_correction.as_matrix()
+    else:
+        R_correction = np.eye(3)  # No correction
     
     # Apply correction AFTER the main rotation
     R_transform = R @ R_correction
@@ -1023,9 +1019,9 @@ def project_pdb_structure(pdb_data: Dict, euler_angles: np.ndarray,
         return project_pdb_cartoon_pymol(pdb_data, euler_angles, output_size,
                                          chain_color_map, default_protein_color, default_nucleic_color,
                                          pdb_path=pdb_path, pymol_path=chimerax_path,
-                                         rotation_flip_x=rotation_flip_x,
-                                         rotation_flip_y=rotation_flip_y,
-                                         rotation_flip_z=rotation_flip_z)  # Reuse chimerax_path param for pymol_path
+                                         rotation_correction_x=rotation_correction_x,
+                                         rotation_correction_y=rotation_correction_y,
+                                         rotation_correction_z=rotation_correction_z)  # Reuse chimerax_path param for pymol_path
     
     # If no pdb_path provided, raise error (ChimeraX rendering requires it)
     if not pdb_path:
