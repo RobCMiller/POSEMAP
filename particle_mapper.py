@@ -1047,8 +1047,14 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     else:
         R_correction = np.eye(3)  # No correction
     
-    # Apply correction AFTER the main rotation (revert to original)
+    # Apply correction AFTER the main rotation
+    # R rotates from model space to view space
+    # R_correction is applied as an additional rotation (in XYZ convention)
     R_transform = R @ R_correction
+    
+    # Debug: Print rotation correction if applied
+    if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
+        print(f"DEBUG Rotation Correction: X={rotation_correction_x:.2f}°, Y={rotation_correction_y:.2f}°, Z={rotation_correction_z:.2f}°")
     
     # PyMOL's transform_object expects a 4x4 transformation matrix
     # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
