@@ -1076,6 +1076,10 @@ def project_pdb_structure(pdb_data: Dict, euler_angles: np.ndarray,
     R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
     
     # Center coordinates
+    # CRITICAL: We center on the mean of all atom coordinates (center of mass if all atoms have equal mass).
+    # This should match PyMOL's cmd.center() behavior. The rotation is applied around this center.
+    # The projection is then centered in the output image. If the structure's center doesn't match
+    # the particle center from cryoSPARC, there will be a small offset.
     center = coords.mean(axis=0)
     coords_centered = coords - center
     
