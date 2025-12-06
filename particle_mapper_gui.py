@@ -3500,7 +3500,7 @@ class ParticleMapperGUI:
         """Draw a scale bar on the micrograph display.
         
         The scale bar is positioned in the bottom-left corner of the image,
-        10% away from the left and bottom edges, regardless of zoom level.
+        4% away from the left and bottom edges, regardless of zoom level.
         
         Args:
             img_width: Width of the full image in pixels
@@ -3528,7 +3528,7 @@ class ParticleMapperGUI:
                 # Adjust length if needed
                 scale_bar_length_pixels = bar_x_end - bar_x_start
         
-        # Y position: 10% from bottom
+        # Y position: 4% from bottom
         bar_y = margin_y
         
         # Draw the scale bar with user-configurable width and color
