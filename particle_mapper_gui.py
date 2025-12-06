@@ -128,8 +128,9 @@ class ParticleMapperGUI:
         self.rotation_correction_y = 180.0  # 180° around Y axis
         self.rotation_correction_z = 180.0  # 180° around Z axis
         # Small offset adjustments (in pixels) to fine-tune projection position
-        self.projection_offset_x = 0.0  # Small X offset in pixels
-        self.projection_offset_y = 0.0  # Small Y offset in pixels
+        # User found these values work well: X=-16.9, Y=20.0
+        self.projection_offset_x = -16.9  # Small X offset in pixels
+        self.projection_offset_y = 20.0  # Small Y offset in pixels
         self.projection_offset_x_var = None  # Will be set in GUI setup
         self.projection_offset_y_var = None  # Will be set in GUI setup
         self.show_scale_bar = False  # Toggle for scale bar display
