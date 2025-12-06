@@ -868,14 +868,19 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # 2. Rotate around Y by theta (in the rotated coordinate system)
     # 3. Rotate around Z by psi (in the twice-rotated coordinate system)
     #
-    # However, PyMOL's rotate might apply rotations in a different order or convention.
-    # Let's try the direct sequential rotations first.
+    # Apply sequential rotations: Z(phi), Y(theta), Z(psi)
     if abs(phi_deg) > 1e-6:
         script_lines.append(f'cmd.rotate("z", {phi_deg}, object="{rep_obj}")')
     if abs(theta_deg) > 1e-6:
         script_lines.append(f'cmd.rotate("y", {theta_deg}, object="{rep_obj}")')
     if abs(psi_deg) > 1e-6:
         script_lines.append(f'cmd.rotate("z", {psi_deg}, object="{rep_obj}")')
+    
+    # CRITICAL: Apply 180° in-plane rotation correction (similar to ChimeraX fix)
+    # Based on ChimeraX integration, we found that views appear rotated 180° in-plane
+    # This is likely due to coordinate system convention differences
+    # Apply 180° rotation around Z axis after the main rotations
+    script_lines.append(f'cmd.rotate("z", 180.0, object="{rep_obj}")')
     
     # Zoom and set viewport
     script_lines.append(f'cmd.zoom("{rep_obj}", complete=1)')
