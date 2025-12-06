@@ -1911,8 +1911,7 @@ class ParticleMapperGUI:
                     self.generate_all_button.config(state=tk.DISABLED if self.all_projections_generated else tk.NORMAL)
             
             # Force display update after generation completes
-            if not background:
-                self.update_display()
+            self.update_display()
         
         # Schedule UI update on main thread (only if not already in background thread)
         if not background:
