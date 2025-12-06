@@ -996,9 +996,9 @@ def project_pdb_structure(pdb_data: Dict, euler_angles: np.ndarray,
                           line_width: float = 0.5,
                           pdb_path: Optional[str] = None,
                           chimerax_path: Optional[str] = None,
-                          rotation_flip_x: bool = False,
-                          rotation_flip_y: bool = False,
-                          rotation_flip_z: bool = False) -> np.ndarray:
+                          rotation_correction_x: float = 0.0,
+                          rotation_correction_y: float = 0.0,
+                          rotation_correction_z: float = 0.0) -> np.ndarray:
     """
     Project a PDB structure at given Euler angles to a 2D RGBA image.
     

@@ -122,11 +122,11 @@ class ParticleMapperGUI:
         self.pixel_size_angstroms = None  # Pixel size in Angstroms per pixel (for auto-scaling)
         self.arrow_length = 90  # 3x longer default (was 30)
         
-        # Rotation correction flags for troubleshooting
+        # Rotation correction angles for troubleshooting (in degrees)
         # Default: Y+Z flip (180° around both Y and Z axes) - this was found to be the best
-        self.rotation_flip_x = False
-        self.rotation_flip_y = True
-        self.rotation_flip_z = True
+        self.rotation_correction_x = 0.0  # Rotation around X axis in degrees
+        self.rotation_correction_y = 180.0  # Rotation around Y axis in degrees
+        self.rotation_correction_z = 180.0  # Rotation around Z axis in degrees
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
         
@@ -641,21 +641,40 @@ class ParticleMapperGUI:
         correction_frame = ttk.Frame(viz_frame)
         correction_frame.pack(fill=tk.X, pady=5)
         
-        self.flip_x_var = tk.BooleanVar(value=self.rotation_flip_x)
-        self.flip_y_var = tk.BooleanVar(value=self.rotation_flip_y)
-        self.flip_z_var = tk.BooleanVar(value=self.rotation_flip_z)
+        # X-axis rotation slider
+        ttk.Label(correction_frame, text="Rotate X (degrees):").pack(anchor=tk.W, pady=(5, 0))
+        self.rot_x_var = tk.DoubleVar(value=self.rotation_correction_x)
+        rot_x_scale = ttk.Scale(correction_frame, from_=-180.0, to=180.0, 
+                                variable=self.rot_x_var, orient=tk.HORIZONTAL,
+                                command=lambda v: self.update_rotation_slider('x', float(v)))
+        rot_x_scale.pack(fill=tk.X, pady=2)
+        self.rot_x_label = ttk.Label(correction_frame, text=f"{self.rotation_correction_x:.1f}°")
+        self.rot_x_label.pack(anchor=tk.W)
         
-        ttk.Checkbutton(correction_frame, text="Flip X (180° around X)", 
-                       variable=self.flip_x_var).pack(anchor=tk.W, pady=2)
-        ttk.Checkbutton(correction_frame, text="Flip Y (180° around Y)", 
-                       variable=self.flip_y_var).pack(anchor=tk.W, pady=2)
-        ttk.Checkbutton(correction_frame, text="Flip Z (180° around Z)", 
-                       variable=self.flip_z_var).pack(anchor=tk.W, pady=2)
+        # Y-axis rotation slider
+        ttk.Label(correction_frame, text="Rotate Y (degrees):").pack(anchor=tk.W, pady=(10, 0))
+        self.rot_y_var = tk.DoubleVar(value=self.rotation_correction_y)
+        rot_y_scale = ttk.Scale(correction_frame, from_=-180.0, to=180.0, 
+                                variable=self.rot_y_var, orient=tk.HORIZONTAL,
+                                command=lambda v: self.update_rotation_slider('y', float(v)))
+        rot_y_scale.pack(fill=tk.X, pady=2)
+        self.rot_y_label = ttk.Label(correction_frame, text=f"{self.rotation_correction_y:.1f}°")
+        self.rot_y_label.pack(anchor=tk.W)
+        
+        # Z-axis rotation slider
+        ttk.Label(correction_frame, text="Rotate Z (degrees):").pack(anchor=tk.W, pady=(10, 0))
+        self.rot_z_var = tk.DoubleVar(value=self.rotation_correction_z)
+        rot_z_scale = ttk.Scale(correction_frame, from_=-180.0, to=180.0, 
+                                variable=self.rot_z_var, orient=tk.HORIZONTAL,
+                                command=lambda v: self.update_rotation_slider('z', float(v)))
+        rot_z_scale.pack(fill=tk.X, pady=2)
+        self.rot_z_label = ttk.Label(correction_frame, text=f"{self.rotation_correction_z:.1f}°")
+        self.rot_z_label.pack(anchor=tk.W)
         
         # Apply button
         apply_button = ttk.Button(correction_frame, text="Apply Rotation Correction", 
                                  command=self.apply_rotation_correction)
-        apply_button.pack(pady=(10, 5))
+        apply_button.pack(pady=(15, 5))
         
         # Scale bar controls
         self.show_scale_bar_var = tk.BooleanVar(value=self.show_scale_bar)
@@ -1711,9 +1730,9 @@ class ParticleMapperGUI:
             chain_color_map=chain_color_map,
             default_protein_color=self.default_protein_color,
             default_nucleic_color=self.default_nucleic_color,
-            rotation_flip_x=self.rotation_flip_x,
-            rotation_flip_y=self.rotation_flip_y,
-            rotation_flip_z=self.rotation_flip_z,
+            rotation_correction_x=self.rotation_correction_x,
+            rotation_correction_y=self.rotation_correction_y,
+            rotation_correction_z=self.rotation_correction_z,
             pdb_path=pdb_path,
             chimerax_path=chimerax_path
         )
