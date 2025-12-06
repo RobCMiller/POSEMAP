@@ -123,10 +123,13 @@ class ParticleMapperGUI:
         self.arrow_length = 90  # 3x longer default (was 30)
         
         # Rotation correction angles (in degrees) - hardcoded defaults, no GUI controls
-        # Restore corrections - they were needed for proper alignment
+        # Fine-tune corrections slightly to fix small offset
         self.rotation_correction_x = 0.0
         self.rotation_correction_y = 180.0  # 180° around Y axis
         self.rotation_correction_z = 180.0  # 180° around Z axis
+        # Small offset adjustments (in pixels) to fine-tune projection position
+        self.projection_offset_x = 0.0  # Small X offset in pixels
+        self.projection_offset_y = 0.0  # Small Y offset in pixels
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
         
