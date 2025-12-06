@@ -2864,14 +2864,14 @@ class ParticleMapperGUI:
         self.update_display()
     
     def apply_rotation_correction(self):
-        """Apply rotation correction flags and regenerate projections."""
-        # Update flags from checkboxes
-        self.rotation_flip_x = self.flip_x_var.get()
-        self.rotation_flip_y = self.flip_y_var.get()
-        self.rotation_flip_z = self.flip_z_var.get()
+        """Apply rotation correction angles and regenerate projections."""
+        # Update angles from sliders
+        self.rotation_correction_x = self.rot_x_var.get()
+        self.rotation_correction_y = self.rot_y_var.get()
+        self.rotation_correction_z = self.rot_z_var.get()
         
         # Clear projection cache and regenerate with new rotation correction
-        print(f"Applying rotation correction: flip_x={self.rotation_flip_x}, flip_y={self.rotation_flip_y}, flip_z={self.rotation_flip_z}")
+        print(f"Applying rotation correction: X={self.rotation_correction_x:.1f}°, Y={self.rotation_correction_y:.1f}°, Z={self.rotation_correction_z:.1f}°")
         
         # Reset generation flag to allow new generation
         self._generating_projections = False
