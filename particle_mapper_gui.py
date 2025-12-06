@@ -2305,8 +2305,9 @@ class ParticleMapperGUI:
                     except (ValueError, AttributeError):
                         pixel_size = 1.0  # Default fallback
                 # Convert shifts from Angstroms to pixels
-                x_pixel += shift[0] / pixel_size
-                y_pixel += shift[1] / pixel_size
+                # Try negating shifts - cryoSPARC shifts might be in opposite direction
+                x_pixel -= shift[0] / pixel_size  # Negate X shift
+                y_pixel -= shift[1] / pixel_size  # Negate Y shift
             
             # Convert to integer for pixel coordinates
             x_pixel = int(x_pixel)
