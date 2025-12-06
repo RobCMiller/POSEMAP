@@ -2371,10 +2371,18 @@ class ParticleMapperGUI:
                                             y_scale = (extent[3] - extent[2]) / rgba.shape[0]
                                             
                                             # Convert from (row, col) to (x, y) in data coordinates
-                                            # row corresponds to y, col corresponds to x
-                                            # Since origin='lower', y = extent[2] + (shape[0] - row) * y_scale
-                                            x_coords = extent[0] + largest_contour[:, 1] * x_scale
-                                            y_coords = extent[2] + (rgba.shape[0] - largest_contour[:, 0]) * y_scale
+                                            # skimage find_contours returns (row, col) where:
+                                            # - row=0 is top of image, increases downward
+                                            # - col=0 is left of image, increases rightward
+                                            # With origin='lower', matplotlib maps:
+                                            # - array row 0 -> extent[2] (bottom)
+                                            # - array row (shape[0]-1) -> extent[3] (top)
+                                            # So: y = extent[2] + (shape[0] - 1 - row) * y_scale
+                                            # But we need to account for pixel centers, so:
+                                            # x = extent[0] + (col + 0.5) * x_scale
+                                            # y = extent[2] + (rgba.shape[0] - 0.5 - row) * y_scale
+                                            x_coords = extent[0] + (largest_contour[:, 1] + 0.5) * x_scale
+                                            y_coords = extent[2] + (rgba.shape[0] - 0.5 - largest_contour[:, 0]) * y_scale
                                             
                                             # Draw outline in color #F2570C (only outer perimeter)
                                             self.ax.plot(x_coords, y_coords, color='#F2570C', 
