@@ -3777,7 +3777,8 @@ color #1 & nucleic #62466B
                 x_frac = self.current_particles['center_x_frac'][i]
                 y_frac = self.current_particles['center_y_frac'][i]
                 x_pixel = x_frac * mg_shape[1]
-                y_pixel = y_frac * mg_shape[0]
+                # Flip Y coordinate to match display coordinate system (origin='lower')
+                y_pixel = mg_shape[0] - (y_frac * mg_shape[0])
                 
                 # Calculate distance
                 dist = np.sqrt((x_click - x_pixel)**2 + (y_click - y_pixel)**2)
@@ -3813,7 +3814,8 @@ color #1 & nucleic #62466B
                 x_frac = self.current_particles['center_x_frac'][i]
                 y_frac = self.current_particles['center_y_frac'][i]
                 x_pixel = x_frac * mg_shape[1]
-                y_pixel = y_frac * mg_shape[0]
+                # Flip Y coordinate to match display coordinate system (origin='lower')
+                y_pixel = mg_shape[0] - (y_frac * mg_shape[0])
                 
                 # Calculate distance
                 dist = np.sqrt((x_click - x_pixel)**2 + (y_click - y_pixel)**2)
