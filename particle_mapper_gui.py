@@ -670,6 +670,44 @@ class ParticleMapperGUI:
         self.offset_y_label = ttk.Label(offset_frame, text=f"{self.projection_offset_y:.1f} px")
         self.offset_y_label.pack(anchor=tk.W)
         
+        # Rotation fine-tuning controls
+        ttk.Label(offset_frame, text="Rotation Corrections (degrees):", font=('TkDefaultFont', 9, 'bold')).pack(anchor=tk.W, pady=(15, 5))
+        
+        # X rotation slider
+        ttk.Label(offset_frame, text="Rotate X (degrees):").pack(anchor=tk.W, pady=(5, 0))
+        self.rotation_correction_x_var = tk.DoubleVar(value=self.rotation_correction_x)
+        rot_x_scale = ttk.Scale(offset_frame, from_=-10.0, to=10.0, 
+                                variable=self.rotation_correction_x_var, orient=tk.HORIZONTAL,
+                                command=lambda v: self.update_rotation_correction('x', float(v)))
+        rot_x_scale.pack(fill=tk.X, pady=2)
+        self.rot_x_label = ttk.Label(offset_frame, text=f"{self.rotation_correction_x:.1f}°")
+        self.rot_x_label.pack(anchor=tk.W)
+        
+        # Y rotation slider
+        ttk.Label(offset_frame, text="Rotate Y (degrees):").pack(anchor=tk.W, pady=(10, 0))
+        self.rotation_correction_y_var = tk.DoubleVar(value=self.rotation_correction_y)
+        rot_y_scale = ttk.Scale(offset_frame, from_=170.0, to=190.0, 
+                                variable=self.rotation_correction_y_var, orient=tk.HORIZONTAL,
+                                command=lambda v: self.update_rotation_correction('y', float(v)))
+        rot_y_scale.pack(fill=tk.X, pady=2)
+        self.rot_y_label = ttk.Label(offset_frame, text=f"{self.rotation_correction_y:.1f}°")
+        self.rot_y_label.pack(anchor=tk.W)
+        
+        # Z rotation slider
+        ttk.Label(offset_frame, text="Rotate Z (degrees):").pack(anchor=tk.W, pady=(10, 0))
+        self.rotation_correction_z_var = tk.DoubleVar(value=self.rotation_correction_z)
+        rot_z_scale = ttk.Scale(offset_frame, from_=170.0, to=190.0, 
+                                variable=self.rotation_correction_z_var, orient=tk.HORIZONTAL,
+                                command=lambda v: self.update_rotation_correction('z', float(v)))
+        rot_z_scale.pack(fill=tk.X, pady=2)
+        self.rot_z_label = ttk.Label(offset_frame, text=f"{self.rotation_correction_z:.1f}°")
+        self.rot_z_label.pack(anchor=tk.W)
+        
+        # Apply button to regenerate projections with new rotation
+        apply_rot_button = ttk.Button(offset_frame, text="Apply Rotation & Regenerate", 
+                                     command=self.apply_rotation_correction_and_regenerate)
+        apply_rot_button.pack(pady=(15, 5))
+        
         # Scale bar controls
         ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
         self.show_scale_bar_var = tk.BooleanVar(value=self.show_scale_bar)
