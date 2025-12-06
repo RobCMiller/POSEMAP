@@ -627,98 +627,11 @@ def calculate_com_offset_correction(pdb_data: Dict, euler_angles: np.ndarray,
     # The fine-tuning sliders can be used to manually correct for any systematic offsets.
     
     # Return zero offset - the calculation needs to be reconsidered
+    # Since PyMOL centers at COM and we place projection centered at particle center,
+    # they should already align. We can't calculate the offset without knowing the
+    # PDB->volume transformation.
     offset_x = 0.0
     offset_y = 0.0
-    
-    # Now, PyMOL centers the structure at its COM before rotation, which means
-    # the COM becomes (0,0,0) in the centered coordinate system. After rotation,
-    # it's still (0,0,0), and after projection, it's (0,0) in the projection image.
-    #
-    # So the projection image center corresponds to where the COM would be if
-    # we didn't center it, but then we center it, so it becomes (0,0).
-    #
-    # The offset is: where the COM would be (com_2d_pixels) minus where it actually
-    # is in the projection (0,0) = com_2d_pixels
-    #
-    # But wait, that's not right either. Let me reconsider...
-    #
-    # Actually, I think the issue is simpler: The structure COM in PDB coordinates
-    # might not be at the origin. When PyMOL centers it, it moves it to the origin.
-    # But the particle center from cryoSPARC might correspond to a different location
-    # in the PDB coordinate system.
-    #
-    # The solution: Calculate the offset as the difference between where the COM
-    # would appear (if we didn't center) and where the particle center is.
-    # But since we DO center, the offset is just -com_2d_pixels (to move the
-    # projection so that the COM aligns with the particle center).
-    
-    # CRITICAL: PyMOL centers the structure at its COM BEFORE rotation.
-    # This means:
-    # 1. Structure COM in PDB coords -> PyMOL centers it -> COM becomes (0,0,0) in centered coords
-    # 2. After rotation, COM is still at (0,0,0) in rotated coords
-    # 3. After projection, COM is at (0,0) in projection image (center of image)
-    #
-    # So the projection image center = structure COM (after centering).
-    # When we place the projection centered at particle_center_pixel, the COM appears
-    # at particle_center_pixel.
-    #
-    # However, if the structure COM in the original PDB coordinates doesn't match
-    # where cryoSPARC thinks the particle center is (in volume coordinates), there
-    # will be an offset. The offset is the difference between:
-    # - Where the COM would be if we didn't center it (com_2d_pixels)
-    # - Where the particle center is (particle_center_pixel)
-    #
-    # But since we DO center it, the COM is at (0,0) in the projection image.
-    # So the offset needed to align the COM with the particle center is:
-    # offset = particle_center_pixel - (0,0) = particle_center_pixel
-    #
-    # Wait, that's not right either. Let me reconsider...
-    #
-    # Actually, the key insight is: The structure COM in PDB coords, when rotated
-    # and projected, gives us com_2d_pixels. This is where the COM would appear
-    # in the micrograph if we didn't center it. But we DO center it, so it appears
-    # at (0,0) in the projection image. When we place the projection centered at
-    # particle_center_pixel, the COM appears at particle_center_pixel.
-    #
-    # If the particle center from cryoSPARC is at particle_center_pixel, and the
-    # COM appears at particle_center_pixel, they should align. So offset = 0.
-    #
-    # UNLESS: The structure COM in PDB coords doesn't match the volume center that
-    # cryoSPARC uses. In that case, we need to offset by the difference between
-    # where the COM would be (com_2d_pixels) and where the particle center is.
-    #
-    # The offset is: offset = particle_center_pixel - com_2d_pixels
-    # But since we're placing the projection centered at particle_center_pixel,
-    # and the COM is at (0,0) in the projection, the offset is actually:
-    # offset = -com_2d_pixels (to move the projection so the COM aligns with particle center)
-    #
-    # Actually, I think the correct approach is:
-    # - The projection image center corresponds to the structure COM (after centering)
-    # - We want the COM to appear at particle_center_pixel
-    # - Currently, if we place the projection centered at particle_center_pixel, the COM appears at particle_center_pixel
-    # - So offset should be 0, UNLESS there's a coordinate system mismatch
-    #
-    # The coordinate system mismatch would manifest as: the structure COM in PDB coords
-    # doesn't match the volume center. In that case, we need to offset by the difference.
-    #
-    # Let's calculate: offset = -com_2d_pixels
-    # This compensates for the fact that PyMOL centers at COM, moving it to (0,0).
-    # By offsetting by -com_2d_pixels, we're essentially "undoing" the centering
-    # and aligning the original COM position with the particle center.
-    
-    offset_x = -com_2d_pixels[0]
-    offset_y = -com_2d_pixels[1]
-    
-    # Apply shifts if provided (shifts are already applied to particle center,
-    # so we might need to account for them here too)
-    if shifts_angstroms is not None:
-        shift_x_pixels = shifts_angstroms[0] / pixel_size
-        shift_y_pixels = shifts_angstroms[1] / pixel_size
-        # The shifts represent how the particle moved during refinement
-        # They're already applied to the particle center, so we don't need to
-        # add them here. But we might need to account for them in the offset calculation.
-        # Actually, let's not modify the offset based on shifts - the shifts are
-        # already accounted for in the particle center position.
     
     return (offset_x, offset_y)
 
