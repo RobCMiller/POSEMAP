@@ -2339,82 +2339,37 @@ class ParticleMapperGUI:
                         # Draw outline if enabled
                         if self.show_outlines:
                             try:
-                                # Try using skimage for clean contours
-                                try:
-                                    from skimage import measure
+                                # Use matplotlib's contour function directly - this ensures perfect alignment
+                                # with imshow since it uses the same coordinate system
+                                from scipy.ndimage import binary_erosion
+                                
+                                # Create binary mask from alpha channel (structure pixels)
+                                alpha_mask = rgba[:, :, 3] > 0.01
+                                
+                                if alpha_mask.any():
+                                    # Erode to find edge (boundary between structure and background)
+                                    eroded = binary_erosion(alpha_mask)
+                                    edge = alpha_mask & ~eroded
                                     
-                                    # Create binary mask from alpha channel (structure pixels)
-                                    alpha_mask = rgba[:, :, 3] > 0.01
+                                    # Create coordinate arrays matching the extent used by imshow
+                                    # extent = [left, right, bottom, top]
+                                    # With origin='lower', array row 0 is at bottom, row H-1 is at top
+                                    # So we create y coordinates from bottom to top
+                                    x = np.linspace(extent[0], extent[1], rgba.shape[1])
+                                    y = np.linspace(extent[2], extent[3], rgba.shape[0])
+                                    X, Y = np.meshgrid(x, y)
                                     
-                                    if alpha_mask.any():
-                                        # Find contours using skimage
-                                        contours = measure.find_contours(alpha_mask.astype(float), 0.5)
-                                        
-                                        if len(contours) > 0:
-                                            # Find the outer perimeter by selecting the contour with the largest area
-                                            # This is more reliable than using length for complex shapes
-                                            from scipy.spatial import ConvexHull
-                                            def contour_area(contour):
-                                                """Calculate area of a contour using the shoelace formula."""
-                                                if len(contour) < 3:
-                                                    return 0
-                                                x, y = contour[:, 1], contour[:, 0]
-                                                return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-                                            
-                                            # Find contour with largest area (outer perimeter)
-                                            largest_contour = max(contours, key=contour_area)
-                                            
-                                            # Convert contour coordinates from image space to data space
-                                            # CRITICAL: With origin='lower', matplotlib's imshow maps:
-                                            # - Array row 0 (first row) -> extent[2] (bottom of data coordinates)
-                                            # - Array row H-1 (last row) -> extent[3] (top of data coordinates)
-                                            # - Array col 0 (first col) -> extent[0] (left of data coordinates)
-                                            # - Array col W-1 (last col) -> extent[1] (right of data coordinates)
-                                            #
-                                            # skimage.measure.find_contours returns (row, col) where:
-                                            # - row=0 is the TOP of the image (in standard image coordinates)
-                                            # - row increases downward
-                                            # - col=0 is left, col increases rightward
-                                            #
-                                            # BUT with origin='lower', array row 0 is at the BOTTOM
-                                            # So we need to flip the row coordinate:
-                                            # - contour row r (where r=0 is top) maps to array row (H-1-r) (which is at bottom)
-                                            # - For pixel centers: y = extent[2] + ((H-1-r) + 0.5) * y_scale
-                                            # - Simplifying: y = extent[2] + (H - 0.5 - r) * y_scale
-                                            #
-                                            # For x (col), no flipping needed: x = extent[0] + (col + 0.5) * x_scale
-                                            x_scale = (extent[1] - extent[0]) / rgba.shape[1]
-                                            y_scale = (extent[3] - extent[2]) / rgba.shape[0]
-                                            H = rgba.shape[0]
-                                            x_coords = extent[0] + (largest_contour[:, 1] + 0.5) * x_scale
-                                            y_coords = extent[2] + (H - 0.5 - largest_contour[:, 0]) * y_scale
-                                            
-                                            # Draw outline in color #F2570C (only outer perimeter)
-                                            self.ax.plot(x_coords, y_coords, color='#F2570C', 
-                                                        linewidth=2, alpha=1.0, zorder=11)
-                                except ImportError:
-                                    # Fallback: use matplotlib's contour function
-                                    from scipy.ndimage import binary_erosion
-                                    
-                                    # Create binary mask
-                                    alpha_mask = rgba[:, :, 3] > 0.01
-                                    if alpha_mask.any():
-                                        # Erode to find edge
-                                        eroded = binary_erosion(alpha_mask)
-                                        edge = alpha_mask & ~eroded
-                                        
-                                        # Use matplotlib contour to draw smooth outline
-                                        # Create coordinate arrays
-                                        x = np.linspace(extent[0], extent[1], rgba.shape[1])
-                                        y = np.linspace(extent[2], extent[3], rgba.shape[0])
-                                        X, Y = np.meshgrid(x, y)
-                                        
-                                        # Draw contour at edge
-                                        self.ax.contour(X, Y, edge.astype(float), levels=[0.5], 
-                                                       colors=['#F2570C'], linewidths=2, zorder=11)
+                                    # Draw contour at edge - matplotlib's contour automatically handles
+                                    # the coordinate system matching with imshow when using the same X, Y grids
+                                    # Note: edge array is indexed as [row, col] where row=0 is bottom (with origin='lower')
+                                    # and contour expects the same indexing, so this should align perfectly
+                                    self.ax.contour(X, Y, edge.astype(float), levels=[0.5], 
+                                                   colors=['#F2570C'], linewidths=2, zorder=11)
                             except Exception as e:
                                 if i < 3:
                                     print(f"    Warning: Could not draw outline: {e}")
+                                    import traceback
+                                    traceback.print_exc()
                     else:
                         # Fallback: if it's not RGBA, skip it
                         if i < 3:
