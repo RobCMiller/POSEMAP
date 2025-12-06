@@ -3512,9 +3512,9 @@ class ParticleMapperGUI:
         # Calculate scale bar length in pixels
         scale_bar_length_pixels = self.scale_bar_length_angstroms / self.pixel_size_angstroms
         
-        # Position scale bar in bottom-left corner, 10% from edges
-        margin_x = img_width * 0.10
-        margin_y = img_height * 0.10
+        # Position scale bar in bottom-left corner, 3-5% from edges
+        margin_x = img_width * 0.04  # 4% from left edge
+        margin_y = img_height * 0.04  # 4% from bottom edge
         
         bar_x_start = margin_x
         bar_x_end = bar_x_start + scale_bar_length_pixels
