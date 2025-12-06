@@ -2289,12 +2289,13 @@ class ParticleMapperGUI:
                 x_pixel -= shift[0] / pixel_size  # Try negating X shift
                 y_pixel -= shift[1] / pixel_size  # Try negating Y shift
             
-            # Convert to integer for pixel coordinates
-            x_pixel = int(x_pixel)
-            y_pixel = int(y_pixel)
+            # Keep pixel coordinates as float for sub-pixel accuracy
+            # Only convert to int for bounds checking
+            x_pixel_int = int(round(x_pixel))
+            y_pixel_int = int(round(y_pixel))
             
-            if x_pixel < 0 or x_pixel >= display_image.shape[1] or \
-               y_pixel < 0 or y_pixel >= display_image.shape[0]:
+            if x_pixel_int < 0 or x_pixel_int >= display_image.shape[1] or \
+               y_pixel_int < 0 or y_pixel_int >= display_image.shape[0]:
                 continue
             
             pose = self.current_particles['poses'][i]
@@ -2334,10 +2335,10 @@ class ParticleMapperGUI:
                                 print(f"Particle {i}: Using cached RGBA projection, shape={projection.shape}, "
                                       f"RGB_range=[{projection[:,:,:3].min():.3f}, {projection[:,:,:3].max():.3f}], "
                                       f"Alpha_range=[{projection[:,:,3].min():.3f}, {projection[:,:,3].max():.3f}], "
-                                      f"at pixel ({x_pixel}, {y_pixel})")
+                                      f"at pixel ({x_pixel:.2f}, {y_pixel:.2f})")
                             else:
                                 print(f"Particle {i}: Using cached projection, shape={projection.shape}, "
-                                      f"at pixel ({x_pixel}, {y_pixel})")
+                                      f"at pixel ({x_pixel:.2f}, {y_pixel:.2f})")
                     # Store first particle's projection for preview (convert RGBA to grayscale for preview)
                     if i == 0:
                         if len(projection.shape) == 3 and projection.shape[2] == 4:
@@ -2354,8 +2355,8 @@ class ParticleMapperGUI:
                             self.update_preview()
                     
                     # Overlay the unique projection for this particle
-                    # Calculate extent in data coordinates
-                    half_size = self.projection_size // 2
+                    # Calculate extent in data coordinates using float precision for sub-pixel accuracy
+                    half_size = self.projection_size / 2.0  # Use float division
                     extent = [x_pixel - half_size, x_pixel + half_size,
                              y_pixel - half_size, y_pixel + half_size]
                     
