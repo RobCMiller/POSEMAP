@@ -2308,7 +2308,9 @@ class ParticleMapperGUI:
             x_frac = self.current_particles['center_x_frac'][i]
             y_frac = self.current_particles['center_y_frac'][i]
             x_pixel = x_frac * mg_shape[1]
-            y_pixel = y_frac * mg_shape[0]
+            # CRITICAL: Flip Y coordinate because matplotlib uses origin='lower' (Y=0 at bottom)
+            # but numpy arrays have Y=0 at top. So we need: y_display = height - y_array
+            y_pixel = mg_shape[0] - (y_frac * mg_shape[0])
             
             # Apply 2D shifts from refinement (in Angstroms, convert to pixels)
             # cryoSPARC's alignments3D/shift contains [shift_x, shift_y] in Angstroms
@@ -2324,9 +2326,9 @@ class ParticleMapperGUI:
                     except (ValueError, AttributeError):
                         pixel_size = 1.0  # Default fallback
                 # Convert shifts from Angstroms to pixels
-                # Try negating shifts - cryoSPARC shifts might be in opposite direction
-                x_pixel -= shift[0] / pixel_size  # Negate X shift
-                y_pixel -= shift[1] / pixel_size  # Negate Y shift
+                # Apply shifts: X shift is direct, Y shift needs to be negated (because Y is flipped)
+                x_pixel += shift[0] / pixel_size
+                y_pixel -= shift[1] / pixel_size  # Negate Y shift because Y axis is flipped
             
             # Convert to integer for pixel coordinates
             x_pixel = int(x_pixel)
