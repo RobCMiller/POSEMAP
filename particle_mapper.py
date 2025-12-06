@@ -868,19 +868,15 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # 2. Rotate around Y by theta (in the rotated coordinate system)
     # 3. Rotate around Z by psi (in the twice-rotated coordinate system)
     #
-    # CRITICAL: Go back to using transform_object with rotation matrix
-    # But this time, let's try transposing the ENTIRE matrix format
-    # PyMOL's transform_object might expect column-major instead of row-major
-    # Or maybe we need to transpose the rotation matrix itself
-    #
-    # The fallback function uses: coords_rotated = R @ coords_centered
-    # This means R rotates from model space to view space
-    # For transform_object, we want to apply R to model coordinates
-    # So we should use R directly
-    #
-    # But maybe PyMOL's matrix format expects the transpose?
-    # Let's try using R.T in the matrix format
-    R_transform = R.T  # Try transpose
+    # CRITICAL: Try R.T with 180° rotation correction
+    # We've tried many combinations. Let's try R.T with the 180° Z rotation
+    # that was needed for ChimeraX
+    R_180_z = np.array([[-1.0, 0.0, 0.0],
+                        [0.0, -1.0, 0.0],
+                        [0.0, 0.0, 1.0]])
+    
+    # Try R.T with 180° rotation correction
+    R_transform = R.T @ R_180_z
     
     # PyMOL's transform_object expects a 4x4 transformation matrix
     # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
