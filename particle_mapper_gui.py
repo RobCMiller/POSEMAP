@@ -1644,15 +1644,30 @@ class ParticleMapperGUI:
         print(f"  Particle {particle_idx+1}: Euler angles = [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
         
         # Generate projection using PDB structure with PyMOL
+        # CRITICAL: Don't access GUI elements from background threads
+        # Use stored paths instead of accessing entry widgets
         pdb_path = self.pdb_path if hasattr(self, 'pdb_path') and self.pdb_path else None
-        if not pdb_path:
-            pdb_path = self.pdb_entry.get() if hasattr(self, 'pdb_entry') else None
         
+        # Get chimerax_path from stored value, not GUI (thread-safe)
         chimerax_path = None
-        if hasattr(self, 'chimerax_entry'):
-            chimerax_path = self.chimerax_entry.get()
-            if not chimerax_path or not Path(chimerax_path).exists():
-                chimerax_path = None  # Will auto-detect
+        if hasattr(self, 'chimerax_path') and self.chimerax_path:
+            chimerax_path = self.chimerax_path
+        elif hasattr(self, 'chimerax_entry'):
+            # Only access GUI if we're in the main thread (not background)
+            # For background threads, use None (will auto-detect)
+            try:
+                # Try to get value, but catch if we're in a background thread
+                import threading
+                if threading.current_thread() is threading.main_thread():
+                    chimerax_path = self.chimerax_entry.get()
+                    if not chimerax_path or not Path(chimerax_path).exists():
+                        chimerax_path = None  # Will auto-detect
+                else:
+                    # Background thread - don't access GUI, will auto-detect
+                    chimerax_path = None
+            except:
+                # If accessing GUI fails, just use None (will auto-detect)
+                chimerax_path = None
         
         # Determine chain_color_map based on color mode
         chain_color_map = None
