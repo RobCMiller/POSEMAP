@@ -577,33 +577,32 @@ def calculate_com_offset_correction(pdb_data: Dict, euler_angles: np.ndarray,
     # Get rotation matrix
     R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
     
-    # PyMOL centers the structure at its COM before rotation, so we need to center
-    # the COM relative to itself (which makes it (0,0,0))
-    com_centered = com_pdb - com_pdb  # This is (0,0,0)
+    # PyMOL centers the structure at its COM before rotation, so in the centered
+    # coordinate system, the COM is at (0,0,0). After rotation, it's still at (0,0,0)
+    # in the rotated coordinate system. After projection, it's at (0,0) in the
+    # projection image. So the projection image center corresponds to the structure COM.
     
-    # Rotate the centered COM (should still be (0,0,0) after rotation)
-    com_rotated = R @ com_centered
-    
-    # Project to 2D (X, Y coordinates)
-    com_2d_angstroms = com_rotated[:2]  # Should be (0, 0)
-    
-    # Convert to pixels
-    com_2d_pixels = com_2d_angstroms / pixel_size  # Should be (0, 0)
-    
-    # Calculate offset: difference between particle center and projected COM
-    # Since com_2d_pixels is (0, 0), the offset is just the particle center
-    # But that's not right - we want the offset to be zero if they align.
-    
-    # Actually, the issue is that we're comparing apples to oranges:
-    # - particle_center_pixel is in micrograph pixel coordinates
-    # - com_2d_pixels is in projection pixel coordinates (relative to projection center)
-    
-    # The projection image is centered at the structure COM (after PyMOL centering).
     # When we place the projection image centered at particle_center_pixel, the
-    # structure COM appears at particle_center_pixel. So if they align, offset should be zero.
+    # structure COM appears at particle_center_pixel in micrograph coordinates.
+    # If cryoSPARC says the particle center is at particle_center_pixel, then they
+    # should already align, and the offset should be zero.
     
-    # For now, return zero offset. The real correction would require knowing the
-    # transformation between PDB and volume coordinate systems.
+    # However, there might be a coordinate system mismatch. The structure COM in
+    # PDB coordinates might not match the particle center in cryoSPARC volume
+    # coordinates. Without knowing the transformation between these coordinate
+    # systems, we can't calculate the offset directly.
+    
+    # For now, return zero offset. The fine-tuning sliders can be used to manually
+    # correct for any systematic offsets. In the future, if we can determine the
+    # PDB->volume transformation, we can calculate the actual offset here.
+    
+    # NOTE: This function is called for each particle/view, so if there's a systematic
+    # offset, it would need to be calculated based on the relationship between the
+    # PDB structure and the cryoSPARC volume. This might require:
+    # 1. Knowing how the PDB structure was fitted to the volume
+    # 2. The transformation matrix between PDB and volume coordinate systems
+    # 3. Or comparing the structure COM to the volume center
+    
     return (0.0, 0.0)
 
 
