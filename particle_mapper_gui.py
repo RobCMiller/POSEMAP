@@ -2781,7 +2781,19 @@ class ParticleMapperGUI:
         
         if num_cached >= num_particles:
             messagebox.showinfo("Info", "All projections have already been generated.")
+            # Set flag and disable button
+            self.all_projections_generated = True
+            if hasattr(self, 'generate_all_button'):
+                self.generate_all_button.config(state=tk.DISABLED)
             return
+        
+        # Check if already generating to prevent multiple simultaneous generations
+        if hasattr(self, '_generating_projections') and self._generating_projections:
+            print("Projection generation already in progress, skipping...")
+            return
+        
+        # Set flag to prevent multiple generations
+        self._generating_projections = True
         
         # Generate all remaining projections
         if self.current_micrograph_idx < len(self.micrograph_files):
@@ -2792,11 +2804,24 @@ class ParticleMapperGUI:
         
         self.status_var.set(f"Generating remaining {num_particles - num_cached} projections...")
         self.root.update()
-        self._generate_all_projections(self.current_micrograph_idx, base_filename=base_name, limit=None)
-        # Force display update after generating all projections
-        self.root.after(100, lambda: self.update_display())
-        # Force display update after generating all projections
-        self.root.after(100, lambda: self.update_display())
+        
+        # Generate in background to keep GUI responsive
+        self._generate_all_projections(self.current_micrograph_idx, base_filename=base_name, limit=None, background=True)
+        
+        # Reset flag after a delay to allow generation to complete
+        def reset_generating_flag():
+            self._generating_projections = False
+            # Check if all projections are now generated
+            with self.cache_lock:
+                num_cached_after = len([k for k in self.projection_cache.keys() if k[0] == self.current_micrograph_idx])
+            if num_cached_after >= num_particles:
+                self.all_projections_generated = True
+                if hasattr(self, 'generate_all_button'):
+                    self.generate_all_button.config(state=tk.DISABLED)
+                self.status_var.set(f"Generated all {num_particles} projections.")
+        
+        # Wait a bit longer for background generation to complete
+        self.root.after(2000, reset_generating_flag)
     
     def update_alpha(self, val):
         self._reset_idle_timer()  # Reset idle timer on user interaction
