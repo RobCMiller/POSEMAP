@@ -908,6 +908,10 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # Zoom and set viewport
     script_lines.append(f'cmd.zoom("{rep_obj}", complete=1)')
     
+    # CRITICAL: Ensure structure is centered in view before rendering
+    # Call center again after zoom to ensure perfect centering
+    script_lines.append(f'cmd.center("{rep_obj}")')
+    
     # Set viewport and render - NO ray tracing for speed (ray=0)
     script_lines.append(f'cmd.viewport({w}, {h})')
     script_lines.append(f'cmd.png("{output_abs}", width={w}, height={h}, ray=1, quiet=1)')
