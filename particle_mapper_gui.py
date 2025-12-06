@@ -2283,9 +2283,9 @@ class ParticleMapperGUI:
                     except (ValueError, AttributeError):
                         pixel_size = 1.0  # Default fallback
                 # Convert shifts from Angstroms to pixels
-                # Try negating shifts - shifts might represent correction needed, not actual movement
-                x_pixel -= shift[0] / pixel_size
-                y_pixel -= shift[1] / pixel_size
+                # Apply shifts directly (not negated) - shifts represent how particle moved during refinement
+                x_pixel += shift[0] / pixel_size
+                y_pixel += shift[1] / pixel_size
             
             # Keep pixel coordinates as float for sub-pixel accuracy
             # Only convert to int for bounds checking
