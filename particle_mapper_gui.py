@@ -2817,8 +2817,9 @@ class ParticleMapperGUI:
         self.status_var.set(f"Generating remaining {num_particles - num_cached} projections...")
         self.root.update()
         
-        # Generate in background to keep GUI responsive
-        self._generate_all_projections(self.current_micrograph_idx, base_filename=base_name, limit=None, background=True)
+        # Generate in foreground (not background) to ensure completion and display update
+        # When user explicitly clicks "Apply" or "Generate All", we want it to complete
+        self._generate_all_projections(self.current_micrograph_idx, base_filename=base_name, limit=None, background=False)
         
         # Reset flag after a delay to allow generation to complete
         def reset_generating_flag():
