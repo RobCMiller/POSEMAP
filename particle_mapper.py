@@ -868,15 +868,15 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # 2. Rotate around Y by theta (in the rotated coordinate system)
     # 3. Rotate around Z by psi (in the twice-rotated coordinate system)
     #
-    # CRITICAL: Try R.T with 180° rotation correction
-    # We've tried many combinations. Let's try R.T with the 180° Z rotation
-    # that was needed for ChimeraX
-    R_180_z = np.array([[-1.0, 0.0, 0.0],
-                        [0.0, -1.0, 0.0],
-                        [0.0, 0.0, 1.0]])
+    # CRITICAL: Try Y-axis flip instead of Z-axis rotation
+    # Maybe the coordinate system has Y flipped instead of Z rotated
+    # Try flipping Y axis: R_flip_y = [[1,0,0],[0,-1,0],[0,0,1]]
+    R_flip_y = np.array([[1.0, 0.0, 0.0],
+                         [0.0, -1.0, 0.0],
+                         [0.0, 0.0, 1.0]])
     
-    # Try 180° rotation BEFORE R.T
-    R_transform = R_180_z @ R.T
+    # Try R with Y-axis flip
+    R_transform = R @ R_flip_y
     
     # PyMOL's transform_object expects a 4x4 transformation matrix
     # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
