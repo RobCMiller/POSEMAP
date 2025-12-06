@@ -130,6 +130,8 @@ class ParticleMapperGUI:
         # Small offset adjustments (in pixels) to fine-tune projection position
         self.projection_offset_x = 0.0  # Small X offset in pixels
         self.projection_offset_y = 0.0  # Small Y offset in pixels
+        self.projection_offset_x_var = None  # Will be set in GUI setup
+        self.projection_offset_y_var = None  # Will be set in GUI setup
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
         
@@ -2828,6 +2830,19 @@ class ParticleMapperGUI:
         self._reset_idle_timer()  # Reset idle timer on user interaction
         self.projection_alpha = val
         self.alpha_label.config(text=f"{val:.2f}")
+        self.update_display()
+    
+    def update_projection_offset(self, axis, value):
+        """Update projection offset from slider."""
+        if axis == 'x':
+            self.projection_offset_x = value
+            if hasattr(self, 'offset_x_label'):
+                self.offset_x_label.config(text=f"{value:.1f} px")
+        elif axis == 'y':
+            self.projection_offset_y = value
+            if hasattr(self, 'offset_y_label'):
+                self.offset_y_label.config(text=f"{value:.1f} px")
+        # Update display immediately
         self.update_display()
     
     def update_size(self, val):
