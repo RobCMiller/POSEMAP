@@ -819,15 +819,31 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     script_lines.append(f'cmd.origin("{rep_obj}")')
     
     # CRITICAL: Apply rotation using transform_object with the rotation matrix
-    # This ensures the rotation is applied exactly as specified by the Euler angles
-    # PyMOL's transform_object expects a 4x4 transformation matrix
+    # 
+    # In cryoSPARC, the Euler angles represent the rotation that takes the MODEL from its
+    # reference orientation to the orientation it has in the micrograph (as viewed by the camera).
+    # 
+    # scipy's Rotation.from_euler('ZYZ', ...) gives us a rotation matrix R that rotates
+    # vectors from the model's coordinate system to the camera/view coordinate system.
+    # 
+    # To visualize the model as it appears in the micrograph, we need to rotate the MODEL
+    # by R^T (transpose), because:
+    # - R rotates vectors: v_camera = R @ v_model
+    # - To rotate the model to match the camera view, we apply R^T to model coordinates
+    # - This is because if we want model coordinates in camera space: v_camera = R @ v_model
+    #   then to transform the model itself: model_camera = R^T @ model_original
+    #
+    # However, PyMOL's transform_object applies the transformation to object coordinates,
+    # so we use R^T to rotate the model to the correct orientation.
+    R_transform = R.T  # Use transpose to rotate model to match camera view
+    
+    # PyMOL's transform_object expects a 4x4 transformation matrix in row-major format
     # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
-    # We use the rotation matrix R (3x3) and zero translation
     transform_list = [
-        R[0,0], R[0,1], R[0,2], 0.0,  # First row + tx
-        R[1,0], R[1,1], R[1,2], 0.0,  # Second row + ty
-        R[2,0], R[2,1], R[2,2], 0.0,  # Third row + tz
-        0.0, 0.0, 0.0, 1.0             # Bottom row
+        R_transform[0,0], R_transform[0,1], R_transform[0,2], 0.0,  # First row + tx
+        R_transform[1,0], R_transform[1,1], R_transform[1,2], 0.0,  # Second row + ty
+        R_transform[2,0], R_transform[2,1], R_transform[2,2], 0.0,  # Third row + tz
+        0.0, 0.0, 0.0, 1.0                                           # Bottom row
     ]
     transform_str = ', '.join([f'{x:.10f}' for x in transform_list])
     script_lines.append(f'cmd.transform_object("{rep_obj}", [{transform_str}], homogenous=0)')
