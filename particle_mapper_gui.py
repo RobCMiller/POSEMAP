@@ -686,7 +686,7 @@ class ParticleMapperGUI:
         # Y rotation slider
         ttk.Label(offset_frame, text="Rotate Y (degrees):").pack(anchor=tk.W, pady=(10, 0))
         self.rotation_correction_y_var = tk.DoubleVar(value=self.rotation_correction_y)
-        rot_y_scale = ttk.Scale(offset_frame, from_=170.0, to=190.0, 
+        rot_y_scale = ttk.Scale(offset_frame, from_=-180.0, to=180.0, 
                                 variable=self.rotation_correction_y_var, orient=tk.HORIZONTAL,
                                 command=lambda v: self.update_rotation_correction('y', float(v)))
         rot_y_scale.pack(fill=tk.X, pady=2)
@@ -696,7 +696,7 @@ class ParticleMapperGUI:
         # Z rotation slider
         ttk.Label(offset_frame, text="Rotate Z (degrees):").pack(anchor=tk.W, pady=(10, 0))
         self.rotation_correction_z_var = tk.DoubleVar(value=self.rotation_correction_z)
-        rot_z_scale = ttk.Scale(offset_frame, from_=170.0, to=190.0, 
+        rot_z_scale = ttk.Scale(offset_frame, from_=-180.0, to=180.0, 
                                 variable=self.rotation_correction_z_var, orient=tk.HORIZONTAL,
                                 command=lambda v: self.update_rotation_correction('z', float(v)))
         rot_z_scale.pack(fill=tk.X, pady=2)
