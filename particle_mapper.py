@@ -821,51 +821,53 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # CRITICAL: Apply rotation to match cryoSPARC particle orientation
     # 
     # In cryoSPARC, alignments3D/pose contains Euler angles [phi, theta, psi] in ZYZ convention.
-    # These angles describe how to rotate the MODEL to match its orientation in the micrograph.
-    #
     # scipy's Rotation.from_euler('ZYZ', ...) gives us a rotation matrix R.
-    # Looking at project_volume and project_pdb_cartoon:
-    # - project_volume uses R.T to rotate from view space back to volume space
-    # - project_pdb_cartoon uses R directly: coords_rotated = R @ coords_centered
-    # This means R rotates from model space to view space.
+    #
+    # The key question: what does R represent?
+    # - In project_volume: R.T is used to rotate from view space back to volume space
+    #   This means R rotates from volume/model space to view space
+    # - In project_pdb_cartoon: R is used directly: coords_rotated = R @ coords_centered
+    #   This confirms R rotates from model space to view space
     #
     # For PyMOL, we want to rotate the model so it appears as it does in the micrograph.
-    # PyMOL's rotate command rotates the object around axes in the object's coordinate system.
-    # The rotations are applied sequentially, so the order matters.
+    # PyMOL's rotate command applies rotations sequentially in the object's coordinate system.
     #
-    # ZYZ convention: first rotate around Z by phi, then Y by theta, then Z by psi.
-    # However, when applying rotations sequentially, each rotation is applied in the
-    # coordinate system that results from the previous rotations (intrinsic rotations).
+    # ZYZ convention (intrinsic rotations):
+    # 1. Rotate around Z by phi
+    # 2. Rotate around Y by theta (in the rotated coordinate system)
+    # 3. Rotate around Z by psi (in the twice-rotated coordinate system)
     #
-    # Let's apply the rotations in the correct order for ZYZ convention:
-    # 1. Rotate around Z by phi (first rotation)
-    # 2. Rotate around Y by theta (second rotation, in rotated coordinate system)
-    # 3. Rotate around Z by psi (third rotation, in twice-rotated coordinate system)
+    # scipy's Rotation.from_euler('ZYZ', ...) computes this as: R = R_z(psi) @ R_y(theta) @ R_z(phi)
+    # This means the rotations are applied right-to-left: first phi, then theta, then psi.
     #
-    # But wait - PyMOL's rotate command might apply rotations in a different way.
-    # Let's try using the rotation matrix directly with transform_object, but we need
-    # to figure out if we should use R or R.T.
+    # For PyMOL's rotate command, we need to apply them in the correct order.
+    # Since PyMOL applies rotations sequentially in the object's coordinate system,
+    # we apply them in the order: phi (Z), then theta (Y), then psi (Z).
     #
-    # Actually, let me think about this more carefully:
-    # - If we have a point p in model space
-    # - R rotates it to view space: p_view = R @ p_model
-    # - To rotate the model to match the view, we want to transform model coordinates
-    # - The transformation should satisfy: p_view = T @ p_model
-    # - So T = R
+    # However, there's a subtlety: PyMOL's rotate might apply rotations in a different
+    # coordinate system or order than scipy. Let's use the rotation matrix directly
+    # with transform_object to ensure we get the exact same rotation as scipy.
     #
-    # But PyMOL's transform_object might apply the transformation as: new = T @ old
-    # If that's the case, then T = R should work.
-    #
-    # However, there might be a coordinate system issue. Let's try both R and R.T
-    # and see which one works. For now, let's use R directly since that's what
-    # project_pdb_cartoon uses.
+    # For transform_object, we need to determine if we should use R or R.T.
+    # If R rotates from model to view, and we want to rotate the model to view space,
+    # then we should apply R to model coordinates. So we use R directly.
     
-    # Use R directly (not R.T) to rotate model to view space
-    # This matches how project_pdb_cartoon applies the rotation
-    R_transform = R
+    # CRITICAL: Apply 180° in-plane rotation correction
+    # Based on ChimeraX integration, we found that projections appear rotated 180° in-plane
+    # This is likely due to coordinate system convention differences (Y-axis flip or similar)
+    # Apply 180° rotation around Z axis: R_180_z = [[-1,0,0],[0,-1,0],[0,0,1]]
+    R_180_z = np.array([[-1.0, 0.0, 0.0],
+                        [0.0, -1.0, 0.0],
+                        [0.0, 0.0, 1.0]])
     
-    # PyMOL's transform_object expects a 4x4 transformation matrix in row-major format
-    # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
+    # Apply the 180° correction to the rotation matrix
+    # R rotates from model space to view space
+    # After applying R, we need to apply the 180° Z rotation to correct for coordinate system mismatch
+    R_transform = R @ R_180_z
+    
+    # PyMOL's transform_object expects a 4x4 transformation matrix
+    # The matrix format is: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
+    # This is row-major format where each row of the 3x3 rotation matrix is followed by translation
     transform_list = [
         R_transform[0,0], R_transform[0,1], R_transform[0,2], 0.0,  # First row + tx
         R_transform[1,0], R_transform[1,1], R_transform[1,2], 0.0,  # Second row + ty
