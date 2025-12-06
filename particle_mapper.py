@@ -1085,9 +1085,13 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     with open(script_file, 'w') as f:
         f.write(script_content)
     
-    # Debug: Print Euler angles to verify they're different for each particle
+    # Debug: Print Euler angles and rotation matrix to verify transformations
     print(f"DEBUG PyMOL: Euler=[{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}], "
           f"ZYZ_deg=[{phi_deg:.2f}, {theta_deg:.2f}, {psi_deg:.2f}], script={script_file.name}")
+    print(f"DEBUG Rotation Matrix R (from model to view):")
+    print(f"  R[0] = [{R[0,0]:.6f}, {R[0,1]:.6f}, {R[0,2]:.6f}]")
+    print(f"  R[1] = [{R[1,0]:.6f}, {R[1,1]:.6f}, {R[1,2]:.6f}]")
+    print(f"  R[2] = [{R[2,0]:.6f}, {R[2,1]:.6f}, {R[2,2]:.6f}]")
     
     try:
         # Run PyMOL with the script file
