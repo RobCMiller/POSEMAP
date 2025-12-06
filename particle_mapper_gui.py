@@ -2283,11 +2283,11 @@ class ParticleMapperGUI:
                     except (ValueError, AttributeError):
                         pixel_size = 1.0  # Default fallback
                 # Convert shifts from Angstroms to pixels
-                # Try negating shifts - cryoSPARC shifts might be in opposite direction
-                # Positive shift_x typically means shift right, positive shift_y means shift up
-                # But we need to verify the coordinate system convention
-                x_pixel -= shift[0] / pixel_size  # Try negating X shift
-                y_pixel -= shift[1] / pixel_size  # Try negating Y shift
+                # cryoSPARC shifts are 2D shifts in the micrograph plane
+                # They represent sub-pixel corrections from refinement
+                # Apply shifts directly (no negation) - shifts move the particle center
+                x_pixel += shift[0] / pixel_size
+                y_pixel += shift[1] / pixel_size
             
             # Keep pixel coordinates as float for sub-pixel accuracy
             # Only convert to int for bounds checking
