@@ -875,8 +875,8 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
                         [0.0, -1.0, 0.0],
                         [0.0, 0.0, 1.0]])
     
-    # Try R.T with 180° rotation correction
-    R_transform = R.T @ R_180_z
+    # Try 180° rotation BEFORE R.T
+    R_transform = R_180_z @ R.T
     
     # PyMOL's transform_object expects a 4x4 transformation matrix
     # Format: [r11, r12, r13, tx, r21, r22, r23, ty, r31, r32, r33, tz, 0, 0, 0, 1]
