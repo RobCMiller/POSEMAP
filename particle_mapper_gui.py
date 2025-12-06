@@ -139,6 +139,8 @@ class ParticleMapperGUI:
         self.projection_offset_y_var = None  # Will be set in GUI setup
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
+        self.scale_bar_linewidth = 8.0  # Default scale bar line width (2x original thickness of 4)
+        self.scale_bar_color = 'white'  # Default scale bar color
         
         # Second arrow (custom structural vector) settings
         self.show_custom_arrow = False
@@ -567,11 +569,21 @@ class ParticleMapperGUI:
         image_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.image_listbox.bind('<<ListboxSelect>>', self.on_image_select)
         
-        # Navigation buttons
+        # Navigation buttons and index input
         nav_frame = ttk.Frame(selection_frame)
         nav_frame.pack(fill=tk.X, pady=5)
         ttk.Button(nav_frame, text="Previous", 
                   command=self.prev_micrograph).pack(side=tk.LEFT, padx=2)
+        
+        # Micrograph index input
+        index_frame = ttk.Frame(nav_frame)
+        index_frame.pack(side=tk.LEFT, padx=5)
+        ttk.Label(index_frame, text="Go to:").pack(side=tk.LEFT, padx=2)
+        self.micrograph_index_entry = ttk.Entry(index_frame, width=8)
+        self.micrograph_index_entry.pack(side=tk.LEFT, padx=2)
+        self.micrograph_index_entry.bind('<Return>', self.jump_to_micrograph)
+        ttk.Button(index_frame, text="Go", 
+                  command=self.jump_to_micrograph).pack(side=tk.LEFT, padx=2)
         ttk.Button(nav_frame, text="Next", 
                   command=self.next_micrograph).pack(side=tk.LEFT, padx=2)
         
@@ -749,6 +761,27 @@ class ParticleMapperGUI:
         self.scale_bar_label = ttk.Label(viz_frame, text=f"{self.scale_bar_length_angstroms:.0f} Å")
         self.scale_bar_label.pack(anchor=tk.W)
         
+        # Scale bar appearance controls
+        ttk.Label(viz_frame, text="Scale Bar Width:").pack(anchor=tk.W, pady=(10,0))
+        self.scale_bar_width_var = tk.DoubleVar(value=self.scale_bar_linewidth)
+        scale_bar_width_scale = ttk.Scale(viz_frame, from_=1.0, to=20.0,
+                                         variable=self.scale_bar_width_var, orient=tk.HORIZONTAL,
+                                         command=lambda v: self.update_scale_bar_width(float(v)))
+        scale_bar_width_scale.pack(fill=tk.X, pady=2)
+        self.scale_bar_width_label = ttk.Label(viz_frame, text=f"{self.scale_bar_linewidth:.1f} px")
+        self.scale_bar_width_label.pack(anchor=tk.W)
+        
+        # Scale bar color
+        color_frame = ttk.Frame(viz_frame)
+        color_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(color_frame, text="Color:").pack(side=tk.LEFT, padx=(0, 5))
+        self.scale_bar_color_entry = ttk.Entry(color_frame, width=10)
+        self.scale_bar_color_entry.insert(0, self.scale_bar_color)
+        self.scale_bar_color_entry.pack(side=tk.LEFT, padx=2)
+        self.scale_bar_color_entry.bind('<Return>', self.on_scale_bar_color_change)
+        ttk.Button(color_frame, text="Pick", width=8,
+                  command=self.pick_scale_bar_color).pack(side=tk.LEFT, padx=2)
+        
         # Separator for custom arrow section
         ttk.Separator(viz_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=(15, 10))
         ttk.Label(viz_frame, text="Custom Structural Vector", font=('TkDefaultFont', 10, 'bold')).pack(anchor=tk.W, pady=(5, 5))
@@ -853,11 +886,17 @@ class ParticleMapperGUI:
         enhance_frame.pack(fill=tk.X, padx=5, pady=5)
         
         ttk.Label(enhance_frame, text="Low-pass (Å):").pack(anchor=tk.W)
+        lowpass_input_frame = ttk.Frame(enhance_frame)
+        lowpass_input_frame.pack(fill=tk.X, pady=2)
         self.lowpass_var = tk.DoubleVar(value=self.lowpass_A)
-        lowpass_scale = ttk.Scale(enhance_frame, from_=0.0, to=10.0, 
+        lowpass_scale = ttk.Scale(lowpass_input_frame, from_=0.0, to=50.0, 
                                  variable=self.lowpass_var, orient=tk.HORIZONTAL,
                                  command=lambda v: self.update_lowpass(float(v)))
-        lowpass_scale.pack(fill=tk.X, pady=2)
+        lowpass_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.lowpass_entry = ttk.Entry(lowpass_input_frame, width=8)
+        self.lowpass_entry.insert(0, f"{self.lowpass_A:.1f}")
+        self.lowpass_entry.pack(side=tk.LEFT, padx=2)
+        self.lowpass_entry.bind('<Return>', self.on_lowpass_entry_change)
         self.lowpass_label = ttk.Label(enhance_frame, text=f"{self.lowpass_A:.1f} Å")
         self.lowpass_label.pack(anchor=tk.W)
         
@@ -3112,6 +3151,51 @@ class ParticleMapperGUI:
         if self.show_scale_bar:
             self.update_display(use_cache=False)
     
+    def update_scale_bar_width(self, val):
+        """Update scale bar line width."""
+        self.scale_bar_linewidth = val
+        self.scale_bar_width_label.config(text=f"{val:.1f} px")
+        if self.show_scale_bar:
+            self.update_display(use_cache=False)
+    
+    def on_scale_bar_color_change(self, event=None):
+        """Handle manual entry of scale bar color."""
+        color = self.scale_bar_color_entry.get().strip()
+        # Validate color (basic check)
+        if color and (color.startswith('#') and len(color) == 7 or color in ['white', 'black', 'red', 'green', 'blue', 'yellow', 'cyan', 'magenta']):
+            self.scale_bar_color = color
+            if self.show_scale_bar:
+                self.update_display(use_cache=False)
+        else:
+            # Invalid color, restore previous
+            self.scale_bar_color_entry.delete(0, tk.END)
+            self.scale_bar_color_entry.insert(0, self.scale_bar_color)
+    
+    def pick_scale_bar_color(self):
+        """Open color picker for scale bar color."""
+        from tkinter import colorchooser
+        color = colorchooser.askcolor(title="Pick Scale Bar Color", color=self.scale_bar_color)[1]
+        if color:
+            self.scale_bar_color = color
+            self.scale_bar_color_entry.delete(0, tk.END)
+            self.scale_bar_color_entry.insert(0, color)
+            if self.show_scale_bar:
+                self.update_display(use_cache=False)
+    
+    def jump_to_micrograph(self, event=None):
+        """Jump to a specific micrograph by index."""
+        try:
+            idx_str = self.micrograph_index_entry.get().strip()
+            if not idx_str:
+                return
+            idx = int(idx_str) - 1  # Convert from 1-based to 0-based
+            if 0 <= idx < len(self.micrograph_paths):
+                self.load_micrograph(idx)
+            else:
+                self.status_var.set(f"Invalid micrograph index. Must be between 1 and {len(self.micrograph_paths)}")
+        except ValueError:
+            self.status_var.set("Invalid micrograph index. Please enter a number.")
+    
     def _auto_load_vector_file(self):
         """Auto-load vector and marker positions from vector_val.txt if present in current directory."""
         try:
@@ -3415,75 +3499,61 @@ class ParticleMapperGUI:
     def _draw_scale_bar(self, img_width, img_height):
         """Draw a scale bar on the micrograph display.
         
-        The scale bar is positioned in the bottom-right of the CURRENT viewport (visible area),
-        so it moves and adapts when the user zooms in/out.
+        The scale bar is positioned in the bottom-left corner of the image,
+        10% away from the left and bottom edges, regardless of zoom level.
         
         Args:
-            img_width: Width of the full image in pixels (for bounds checking)
-            img_height: Height of the full image in pixels (for bounds checking)
+            img_width: Width of the full image in pixels
+            img_height: Height of the full image in pixels
         """
         if self.pixel_size_angstroms is None or self.pixel_size_angstroms <= 0:
             return
         
-        # Get current viewport (visible area) limits
-        xlim = self.ax.get_xlim()
-        ylim = self.ax.get_ylim()
-        viewport_x_min, viewport_x_max = xlim
-        viewport_y_min, viewport_y_max = ylim
-        
         # Calculate scale bar length in pixels
         scale_bar_length_pixels = self.scale_bar_length_angstroms / self.pixel_size_angstroms
         
-        # Position scale bar in bottom-right corner of VISIBLE viewport with some padding
-        padding = 20  # pixels from edge
-        bar_height = 4  # pixels
+        # Position scale bar in bottom-left corner, 10% from edges
+        margin_x = img_width * 0.10
+        margin_y = img_height * 0.10
         
-        # Calculate position relative to viewport
-        # Ensure scale bar stays within image bounds
-        bar_x_end = min(viewport_x_max - padding, img_width - 0.5 - padding)
-        bar_x_start = max(bar_x_end - scale_bar_length_pixels, viewport_x_min + padding)
+        bar_x_start = margin_x
+        bar_x_end = bar_x_start + scale_bar_length_pixels
         
-        # If scale bar would be too long for the viewport, adjust it
-        if bar_x_end - bar_x_start < scale_bar_length_pixels * 0.5:
-            # Scale bar is too long for viewport, reduce it proportionally
-            available_width = viewport_x_max - viewport_x_min - 2 * padding
-            if available_width > 0:
-                bar_x_start = viewport_x_min + padding
-                bar_x_end = bar_x_start + min(scale_bar_length_pixels, available_width)
-            else:
-                return  # Viewport too small, skip drawing
+        # Ensure scale bar doesn't exceed image bounds
+        if bar_x_end > img_width - margin_x:
+            bar_x_end = img_width - margin_x
+            bar_x_start = bar_x_end - scale_bar_length_pixels
+            if bar_x_start < margin_x:
+                bar_x_start = margin_x
+                # Adjust length if needed
+                scale_bar_length_pixels = bar_x_end - bar_x_start
         
-        # Ensure scale bar stays within image bounds
-        bar_x_start = max(bar_x_start, -0.5)
-        bar_x_end = min(bar_x_end, img_width - 0.5)
+        # Y position: 10% from bottom
+        bar_y = margin_y
         
-        # Y position: bottom of viewport, but ensure it's within image bounds
-        bar_y = max(viewport_y_min + padding, padding)
-        bar_y = min(bar_y, img_height - 0.5 - bar_height - 20)  # Leave room for text
-        
-        # Draw the scale bar (white rectangle)
+        # Draw the scale bar with user-configurable width and color
         from matplotlib.patches import Rectangle
         scale_bar_rect = Rectangle(
             (bar_x_start, bar_y), 
-            bar_x_end - bar_x_start, 
-            bar_height,
-            facecolor='white', 
-            edgecolor='white',
-            linewidth=1,
+            scale_bar_length_pixels, 
+            self.scale_bar_linewidth,
+            facecolor=self.scale_bar_color, 
+            edgecolor=self.scale_bar_color,
+            linewidth=0,
             zorder=20
         )
         self.ax.add_patch(scale_bar_rect)
         
         # Add text label above the scale bar
         label_text = f"{self.scale_bar_length_angstroms:.0f} Å"
-        text_y = bar_y + bar_height + 8
-        # Ensure text is within viewport
-        if text_y <= viewport_y_max:
+        text_y = bar_y + self.scale_bar_linewidth + 8
+        # Ensure text is within image bounds
+        if text_y < img_height:
             self.ax.text(
                 (bar_x_start + bar_x_end) / 2,  # Center of bar
                 text_y,  # Above the bar
                 label_text,
-                color='white',
+                color=self.scale_bar_color,
                 fontsize=10,
                 fontweight='bold',
                 ha='center',
@@ -3495,7 +3565,26 @@ class ParticleMapperGUI:
     def update_lowpass(self, val):
         self.lowpass_A = val
         self.lowpass_label.config(text=f"{val:.1f} Å")
+        if hasattr(self, 'lowpass_entry'):
+            self.lowpass_entry.delete(0, tk.END)
+            self.lowpass_entry.insert(0, f"{val:.1f}")
         self.update_display()
+    
+    def on_lowpass_entry_change(self, event=None):
+        """Handle manual entry of low-pass filter value."""
+        try:
+            val = float(self.lowpass_entry.get().strip())
+            val = max(0.0, min(50.0, val))  # Clamp to 0-50
+            self.lowpass_A = val
+            self.lowpass_var.set(val)
+            self.lowpass_label.config(text=f"{val:.1f} Å")
+            self.lowpass_entry.delete(0, tk.END)
+            self.lowpass_entry.insert(0, f"{val:.1f}")
+            self.update_display()
+        except ValueError:
+            # Invalid input, restore previous value
+            self.lowpass_entry.delete(0, tk.END)
+            self.lowpass_entry.insert(0, f"{self.lowpass_A:.1f}")
     
     def update_brightness(self, val):
         self.brightness = val
@@ -3515,6 +3604,9 @@ class ParticleMapperGUI:
         self.brightness_var.set(self.brightness)
         self.contrast_var.set(self.contrast)
         self.lowpass_label.config(text=f"{self.lowpass_A:.1f} Å")
+        if hasattr(self, 'lowpass_entry'):
+            self.lowpass_entry.delete(0, tk.END)
+            self.lowpass_entry.insert(0, f"{self.lowpass_A:.1f}")
         self.brightness_label.config(text=f"{self.brightness:.2f}")
         self.contrast_label.config(text=f"{self.contrast:.2f}")
         self.update_display()
