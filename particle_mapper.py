@@ -623,9 +623,9 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
                         ribbon_width: float = 5.0,
                         pdb_path: Optional[str] = None,
                         pymol_path: Optional[str] = None,
-                        rotation_flip_x: bool = False,
-                        rotation_flip_y: bool = False,
-                        rotation_flip_z: bool = False) -> np.ndarray:
+                        rotation_correction_x: float = 0.0,
+                        rotation_correction_y: float = 0.0,
+                        rotation_correction_z: float = 0.0) -> np.ndarray:
     """
     Project a structure file (.pdb or .cif) using fast pseudo-surface rendering (CA/P spheres).
     Uses only CA atoms for protein and P atoms for nucleic acids for speed.
