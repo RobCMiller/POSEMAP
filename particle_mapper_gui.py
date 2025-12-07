@@ -2775,26 +2775,34 @@ class ParticleMapperGUI:
                         marker2_x = center_x + marker2_x_pixels
                         marker2_y = center_y + marker2_y_pixels
                         
+                        # Draw visual markers at calculated positions for debugging
+                        # Draw a small circle at marker 1 position
+                        self.ax.plot(marker1_x, marker1_y, 'o', color='yellow', markersize=8, 
+                                   markeredgecolor='black', markeredgewidth=1, zorder=25, label='Marker 1' if i == 0 else '')
+                        # Draw a small circle at marker 2 position
+                        self.ax.plot(marker2_x, marker2_y, 's', color='cyan', markersize=8, 
+                                   markeredgecolor='black', markeredgewidth=1, zorder=25, label='Marker 2' if i == 0 else '')
+                        
                         # DEBUG: Print marker positions for first particle only
                         if i == 0:
-                            print(f"DEBUG Marker Projection (particle {i}):")
-                            print(f"  Structure center (COM): {structure_center}")
-                            print(f"  Marker 1 (absolute, from ChimeraX): {marker1}")
-                            print(f"  Marker 2 (absolute, from ChimeraX): {marker2}")
-                            print(f"  Marker 1 (centered): {centered_marker1}")
-                            print(f"  Marker 2 (centered): {centered_marker2}")
-                            print(f"  Marker 1 (rotated): {rotated_marker1}")
-                            print(f"  Marker 2 (rotated): {rotated_marker2}")
-                            print(f"  Marker 1 (projected, pixels): ({marker1_x_pixels:.2f}, {marker1_y_pixels:.2f})")
-                            print(f"  Marker 2 (projected, pixels): ({marker2_x_pixels:.2f}, {marker2_y_pixels:.2f})")
-                            print(f"  Particle center (pixels): ({x_pixel:.2f}, {y_pixel:.2f})")
-                            print(f"  Projection center (with offsets): ({center_x:.2f}, {center_y:.2f})")
-                            print(f"  Projection extent: left={center_x - self.projection_size/2:.2f}, right={center_x + self.projection_size/2:.2f}, bottom={center_y - self.projection_size/2:.2f}, top={center_y + self.projection_size/2:.2f}")
-                            print(f"  Marker 1 (micrograph coords): ({marker1_x:.2f}, {marker1_y:.2f})")
-                            print(f"  Marker 2 (micrograph coords): ({marker2_x:.2f}, {marker2_y:.2f})")
-                            print(f"  Marker 1 offset from projection center: ({marker1_x - center_x:.2f}, {marker1_y - center_y:.2f})")
-                            print(f"  Marker 2 offset from projection center: ({marker2_x - center_x:.2f}, {marker2_y - center_y:.2f})")
-                            print(f"  NOTE: If markers don't align, ChimeraX coordinate system may differ from PDB coordinate system")
+                            print(f"\n=== DEBUG Marker Projection (particle {i}) ===")
+                            print(f"Structure center (COM): {structure_center}")
+                            print(f"Marker 1 (absolute, from ChimeraX): {marker1}")
+                            print(f"Marker 2 (absolute, from ChimeraX): {marker2}")
+                            print(f"Marker 1 (centered): {centered_marker1}")
+                            print(f"Marker 2 (centered): {centered_marker2}")
+                            print(f"Marker 1 (rotated): {rotated_marker1}")
+                            print(f"Marker 2 (rotated): {rotated_marker2}")
+                            print(f"Marker 1 (projected, pixels from center): ({marker1_x_pixels:.2f}, {marker1_y_pixels:.2f})")
+                            print(f"Marker 2 (projected, pixels from center): ({marker2_x_pixels:.2f}, {marker2_y_pixels:.2f})")
+                            print(f"Particle center (pixels): ({x_pixel:.2f}, {y_pixel:.2f})")
+                            print(f"Projection center (with offsets): ({center_x:.2f}, {center_y:.2f})")
+                            print(f"Projection extent: left={center_x - self.projection_size/2:.2f}, right={center_x + self.projection_size/2:.2f}, bottom={center_y - self.projection_size/2:.2f}, top={center_y + self.projection_size/2:.2f}")
+                            print(f"Marker 1 (micrograph coords): ({marker1_x:.2f}, {marker1_y:.2f})")
+                            print(f"Marker 2 (micrograph coords): ({marker2_x:.2f}, {marker2_y:.2f})")
+                            print(f"Marker 1 offset from projection center: ({marker1_x - center_x:.2f}, {marker1_y - center_y:.2f})")
+                            print(f"Marker 2 offset from projection center: ({marker2_x - center_x:.2f}, {marker2_y - center_y:.2f})")
+                            print(f"=== END DEBUG ===\n")
                         
                         # Vector from marker 1 to marker 2 in 2D (projected)
                         vec_2d_x = marker2_x - marker1_x
