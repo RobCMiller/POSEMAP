@@ -851,6 +851,17 @@ class ParticleMapperGUI:
         ttk.Button(self.custom_markers_frame, text="Calculate Vector (Marker 1 → Marker 2)", width=30,
                   command=self.update_custom_vector_from_markers).pack(pady=5)
         
+        # X offset input for debugging marker position
+        offset_frame = ttk.Frame(self.custom_markers_frame)
+        offset_frame.pack(fill=tk.X, pady=(5, 0))
+        ttk.Label(offset_frame, text="Marker X Offset (px):").pack(side=tk.LEFT, padx=(0, 5))
+        self.marker_x_offset_entry = ttk.Entry(offset_frame, width=10)
+        self.marker_x_offset_entry.insert(0, "0.0")
+        self.marker_x_offset_entry.pack(side=tk.LEFT, padx=2)
+        ttk.Label(offset_frame, text="(for debugging - adjust to find correct offset)").pack(side=tk.LEFT, padx=5)
+        self.marker_x_offset_entry.bind('<Return>', lambda e: self.update_marker_x_offset())
+        self.marker_x_offset_entry.bind('<FocusOut>', lambda e: self.update_marker_x_offset())
+        
         # Chain selection (for chain_com and chain_axis methods)
         self.custom_chain_frame = ttk.Frame(viz_frame)
         # Don't pack initially - will be shown when chain methods are selected
@@ -3608,6 +3619,16 @@ class ParticleMapperGUI:
                 self.update_display(use_cache=False)
         except ValueError:
             messagebox.showerror("Error", "Invalid vector values. Please enter numeric values.")
+    
+    def update_marker_x_offset(self):
+        """Update the X offset for marker positions from the GUI input."""
+        try:
+            self.marker_x_offset = float(self.marker_x_offset_entry.get().strip())
+            # Redraw to update marker positions
+            if hasattr(self, 'current_micrograph_idx') and self.current_micrograph_idx is not None:
+                self.draw_particles_and_projections()
+        except (ValueError, AttributeError):
+            self.marker_x_offset = 0.0
     
     def update_custom_vector_from_markers(self):
         """Update custom vector from two ChimeraX marker positions."""
