@@ -2945,8 +2945,14 @@ class ParticleMapperGUI:
                             print(f"Pixel size: {pixel_size:.4f} Angstroms/pixel")
                             print(f"Marker 1 rotated coords: {rotated_marker1}")
                             print(f"Marker 1 rotated coords (Angstroms): X={rotated_marker1[0]:.2f}, Y={rotated_marker1[1]:.2f}, Z={rotated_marker1[2]:.2f}")
-                            print(f"Marker 1 before offset (pixels): X={rotated_marker1[1] / pixel_size:.2f}, Y={rotated_marker1[0] / pixel_size:.2f}")
+                            print(f"Marker 1 using alignment pixel_size (pixels): X={rotated_marker1[1] / pixel_size:.2f}, Y={rotated_marker1[0] / pixel_size:.2f}")
+                            print(f"Marker 1 using effective_pixel_size (pixels): X={rotated_marker1[1] / effective_pixel_size:.2f}, Y={rotated_marker1[0] / effective_pixel_size:.2f}")
                             print(f"Marker 1 after offset (pixels): X={marker1_x_pixels:.2f}, Y={marker1_y_pixels:.2f}")
+                            print(f"Required offset: X={x_offset:.2f}, Y={y_offset:.2f} pixels")
+                            print(f"Offset as % of projection_size: X={x_offset/self.projection_size*100:.1f}%, Y={y_offset/self.projection_size*100:.1f}%")
+                            print(f"ANALYSIS: The -70 pixel X offset is {abs(x_offset)/self.projection_size*100:.1f}% of projection size")
+                            print(f"  This suggests PyMOL's zoom(complete=1) may scale differently than expected,")
+                            print(f"  or there's a coordinate system offset in PyMOL's image rendering.")
                             
                             # Test: Place a marker at the ChimeraX COM to verify coordinate system
                             chimerax_com = np.array([246.62, 222.54, 307.65])
