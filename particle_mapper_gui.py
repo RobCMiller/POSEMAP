@@ -901,9 +901,14 @@ class ParticleMapperGUI:
         
         # Option to render arrow in PyMOL (avoids coordinate transformation issues)
         self.render_arrow_in_pymol_var = tk.BooleanVar(value=False)
+        def toggle_pymol_arrow():
+            # Clear projection cache when toggling this option since it affects rendering
+            with self.cache_lock:
+                self.projection_cache.clear()
+            self.update_display()
         ttk.Checkbutton(viz_frame, text="Render Arrow in PyMOL (avoids coordinate issues)", 
                        variable=self.render_arrow_in_pymol_var,
-                       command=self.update_display).pack(anchor=tk.W, pady=(5,0))
+                       command=toggle_pymol_arrow).pack(anchor=tk.W, pady=(5,0))
         
         # Toggle for showing arrows at marker positions
         self.show_arrows_at_markers_var = tk.BooleanVar(value=self.show_arrows_at_markers)

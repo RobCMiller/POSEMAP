@@ -1082,6 +1082,7 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # This avoids coordinate transformation issues by rendering the arrow
     # in the same coordinate system and scale as the structure
     if render_vector_arrow and marker1_coords is not None and marker2_coords is not None:
+        print(f"DEBUG PyMOL: Rendering arrow between markers: {marker1_coords} -> {marker2_coords}")
         # Markers are in model space (PDB coordinates)
         # The structure is centered first (cmd.center centers on COM), then rotated
         # We need to center the markers relative to structure COM, then rotate them
