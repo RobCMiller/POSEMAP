@@ -2886,6 +2886,13 @@ class ParticleMapperGUI:
                             print(f"Marker 2 (micrograph coords): ({marker2_x:.2f}, {marker2_y:.2f})")
                             print(f"Marker 1 offset from projection center: ({marker1_x - center_x:.2f}, {marker1_y - center_y:.2f})")
                             print(f"Marker 2 offset from projection center: ({marker2_x - center_x:.2f}, {marker2_y - center_y:.2f})")
+                            print(f"Applied offsets: X={x_offset:.2f}, Y={y_offset:.2f} pixels")
+                            print(f"Projection size: {self.projection_size} pixels")
+                            print(f"Pixel size: {pixel_size:.4f} Angstroms/pixel")
+                            print(f"Marker 1 rotated coords: {rotated_marker1}")
+                            print(f"Marker 1 rotated coords (Angstroms): X={rotated_marker1[0]:.2f}, Y={rotated_marker1[1]:.2f}, Z={rotated_marker1[2]:.2f}")
+                            print(f"Marker 1 before offset (pixels): X={rotated_marker1[1] / pixel_size:.2f}, Y={rotated_marker1[0] / pixel_size:.2f}")
+                            print(f"Marker 1 after offset (pixels): X={marker1_x_pixels:.2f}, Y={marker1_y_pixels:.2f}")
                             
                             # Test: Place a marker at the ChimeraX COM to verify coordinate system
                             chimerax_com = np.array([246.62, 222.54, 307.65])
