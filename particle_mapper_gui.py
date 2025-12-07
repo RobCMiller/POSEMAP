@@ -3631,7 +3631,7 @@ class ParticleMapperGUI:
                 print(f"DEBUG: Updated marker_x_offset to {self.marker_x_offset}")
                 # Redraw to update marker positions
                 if hasattr(self, 'current_micrograph_idx') and self.current_micrograph_idx is not None:
-                    self.draw_particles_and_projections()
+                    self.update_display(use_cache=True)
         except (ValueError, AttributeError) as e:
             print(f"DEBUG: Error updating marker_x_offset: {e}")
             self.marker_x_offset = 0.0
