@@ -2722,13 +2722,18 @@ class ParticleMapperGUI:
                         # The projection is centered at (center_x, center_y) in micrograph coordinates
                         # So a point at (0, 0) in projection space (center) maps to (center_x, center_y)
                         # 
-                        # IMPORTANT: PyMOL images are loaded with PIL, which uses top-left origin (Y down)
-                        # But matplotlib with origin='lower' interprets them with bottom-left origin (Y up)
-                        # So the Y coordinate needs to be negated to match the display
+                        # IMPORTANT: Coordinate system considerations:
+                        # - PyMOL images are loaded with PIL (top-left origin, Y down)
+                        # - matplotlib with origin='lower' interprets them (bottom-left origin, Y up)
+                        # - ChimeraX marker coordinates may be in a different coordinate system than PDB
+                        # 
+                        # For now, we'll use the rotated coordinates directly and convert to pixels
+                        # If markers don't align, we may need to apply a coordinate system transformation
+                        # to convert from ChimeraX's coordinate system to PDB/PyMOL's coordinate system
                         marker1_x_pixels = rotated_marker1[0] / pixel_size
-                        marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
+                        marker1_y_pixels = rotated_marker1[1] / pixel_size
                         marker2_x_pixels = rotated_marker2[0] / pixel_size
-                        marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
+                        marker2_y_pixels = rotated_marker2[1] / pixel_size
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
