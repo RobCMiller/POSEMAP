@@ -777,7 +777,10 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
                         pymol_path: Optional[str] = None,
                         rotation_correction_x: float = 0.0,
                         rotation_correction_y: float = 0.0,
-                        rotation_correction_z: float = 0.0) -> np.ndarray:
+                        rotation_correction_z: float = 0.0,
+                        marker1_coords: Optional[np.ndarray] = None,
+                        marker2_coords: Optional[np.ndarray] = None,
+                        render_vector_arrow: bool = False) -> np.ndarray:
     """
     Project a structure file (.pdb or .cif) using fast pseudo-surface rendering (CA/P spheres).
     Uses only CA atoms for protein and P atoms for nucleic acids for speed.
@@ -1074,6 +1077,37 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
     # CRITICAL: Ensure structure is centered in view before rendering
     # Call center again after zoom to ensure perfect centering
     script_lines.append(f'cmd.center("{rep_obj}")')
+    
+    # Render vector arrow in PyMOL if markers are provided
+    # This avoids coordinate transformation issues by rendering the arrow
+    # in the same coordinate system and scale as the structure
+    if render_vector_arrow and marker1_coords is not None and marker2_coords is not None:
+        # Markers are in model space (PDB coordinates)
+        # They will be automatically transformed by the rotation matrix
+        # Create a distance object to draw an arrow between the markers
+        script_lines.append('# Render vector arrow between markers')
+        script_lines.append(f'cmd.distance("vector_arrow", "{rep_obj} and id {int(marker1_coords[0])} and resi {int(marker1_coords[1])}", "{rep_obj} and id {int(marker2_coords[0])} and resi {int(marker2_coords[1])}")')
+        script_lines.append('cmd.hide("labels", "vector_arrow")')
+        script_lines.append('cmd.set("dash_gap", 0)')
+        script_lines.append('cmd.set("dash_length", 0)')
+        script_lines.append('cmd.color("white", "vector_arrow")')
+        script_lines.append('cmd.show("dashes", "vector_arrow")')
+        # Alternative: Use CGO to draw a custom arrow
+        # Calculate arrow direction in model space
+        arrow_dir = marker2_coords - marker1_coords
+        arrow_length = np.linalg.norm(arrow_dir)
+        if arrow_length > 0:
+            arrow_dir_norm = arrow_dir / arrow_length
+            # Create arrow using CGO (Compiled Graphics Object)
+            # Arrow from marker1 to marker2, with arrowhead
+            script_lines.append('# Create CGO arrow')
+            script_lines.append('cmd.load_cgo([')
+            script_lines.append('  BEGIN, LINES,')
+            script_lines.append(f'  COLOR, 1.0, 1.0, 1.0,  # White')
+            script_lines.append(f'  VERTEX, {marker1_coords[0]:.3f}, {marker1_coords[1]:.3f}, {marker1_coords[2]:.3f},')
+            script_lines.append(f'  VERTEX, {marker2_coords[0]:.3f}, {marker2_coords[1]:.3f}, {marker2_coords[2]:.3f},')
+            script_lines.append('  END'
+            script_lines.append('], "vector_arrow_cgo")')
     
     # Set viewport and render - NO ray tracing for speed (ray=0)
     script_lines.append(f'cmd.viewport({w}, {h})')

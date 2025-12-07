@@ -2948,24 +2948,21 @@ class ParticleMapperGUI:
                         # IMPORTANT: The coordinate swap (rotated[1] for X, rotated[0] for Y) is correct
                         # and verified by tests. This accounts for PyMOL's coordinate system.
                         #
-                        # CRITICAL FIX: The projection_size is calculated from the original model_size,
-                        # but PyMOL scales based on the rotated_bbox_size. This causes a mismatch.
-                        # The scale_ratio tells us how much the structure is scaled down.
-                        # We need to account for this in the coordinate transformation.
-                        if rotated_bbox_size is not None and rotated_bbox_size > 0 and model_size_angstroms is not None:
-                            correct_projection_size = (rotated_bbox_size / pixel_size) * 1.2
-                            scale_ratio = self.projection_size / correct_projection_size
-                            # The coordinates need to be scaled by the inverse of this ratio
-                            # because the structure is smaller in the image than it should be
-                            scale_correction = 1.0 / scale_ratio
-                        else:
-                            scale_correction = 1.0
-                        
-                        # Apply coordinate transformation with scale correction
-                        marker1_x_pixels = (rotated_marker1[1] / effective_pixel_size) * scale_correction + x_offset
-                        marker1_y_pixels = (rotated_marker1[0] / effective_pixel_size) * scale_correction + y_offset
-                        marker2_x_pixels = (rotated_marker2[1] / effective_pixel_size) * scale_correction + x_offset
-                        marker2_y_pixels = (rotated_marker2[0] / effective_pixel_size) * scale_correction + y_offset
+                        # CRITICAL: The effective_pixel_size already accounts for PyMOL's zoom scaling
+                        # based on the rotated_bbox_size. 
+                        #
+                        # The fact that Y works correctly (0 offset) but X needs -70 pixels suggests
+                        # a coordinate system issue specific to X, not a general scaling problem.
+                        #
+                        # TODO: Consider rendering the arrow directly in PyMOL to avoid coordinate
+                        # transformation issues. This would ensure the arrow is in the same coordinate
+                        # system and scale as the structure projection.
+                        #
+                        # For now, use effective_pixel_size directly (it already accounts for rotated bbox)
+                        marker1_x_pixels = rotated_marker1[1] / effective_pixel_size + x_offset
+                        marker1_y_pixels = rotated_marker1[0] / effective_pixel_size + y_offset
+                        marker2_x_pixels = rotated_marker2[1] / effective_pixel_size + x_offset
+                        marker2_y_pixels = rotated_marker2[0] / effective_pixel_size + y_offset
                         
                         # DEBUG: Print scaling information
                         if i == 0:
