@@ -139,7 +139,7 @@ class ParticleMapperGUI:
         self.projection_offset_y_var = None  # Will be set in GUI setup
         self.show_scale_bar = False  # Toggle for scale bar display
         self.scale_bar_length_angstroms = 50.0  # Default scale bar length in Angstroms
-        self.scale_bar_linewidth = 8.0  # Default scale bar line width (2x original thickness of 4)
+        self.scale_bar_linewidth = 40.0  # Default scale bar line width in pixels
         self.scale_bar_color = 'white'  # Default scale bar color
         
         # Second arrow (custom structural vector) settings
@@ -3536,7 +3536,7 @@ class ParticleMapperGUI:
         scale_bar_rect = Rectangle(
             (bar_x_start, bar_y), 
             scale_bar_length_pixels, 
-            self.scale_bar_linewidth,
+            scale_bar_width,
             facecolor=self.scale_bar_color, 
             edgecolor=self.scale_bar_color,
             linewidth=0,
@@ -3544,9 +3544,9 @@ class ParticleMapperGUI:
         )
         self.ax.add_patch(scale_bar_rect)
         
-        # Add text label above the scale bar
+        # Add text label above the scale bar (plain text, no box)
         label_text = f"{self.scale_bar_length_angstroms:.0f} Å"
-        text_y = bar_y + self.scale_bar_linewidth + 8
+        text_y = bar_y + scale_bar_width + 8
         # Ensure text is within image bounds
         if text_y < img_height:
             self.ax.text(
@@ -3558,8 +3558,7 @@ class ParticleMapperGUI:
                 fontweight='bold',
                 ha='center',
                 va='bottom',
-                zorder=21,
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.5, edgecolor='none')
+                zorder=21
             )
     
     def update_lowpass(self, val):
