@@ -2736,9 +2736,14 @@ class ParticleMapperGUI:
                         # - Image has top-left origin: Y increases downward
                         # - matplotlib with origin='lower': Y increases upward
                         # - So we need to negate Y to account for the flip
-                        marker1_x_pixels = rotated_marker1[0] / pixel_size
+                        # CRITICAL: Coordinate system transformation
+                        # The markers are appearing in the wrong quadrant, suggesting we need to
+                        # negate both X and Y to match the display coordinate system
+                        # Marker should be at bottom-left (negative X, negative Y from center)
+                        # but is appearing at top-right (positive X, positive Y from center)
+                        marker1_x_pixels = -rotated_marker1[0] / pixel_size  # Negate X
                         marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
-                        marker2_x_pixels = rotated_marker2[0] / pixel_size
+                        marker2_x_pixels = -rotated_marker2[0] / pixel_size  # Negate X
                         marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
                         
                         # 4. Position markers on micrograph
