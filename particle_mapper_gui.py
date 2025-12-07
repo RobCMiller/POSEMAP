@@ -2799,18 +2799,44 @@ class ParticleMapperGUI:
                         # Current transformation: rotated[1] for X, rotated[0] for Y (correct direction, slightly off in X)
                         # Use the user-adjustable X offset from the GUI to fine-tune the position
                         # This will help us determine the exact offset needed and figure out why it's needed
+                        # CRITICAL INVESTIGATION: Why do we need -70 X and -30 Y offset?
+                        # 
+                        # Possible causes:
+                        # 1. Pixel size mismatch: alignments3D/psize_A vs micrograph_psize_A
+                        # 2. Projection scaling: PyMOL renders at projection_size, but we need to account for
+                        #    how that relates to the actual structure size in Angstroms
+                        # 3. Coordinate system offset: PyMOL's image coordinate system might have an offset
+                        # 
+                        # The projection is rendered at projection_size pixels, and we place it with extent
+                        # based on projection_size. But the actual structure size in Angstroms might not
+                        # match this exactly, causing a scaling mismatch.
+                        #
+                        # Let's check if we need to use micrograph_psize instead of alignments3D/psize_A
+                        # for marker coordinate conversion:
+                        micrograph_pixel_size = pixel_size  # Default to alignment pixel size
+                        if 'micrograph_psize' in self.current_particles and len(self.current_particles['micrograph_psize']) > i:
+                            micrograph_pixel_size = self.current_particles['micrograph_psize'][i]
+                            if i == 0:
+                                print(f"DEBUG: Using micrograph pixel size: {micrograph_pixel_size} vs alignment pixel size: {pixel_size}")
+                        
                         # Use user-adjustable X and Y offsets from GUI for debugging
                         # Get the current offset values (default to 0.0 if not set)
                         x_offset = getattr(self, 'marker_x_offset', 0.0)
                         y_offset = getattr(self, 'marker_y_offset', 0.0)
+                        
+                        # Convert marker coordinates using the same pixel size as the projection
+                        # The projection is scaled to projection_size pixels, so we need to account for
+                        # the relationship between structure size (Angstroms) and projection_size (pixels)
                         marker1_x_pixels = rotated_marker1[1] / pixel_size + x_offset    # Add user-adjustable X offset
                         marker1_y_pixels = rotated_marker1[0] / pixel_size + y_offset    # Add user-adjustable Y offset
                         marker2_x_pixels = rotated_marker2[1] / pixel_size + x_offset    # Add user-adjustable X offset
                         marker2_y_pixels = rotated_marker2[0] / pixel_size + y_offset    # Add user-adjustable Y offset
                         
-                        # DEBUG: Print offsets being used
+                        # DEBUG: Print offsets and pixel sizes being used
                         if i == 0:
                             print(f"DEBUG: Using marker offsets - X: {x_offset}, Y: {y_offset} pixels")
+                            print(f"DEBUG: Pixel size (alignment): {pixel_size}, Micrograph pixel size: {micrograph_pixel_size}")
+                            print(f"DEBUG: Projection size: {self.projection_size} pixels")
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
