@@ -2753,21 +2753,27 @@ class ParticleMapperGUI:
                         # - Y: up (flipped from PyMOL's image Y)
                         # 
                         # CRITICAL: Coordinate system transformation for PyMOL images
-                        # PyMOL projects 3D coordinates to 2D image pixels
-                        # The image is saved with top-left origin (Y down), but matplotlib
-                        # with origin='lower' interprets it with bottom-left origin (Y up)
+                        # Based on ChimeraX geometry documentation, markers are in the model's
+                        # local coordinate system (PDB coordinates), which should match our PDB file.
                         # 
-                        # The fallback renderer does: coords_2d = coords_rotated[:, :2]
-                        # and then flips the image with np.flipud() for display
+                        # PyMOL's viewport uses OpenGL-style rendering:
+                        # - In 3D view space: X right, Y up, Z out of screen
+                        # - When rendered to image: X right, Y down (top-left origin)
+                        # - When displayed with matplotlib origin='lower': X right, Y up (bottom-left origin)
                         # 
-                        # For PyMOL, we need to account for the Y-axis flip that happens
-                        # when matplotlib displays with origin='lower'
+                        # The rotation matrix R transforms from model space to view space.
+                        # After rotation, we project to 2D by taking X and Y coordinates.
                         # 
-                        # Based on testing, we need to negate Y to account for the flip
-                        # The X coordinate should be correct as-is (right = positive)
-                        marker1_x_pixels = rotated_marker1[0] / pixel_size
+                        # However, PyMOL's image coordinate system may differ from the view space
+                        # coordinate system. We need to account for how PyMOL maps view space
+                        # coordinates to image pixels.
+                        # 
+                        # Based on the debug output showing markers in wrong quadrant, we may need
+                        # to apply a coordinate system transformation. Let's try negating X to move
+                        # markers from right to left quadrant:
+                        marker1_x_pixels = -rotated_marker1[0] / pixel_size  # Negate X to fix quadrant
                         marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
-                        marker2_x_pixels = rotated_marker2[0] / pixel_size
+                        marker2_x_pixels = -rotated_marker2[0] / pixel_size  # Negate X to fix quadrant
                         marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
                         
                         # 4. Position markers on micrograph
