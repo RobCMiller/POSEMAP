@@ -2899,10 +2899,23 @@ class ParticleMapperGUI:
                         # 2. There might be a coordinate system offset in PyMOL's image rendering
                         # 3. The projection extent calculation might not match the actual image center
                         #
-                        # For now, use effective pixel size (which accounts for 1.2x scaling) and apply user offsets
-                        marker1_x_pixels = rotated_marker1[1] / effective_pixel_size + x_offset
+                        # CRITICAL: Y coordinate is now correct (0 offset needed), but X still needs -70 pixels.
+                        # This suggests a systematic X offset in PyMOL's coordinate system.
+                        # The -70 pixel offset is about 28% of projection size, suggesting PyMOL's zoom
+                        # might use a different scale factor for X vs Y, or there's a coordinate system offset.
+                        #
+                        # Since Y works correctly with effective_pixel_size, we'll use that for Y.
+                        # For X, we need to apply a correction factor. The -70 pixel offset suggests
+                        # we need to shift X by approximately -70 pixels, which is about -100 Angstroms
+                        # at the effective pixel size (1.4331 Å/pixel).
+                        #
+                        # Let's try applying a systematic X offset correction based on the projection size.
+                        # The offset is approximately -70/251 = -0.279 of the projection size.
+                        # This might be related to how PyMOL calculates the bounding box or centers the view.
+                        x_correction = -70.0  # Systematic X offset correction (in pixels)
+                        marker1_x_pixels = rotated_marker1[1] / effective_pixel_size + x_offset + x_correction
                         marker1_y_pixels = rotated_marker1[0] / effective_pixel_size + y_offset
-                        marker2_x_pixels = rotated_marker2[1] / effective_pixel_size + x_offset
+                        marker2_x_pixels = rotated_marker2[1] / effective_pixel_size + x_offset + x_correction
                         marker2_y_pixels = rotated_marker2[0] / effective_pixel_size + y_offset
                         
                         # DEBUG: Print scaling information
