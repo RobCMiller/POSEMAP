@@ -2814,37 +2814,47 @@ class ParticleMapperGUI:
                         # the projection rendering.
                         #
                         # Calculate the actual scale factor from projection size and model dimensions:
+                        # CRITICAL: PyMOL's zoom(complete=1) scales based on the ROTATED bounding box,
+                        # not the original model size. We need to calculate the bounding box size
+                        # after rotation to get the correct scale factor.
                         model_size_angstroms = None
+                        rotated_bbox_size = None
                         if hasattr(self, 'pdb_data') and self.pdb_data is not None:
                             coords = self.pdb_data['coords']
                             if len(coords) > 0:
-                                # Calculate bounding box size
+                                # Calculate original bounding box size
                                 min_coords = coords.min(axis=0)
                                 max_coords = coords.max(axis=0)
                                 model_size_angstroms = np.max(max_coords - min_coords)
+                                
+                                # Calculate bounding box size AFTER rotation
+                                # Center coordinates first
+                                center = coords.mean(axis=0)
+                                coords_centered = coords - center
+                                # Apply rotation
+                                coords_rotated = (R @ coords_centered.T).T
+                                # Calculate rotated bounding box
+                                min_rotated = coords_rotated.min(axis=0)
+                                max_rotated = coords_rotated.max(axis=0)
+                                # Project to 2D (XY plane) and get the maximum extent
+                                rotated_2d_extent = np.max([np.max(max_rotated[:2] - min_rotated[:2]), 
+                                                           np.max(np.abs(max_rotated[:2])), 
+                                                           np.max(np.abs(min_rotated[:2]))])
+                                rotated_bbox_size = rotated_2d_extent * 2  # Full extent (diameter)
                         
                         # Calculate effective pixel size based on projection scaling
-                        # projection_size = (model_size / pixel_size) * 1.2
-                        # So: effective_pixel_size = model_size / (projection_size / 1.2)
-                        # 
-                        # However, PyMOL's zoom(complete=1) might scale differently than this calculation.
-                        # The -70 pixel offset (28% of projection size) suggests the actual scale is different.
-                        # 
-                        # Let's try calculating the scale factor that would account for the offset:
-                        # If we need -70 pixels offset, and the marker is at X=-2.87 pixels before offset,
-                        # then the actual position should be at X=-72.87 pixels.
-                        # This suggests the scale factor might be off by a factor of ~25x (70/2.87 ≈ 24.4)
-                        # But that doesn't make sense...
-                        #
-                        # Actually, wait - maybe the issue is that PyMOL's zoom doesn't use the full
-                        # projection_size for scaling. Let's check if we need to account for a different
-                        # scaling factor.
-                        if model_size_angstroms is not None and model_size_angstroms > 0:
-                            # Calculate what the scale factor should be based on projection_size
-                            # projection_size pixels should represent model_size * 1.2 Angstroms
+                        # CRITICAL: PyMOL's zoom(complete=1) scales based on the ROTATED bounding box,
+                        # not the original model size. Use the rotated bounding box size for scaling.
+                        if rotated_bbox_size is not None and rotated_bbox_size > 0:
+                            # PyMOL scales the rotated bounding box to fit in projection_size with 1.2x padding
+                            # So: projection_size pixels = rotated_bbox_size * 1.2 Angstroms
+                            # Therefore: effective_pixel_size = rotated_bbox_size / (projection_size / 1.2)
+                            effective_pixel_size = rotated_bbox_size / (self.projection_size / 1.2)
+                        elif model_size_angstroms is not None and model_size_angstroms > 0:
+                            # Fallback to original model size if rotated bbox calculation failed
                             effective_pixel_size = model_size_angstroms / (self.projection_size / 1.2)
                         else:
-                            effective_pixel_size = pixel_size  # Fallback to alignment pixel size
+                            effective_pixel_size = pixel_size  # Final fallback to alignment pixel size
                         
                         # Check for micrograph pixel size mismatch
                         micrograph_pixel_size = pixel_size  # Default to alignment pixel size
@@ -2876,9 +2886,10 @@ class ParticleMapperGUI:
                             print(f"DEBUG: Marker coordinate conversion:")
                             print(f"  Alignment pixel size: {pixel_size:.4f} Å/pixel")
                             print(f"  Micrograph pixel size: {micrograph_pixel_size:.4f} Å/pixel")
-                            print(f"  Model size: {model_size_angstroms:.2f} Å" if model_size_angstroms else "  Model size: unknown")
+                            print(f"  Model size (original): {model_size_angstroms:.2f} Å" if model_size_angstroms else "  Model size: unknown")
+                            print(f"  Rotated bbox size (2D extent): {rotated_bbox_size:.2f} Å" if rotated_bbox_size else "  Rotated bbox size: unknown")
                             print(f"  Projection size: {self.projection_size} pixels")
-                            print(f"  Effective pixel size (accounting for 1.2x scaling): {effective_pixel_size:.4f} Å/pixel")
+                            print(f"  Effective pixel size (using rotated bbox): {effective_pixel_size:.4f} Å/pixel")
                             print(f"  User offsets - X: {x_offset}, Y: {y_offset} pixels")
                         
                         # 4. Position markers on micrograph
