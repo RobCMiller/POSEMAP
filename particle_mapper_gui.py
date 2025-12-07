@@ -3515,6 +3515,16 @@ class ParticleMapperGUI:
         # Calculate scale bar length in pixels
         scale_bar_length_pixels = self.scale_bar_length_angstroms / self.pixel_size_angstroms
         
+        # Clamp scale bar width to maximum of 25% of image height
+        max_width = img_height * 0.25
+        scale_bar_width = min(self.scale_bar_linewidth, max_width)
+        
+        # Update scale bar width slider max if needed
+        if hasattr(self, 'scale_bar_width_scale'):
+            current_max = self.scale_bar_width_scale.cget('to')
+            if current_max < max_width:
+                self.scale_bar_width_scale.config(to=max_width)
+        
         # Position scale bar in bottom-left corner, 3-5% from edges
         margin_x = img_width * 0.04  # 4% from left edge
         margin_y = img_height * 0.04  # 4% from bottom edge
