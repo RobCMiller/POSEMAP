@@ -2793,9 +2793,12 @@ class ParticleMapperGUI:
                         # Current transformation: rotated[1] for X, rotated[0] for Y (correct direction, slightly off in X)
                         # Use the user-adjustable X offset from the GUI to fine-tune the position
                         # This will help us determine the exact offset needed and figure out why it's needed
-                        marker1_x_pixels = rotated_marker1[1] / pixel_size + self.marker_x_offset    # Add user-adjustable offset
+                        # Use user-adjustable X offset from GUI for debugging
+                        # Get the current offset value (default to 0.0 if not set)
+                        x_offset = getattr(self, 'marker_x_offset', 0.0)
+                        marker1_x_pixels = rotated_marker1[1] / pixel_size + x_offset    # Add user-adjustable offset
                         marker1_y_pixels = rotated_marker1[0] / pixel_size    # Keep rotated[0] for Y
-                        marker2_x_pixels = rotated_marker2[1] / pixel_size + self.marker_x_offset    # Add user-adjustable offset
+                        marker2_x_pixels = rotated_marker2[1] / pixel_size + x_offset    # Add user-adjustable offset
                         marker2_y_pixels = rotated_marker2[0] / pixel_size    # Keep rotated[0] for Y
                         
                         # 4. Position markers on micrograph
