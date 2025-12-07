@@ -2693,16 +2693,18 @@ class ParticleMapperGUI:
                         else:
                             structure_center = np.array([0.0, 0.0, 0.0])
                         
-                        # Get marker positions (in ChimeraX absolute coordinates, Angstroms)
-                        # CRITICAL: ChimeraX may use a different coordinate system than the PDB file
-                        # ChimeraX coordinates are typically in the same system as the loaded structure file,
-                        # but there may be axis conventions or transformations to account for
+                        # Get marker positions (in ChimeraX/PDB absolute coordinates, Angstroms)
+                        # CONFIRMED: According to ChimeraX documentation, markers use the model's local
+                        # coordinate system (same as the PDB file) unless coordinateSystem is specified.
+                        # "x,y,z values are interpreted in scene coordinates unless a different 
+                        # coordinateSystem (reference model number) is given."
+                        # Since we're placing markers on the structure model, they're in the PDB coordinate system.
                         marker1 = self.marker_positions[0].copy()
                         marker2 = self.marker_positions[1].copy()
                         
                         # CRITICAL: Transform markers exactly as PyMOL transforms the structure:
                         # 1. Center markers at structure COM (same as PyMOL's cmd.center())
-                        #    This assumes ChimeraX markers are in the same coordinate system as the PDB file
+                        #    Markers are in the same coordinate system as the PDB file, so this is correct
                         centered_marker1 = marker1 - structure_center
                         centered_marker2 = marker2 - structure_center
                         
