@@ -2752,24 +2752,23 @@ class ParticleMapperGUI:
                         # - X: right (matches)
                         # - Y: up (flipped from PyMOL's image Y)
                         # 
-                        # CRITICAL: Coordinate system transformation
-                        # We need to match how PyMOL projects 3D coordinates to 2D image pixels
-                        # The fallback renderer uses: coords_2d = coords_rotated[:, :2] (just X and Y)
+                        # CRITICAL: Coordinate system transformation for PyMOL images
+                        # PyMOL projects 3D coordinates to 2D image pixels
+                        # The image is saved with top-left origin (Y down), but matplotlib
+                        # with origin='lower' interprets it with bottom-left origin (Y up)
+                        # 
+                        # The fallback renderer does: coords_2d = coords_rotated[:, :2]
                         # and then flips the image with np.flipud() for display
                         # 
-                        # PyMOL images are NOT flipped, but are displayed with origin='lower'
-                        # which means matplotlib flips the Y axis when displaying
+                        # For PyMOL, we need to account for the Y-axis flip that happens
+                        # when matplotlib displays with origin='lower'
                         # 
-                        # So for markers, we should use the rotated coordinates directly,
-                        # but we need to account for the Y-axis flip that happens during display
-                        # 
-                        # However, the markers are still in the wrong position, suggesting
-                        # there might be a coordinate system mismatch between ChimeraX and PDB
-                        # Let's try using the coordinates as-is first (no negation)
+                        # Based on testing, we need to negate Y to account for the flip
+                        # The X coordinate should be correct as-is (right = positive)
                         marker1_x_pixels = rotated_marker1[0] / pixel_size
-                        marker1_y_pixels = rotated_marker1[1] / pixel_size
+                        marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
                         marker2_x_pixels = rotated_marker2[0] / pixel_size
-                        marker2_y_pixels = rotated_marker2[1] / pixel_size
+                        marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
