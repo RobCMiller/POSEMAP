@@ -2770,6 +2770,7 @@ class ParticleMapperGUI:
                             print(f"  Marker 1 (projected, pixels): ({marker1_x_pixels:.2f}, {marker1_y_pixels:.2f})")
                             print(f"  Marker 2 (projected, pixels): ({marker2_x_pixels:.2f}, {marker2_y_pixels:.2f})")
                             print(f"  Particle center (pixels): ({x_pixel:.2f}, {y_pixel:.2f})")
+                            print(f"  Projection center (with offsets): ({center_x:.2f}, {center_y:.2f})")
                             print(f"  Marker 1 (micrograph coords): ({marker1_x:.2f}, {marker1_y:.2f})")
                             print(f"  Marker 2 (micrograph coords): ({marker2_x:.2f}, {marker2_y:.2f})")
                         
