@@ -2775,14 +2775,13 @@ class ParticleMapperGUI:
                         # - Use rotated[1] for X pixel coordinate
                         # - Use -rotated[0] for Y pixel coordinate
                         # 
-                        # The markers should use the EXACT SAME transformation as the COM.
-                        # The debug shows markers are at (-21.80, -45.13) from center, which is
-                        # left and below. If they should be at bottom-left, this might be correct,
-                        # but the user says they're wrong. Let's use the same transformation as COM:
-                        marker1_x_pixels = rotated_marker1[1] / pixel_size   # Same as COM: use Y for X
-                        marker1_y_pixels = -rotated_marker1[0] / pixel_size  # Same as COM: use -X for Y
-                        marker2_x_pixels = rotated_marker2[1] / pixel_size   # Same as COM: use Y for X
-                        marker2_y_pixels = -rotated_marker2[0] / pixel_size  # Same as COM: use -X for Y
+                        # However, the user says the vector is on the wrong side of the structure.
+                        # This suggests we might need to negate the coordinates to flip them to the other side.
+                        # Let's try negating both X and Y to see if that fixes it:
+                        marker1_x_pixels = -rotated_marker1[1] / pixel_size   # Negate: flip to other side
+                        marker1_y_pixels = rotated_marker1[0] / pixel_size    # Negate Y: flip to other side
+                        marker2_x_pixels = -rotated_marker2[1] / pixel_size   # Negate: flip to other side
+                        marker2_y_pixels = rotated_marker2[0] / pixel_size    # Negate Y: flip to other side
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
