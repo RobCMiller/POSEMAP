@@ -145,7 +145,7 @@ class ParticleMapperGUI:
         # Second arrow (custom structural vector) settings
         self.show_custom_arrow = False
         self.custom_arrow_length = 180  # Doubled from 90 for better visibility
-        self.custom_arrow_color = '#FF6B6B'  # Default red color to distinguish from viewing direction arrow
+        self.custom_arrow_color = '#FFFFFF'  # Default white color
         self.custom_vector_3d = None  # 3D vector in model coordinate system (normalized)
         self.custom_vector_method = 'user_defined'  # 'user_defined', 'chain_com', 'atom_selection', 'chain_axis', 'from_markers'
         self.custom_vector_params = {}  # Parameters for vector calculation (chain_ids, etc.)
@@ -874,7 +874,7 @@ class ParticleMapperGUI:
         color_frame.pack(fill=tk.X, pady=5)
         ttk.Label(color_frame, text="Custom Arrow Color:").pack(side=tk.LEFT, padx=(0, 5))
         self.custom_arrow_color_entry = ttk.Entry(color_frame, width=10)
-        self.custom_arrow_color_entry.insert(0, self.custom_arrow_color)
+        self.custom_arrow_color_entry.insert(0, '#FFFFFF')  # Default white
         self.custom_arrow_color_entry.pack(side=tk.LEFT, padx=2)
         ttk.Button(color_frame, text="Pick", width=8,
                   command=self.pick_custom_arrow_color).pack(side=tk.LEFT, padx=2)
