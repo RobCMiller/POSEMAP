@@ -2711,6 +2711,12 @@ class ParticleMapperGUI:
                         # PyMOL renders the projection with Z pointing out of screen
                         # The projection image shows X (right) and Y (up) axes
                         # Convert from Angstroms to pixels
+                        # CRITICAL: The projection image is placed with extent and origin='lower'
+                        # This means the projection's coordinate system matches the micrograph:
+                        # - X: left to right (matches)
+                        # - Y: bottom to top (matches, because origin='lower')
+                        # The projection is centered at (x_pixel, y_pixel) in micrograph coordinates
+                        # So a point at (0, 0) in projection space (center) maps to (x_pixel, y_pixel)
                         marker1_x_pixels = rotated_marker1[0] / pixel_size
                         marker1_y_pixels = rotated_marker1[1] / pixel_size
                         marker2_x_pixels = rotated_marker2[0] / pixel_size
@@ -2718,11 +2724,38 @@ class ParticleMapperGUI:
                         
                         # 4. Position markers on micrograph
                         # The projection image is centered at particle center (x_pixel, y_pixel)
-                        # So markers are offset from particle center by their projected positions
-                        marker1_x = x_pixel + marker1_x_pixels
-                        marker1_y = y_pixel + marker1_y_pixels
-                        marker2_x = x_pixel + marker2_x_pixels
-                        marker2_y = y_pixel + marker2_y_pixels
+                        # Account for projection offset and auto COM offset (same as projection placement)
+                        center_x = x_pixel + self.projection_offset_x
+                        center_y = y_pixel + self.projection_offset_y
+                        if hasattr(self, 'auto_correct_com_offset') and self.auto_correct_com_offset:
+                            if self.pdb_data is not None:
+                                try:
+                                    if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > i:
+                                        ps = self.current_particles['pixel_size'][i]
+                                    else:
+                                        try:
+                                            ps = float(self.pixel_size_entry.get().strip())
+                                        except (ValueError, AttributeError):
+                                            ps = 1.0
+                                    shifts_angstroms = None
+                                    if 'shifts' in self.current_particles and len(self.current_particles['shifts']) > i:
+                                        shift = self.current_particles['shifts'][i]
+                                        shifts_angstroms = (shift[0], shift[1])
+                                    auto_offset_x, auto_offset_y = calculate_com_offset_correction(
+                                        self.pdb_data, pose,
+                                        (x_pixel, y_pixel), ps, self.projection_size,
+                                        shifts_angstroms=shifts_angstroms
+                                    )
+                                    center_x += auto_offset_x
+                                    center_y += auto_offset_y
+                                except Exception:
+                                    pass  # Use zero offset if calculation fails
+                        
+                        # Markers are offset from projection center by their projected positions
+                        marker1_x = center_x + marker1_x_pixels
+                        marker1_y = center_y + marker1_y_pixels
+                        marker2_x = center_x + marker2_x_pixels
+                        marker2_y = center_y + marker2_y_pixels
                         
                         # DEBUG: Print marker positions for first particle only
                         if i == 0:
@@ -3645,7 +3678,7 @@ class ParticleMapperGUI:
         if color[1]:  # color[1] is the hex string
             self.custom_arrow_color = color[1]
             self.custom_arrow_color_entry.delete(0, tk.END)
-            self.custom_arrow_color_entry.insert(0, self.custom_arrow_color)
+            self.custom_arrow_color_entry.insert(0, '#FFFFFF')  # Default white
             if self.show_custom_arrow:
                 self.update_display(use_cache=False)
     
