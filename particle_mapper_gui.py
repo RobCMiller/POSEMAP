@@ -764,10 +764,13 @@ class ParticleMapperGUI:
         # Scale bar appearance controls
         ttk.Label(viz_frame, text="Scale Bar Width:").pack(anchor=tk.W, pady=(10,0))
         self.scale_bar_width_var = tk.DoubleVar(value=self.scale_bar_linewidth)
-        scale_bar_width_scale = ttk.Scale(viz_frame, from_=1.0, to=20.0,
+        # Maximum width will be set dynamically based on image height (0.25 * height)
+        # For now, use a reasonable default max (will be updated when image is loaded)
+        scale_bar_width_scale = ttk.Scale(viz_frame, from_=1.0, to=200.0,
                                          variable=self.scale_bar_width_var, orient=tk.HORIZONTAL,
                                          command=lambda v: self.update_scale_bar_width(float(v)))
         scale_bar_width_scale.pack(fill=tk.X, pady=2)
+        self.scale_bar_width_scale = scale_bar_width_scale  # Store reference for dynamic max update
         self.scale_bar_width_label = ttk.Label(viz_frame, text=f"{self.scale_bar_linewidth:.1f} px")
         self.scale_bar_width_label.pack(anchor=tk.W)
         
