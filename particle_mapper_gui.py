@@ -2849,9 +2849,14 @@ class ParticleMapperGUI:
                                 # Method 4: Maximum distance from center in XY plane
                                 rotated_max_dist_xy = np.max(np.linalg.norm(coords_rotated[:, :2], axis=1)) * 2
                                 
-                                # Use the 2D projection extent for now (this is what we were using)
-                                # But also calculate others for debugging
-                                rotated_bbox_size = rotated_2d_extent_xy * 2  # Full extent (diameter)
+                                # Try using "Max dist from center (XY)" - this might better match PyMOL's zoom
+                                # PyMOL's zoom(complete=1) likely uses the maximum distance from center
+                                # in the projection plane, not the bounding box extent
+                                # This gives us the radius, so we double it for diameter
+                                rotated_bbox_size = rotated_max_dist_xy  # Already doubled in calculation above
+                                
+                                # Alternative: Use 2D XY extent (previous method)
+                                # rotated_bbox_size = rotated_2d_extent_xy * 2  # Full extent (diameter)
                                 
                                 # Store alternative calculations for debugging
                                 if i == 0:  # Only print for first particle to avoid spam
