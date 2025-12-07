@@ -2841,8 +2841,16 @@ class ParticleMapperGUI:
                         x_offset = getattr(self, 'marker_x_offset', 0.0)
                         y_offset = getattr(self, 'marker_y_offset', 0.0)
                         
-                        # Convert marker coordinates using effective pixel size
-                        # This accounts for the 1.2x scaling factor in projection_size calculation
+                        # CRITICAL: The -70 pixel X offset suggests a systematic coordinate system issue.
+                        # The effective pixel size is very close to alignment pixel size (1.1097 vs 1.1060),
+                        # so the 1.2x scaling factor doesn't explain the large offset.
+                        #
+                        # Possible causes:
+                        # 1. PyMOL's zoom(complete=1) might not scale exactly as we calculate
+                        # 2. There might be a coordinate system offset in PyMOL's image rendering
+                        # 3. The projection extent calculation might not match the actual image center
+                        #
+                        # For now, use effective pixel size (which accounts for 1.2x scaling) and apply user offsets
                         marker1_x_pixels = rotated_marker1[1] / effective_pixel_size + x_offset
                         marker1_y_pixels = rotated_marker1[0] / effective_pixel_size + y_offset
                         marker2_x_pixels = rotated_marker2[1] / effective_pixel_size + x_offset
