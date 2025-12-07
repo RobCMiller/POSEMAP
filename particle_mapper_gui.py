@@ -2833,7 +2833,9 @@ class ParticleMapperGUI:
                         # DEBUG: Print marker positions for first particle only
                         if i == 0:
                             print(f"\n=== DEBUG Marker Projection (particle {i}) ===")
-                            print(f"Structure center (COM): {structure_center}")
+                            print(f"Structure center (COM, calculated): {structure_center}")
+                            print(f"Structure center (COM, from ChimeraX): [246.62, 222.54, 307.65]")
+                            print(f"COM difference: {structure_center - np.array([246.62, 222.54, 307.65])}")
                             print(f"Marker 1 (absolute, from ChimeraX): {marker1}")
                             print(f"Marker 2 (absolute, from ChimeraX): {marker2}")
                             print(f"Marker 1 (centered): {centered_marker1}")
@@ -2849,6 +2851,25 @@ class ParticleMapperGUI:
                             print(f"Marker 2 (micrograph coords): ({marker2_x:.2f}, {marker2_y:.2f})")
                             print(f"Marker 1 offset from projection center: ({marker1_x - center_x:.2f}, {marker1_y - center_y:.2f})")
                             print(f"Marker 2 offset from projection center: ({marker2_x - center_x:.2f}, {marker2_y - center_y:.2f})")
+                            
+                            # Test: Place a marker at the ChimeraX COM to verify coordinate system
+                            chimerax_com = np.array([246.62, 222.54, 307.65])
+                            centered_com = chimerax_com - structure_center
+                            rotated_com = R @ centered_com
+                            com_x_pixels = rotated_com[1] / pixel_size   # Swap: use Y for X
+                            com_y_pixels = -rotated_com[0] / pixel_size  # Swap: use X for Y, negate
+                            com_x = center_x + com_x_pixels
+                            com_y = center_y + com_y_pixels
+                            # Draw a red star at the ChimeraX COM position
+                            self.ax.plot(com_x, com_y, '*', color='red', markersize=12, 
+                                       markeredgecolor='black', markeredgewidth=1, zorder=26, 
+                                       label='ChimeraX COM' if i == 0 else '')
+                            print(f"ChimeraX COM (centered): {centered_com}")
+                            print(f"ChimeraX COM (rotated): {rotated_com}")
+                            print(f"ChimeraX COM (projected, pixels from center): ({com_x_pixels:.2f}, {com_y_pixels:.2f})")
+                            print(f"ChimeraX COM (micrograph coords): ({com_x:.2f}, {com_y:.2f})")
+                            print(f"ChimeraX COM should be at projection center: ({center_x:.2f}, {center_y:.2f})")
+                            print(f"ChimeraX COM offset from projection center: ({com_x - center_x:.2f}, {com_y - center_y:.2f})")
                             print(f"=== END DEBUG ===\n")
                         
                         # Vector from marker 1 to marker 2 in 2D (projected)
