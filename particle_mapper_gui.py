@@ -2736,14 +2736,27 @@ class ParticleMapperGUI:
                         # - Image has top-left origin: Y increases downward
                         # - matplotlib with origin='lower': Y increases upward
                         # - So we need to negate Y to account for the flip
-                        # CRITICAL: Coordinate system transformation
-                        # The markers are appearing in the wrong quadrant, suggesting we need to
-                        # negate both X and Y to match the display coordinate system
-                        # Marker should be at bottom-left (negative X, negative Y from center)
-                        # but is appearing at top-right (positive X, positive Y from center)
-                        marker1_x_pixels = -rotated_marker1[0] / pixel_size  # Negate X
+                        # CRITICAL: Coordinate system transformation for PyMOL images
+                        # PyMOL images are saved with top-left origin (Y down), but matplotlib
+                        # with origin='lower' interprets them with bottom-left origin (Y up)
+                        # 
+                        # When we project 3D coordinates to 2D:
+                        # - rotated_marker[0] is X in view space (right = positive)
+                        # - rotated_marker[1] is Y in view space (up = positive)
+                        # 
+                        # In PyMOL's image coordinate system (before display):
+                        # - X: right (matches)
+                        # - Y: down (opposite of view space Y)
+                        # 
+                        # When displayed with origin='lower':
+                        # - X: right (matches)
+                        # - Y: up (flipped from PyMOL's image Y)
+                        # 
+                        # So we need to negate Y to account for the flip
+                        # But the X coordinate should be correct as-is
+                        marker1_x_pixels = rotated_marker1[0] / pixel_size
                         marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
-                        marker2_x_pixels = -rotated_marker2[0] / pixel_size  # Negate X
+                        marker2_x_pixels = rotated_marker2[0] / pixel_size
                         marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
                         
                         # 4. Position markers on micrograph
