@@ -2775,15 +2775,16 @@ class ParticleMapperGUI:
                         # - Use rotated[1] for X pixel coordinate
                         # - Use -rotated[0] for Y pixel coordinate
                         # 
-                        # The user says the vector was just shifted to the right in X a little bit.
-                        # Go back to the previous transformation that was close:
-                        # - Use -rotated[1] for X (negated compared to COM)
-                        # - Use rotated[0] for Y (not negated compared to COM)
-                        # This was close, just need to shift X left a bit
-                        marker1_x_pixels = -rotated_marker1[1] / pixel_size   # Back to previous: -rotated[1] for X
-                        marker1_y_pixels = rotated_marker1[0] / pixel_size    # Back to previous: rotated[0] for Y
-                        marker2_x_pixels = -rotated_marker2[1] / pixel_size   # Back to previous: -rotated[1] for X
-                        marker2_y_pixels = rotated_marker2[0] / pixel_size    # Back to previous: rotated[0] for Y
+                        # The user says the vector is very close but pointing "up and slightly to the right"
+                        # when it should be "up and a little to the left". This suggests we need to adjust X.
+                        # The COM transformation uses rotated[1] for X and -rotated[0] for Y.
+                        # For markers, we're currently using -rotated[1] for X and rotated[0] for Y.
+                        # To shift left (more negative X), let's try using rotated[1] for X (same as COM)
+                        # but keep the Y transformation that works:
+                        marker1_x_pixels = rotated_marker1[1] / pixel_size    # Use rotated[1] for X (same as COM) to shift left
+                        marker1_y_pixels = rotated_marker1[0] / pixel_size    # Keep rotated[0] for Y
+                        marker2_x_pixels = rotated_marker2[1] / pixel_size    # Use rotated[1] for X (same as COM) to shift left
+                        marker2_y_pixels = rotated_marker2[0] / pixel_size    # Keep rotated[0] for Y
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
