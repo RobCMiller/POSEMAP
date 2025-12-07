@@ -859,8 +859,10 @@ class ParticleMapperGUI:
         self.marker_x_offset_entry.insert(0, "0.0")
         self.marker_x_offset_entry.pack(side=tk.LEFT, padx=2)
         ttk.Label(offset_frame, text="(for debugging - adjust to find correct offset)").pack(side=tk.LEFT, padx=5)
-        self.marker_x_offset_entry.bind('<Return>', lambda e: self.update_marker_x_offset())
-        self.marker_x_offset_entry.bind('<FocusOut>', lambda e: self.update_marker_x_offset())
+        self.marker_x_offset_entry.bind('<Return>', self.update_marker_x_offset)
+        self.marker_x_offset_entry.bind('<FocusOut>', self.update_marker_x_offset)
+        # Also bind to key release for real-time updates
+        self.marker_x_offset_entry.bind('<KeyRelease>', lambda e: self.update_marker_x_offset())
         
         # Chain selection (for chain_com and chain_axis methods)
         self.custom_chain_frame = ttk.Frame(viz_frame)
@@ -3619,14 +3621,17 @@ class ParticleMapperGUI:
         except ValueError:
             messagebox.showerror("Error", "Invalid vector values. Please enter numeric values.")
     
-    def update_marker_x_offset(self):
+    def update_marker_x_offset(self, event=None):
         """Update the X offset for marker positions from the GUI input."""
         try:
-            self.marker_x_offset = float(self.marker_x_offset_entry.get().strip())
-            # Redraw to update marker positions
-            if hasattr(self, 'current_micrograph_idx') and self.current_micrograph_idx is not None:
-                self.draw_particles_and_projections()
-        except (ValueError, AttributeError):
+            if hasattr(self, 'marker_x_offset_entry'):
+                self.marker_x_offset = float(self.marker_x_offset_entry.get().strip())
+                print(f"DEBUG: Updated marker_x_offset to {self.marker_x_offset}")
+                # Redraw to update marker positions
+                if hasattr(self, 'current_micrograph_idx') and self.current_micrograph_idx is not None:
+                    self.draw_particles_and_projections()
+        except (ValueError, AttributeError) as e:
+            print(f"DEBUG: Error updating marker_x_offset: {e}")
             self.marker_x_offset = 0.0
     
     def update_custom_vector_from_markers(self):
