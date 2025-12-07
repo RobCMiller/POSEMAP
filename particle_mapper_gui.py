@@ -2867,13 +2867,45 @@ class ParticleMapperGUI:
                                     print(f"  Max dist from center (XY): {rotated_max_dist_xy:.2f} Å")
                         
                         # Calculate effective pixel size based on projection scaling
-                        # CRITICAL: PyMOL's zoom(complete=1) scales based on the ROTATED bounding box,
-                        # not the original model size. Use the rotated bounding box size for scaling.
+                        # CRITICAL INSIGHT: 
+                        # - projection_size is calculated from ORIGINAL model_size: (model_size / pixel_size) * 1.2
+                        # - But PyMOL's zoom(complete=1) scales based on ROTATED bbox_size
+                        # - This mismatch causes a systematic offset!
+                        #
+                        # The rotated bbox is typically larger than the original model (e.g., 299.76 Å vs 232.11 Å)
+                        # So PyMOL has to fit a larger structure into the same projection_size
+                        # This causes the structure to be scaled down more than expected
+                        #
+                        # Solution: Calculate what the projection_size SHOULD be for the rotated bbox,
+                        # then use that to determine the correct pixel size
                         if rotated_bbox_size is not None and rotated_bbox_size > 0:
-                            # PyMOL scales the rotated bounding box to fit in projection_size with 1.2x padding
-                            # So: projection_size pixels = rotated_bbox_size * 1.2 Angstroms
-                            # Therefore: effective_pixel_size = rotated_bbox_size / (projection_size / 1.2)
-                            effective_pixel_size = rotated_bbox_size / (self.projection_size / 1.2)
+                            # Calculate what projection_size should be for this rotated bbox
+                            correct_projection_size = (rotated_bbox_size / pixel_size) * 1.2
+                            
+                            # The effective pixel size is what PyMOL actually uses
+                            # PyMOL fits rotated_bbox_size into (projection_size / 1.2) pixels
+                            # But it SHOULD fit into (correct_projection_size / 1.2) pixels
+                            # The ratio tells us how much the scale is off
+                            scale_ratio = (self.projection_size / 1.2) / (correct_projection_size / 1.2)
+                            scale_ratio = self.projection_size / correct_projection_size
+                            
+                            # The actual pixel size PyMOL uses
+                            actual_scale_pixels = self.projection_size / 1.2
+                            effective_pixel_size = rotated_bbox_size / actual_scale_pixels
+                            
+                            # CRITICAL: The offset is because projection_size is too small
+                            # The structure is scaled by scale_ratio, which is < 1.0
+                            # This means coordinates are scaled down more than they should be
+                            # We need to account for this in the coordinate transformation
+                            
+                            if i == 0:  # Debug output
+                                print(f"DEBUG: Projection size mismatch:")
+                                print(f"  Original model_size: {model_size_angstroms:.2f} Å")
+                                print(f"  Rotated bbox_size: {rotated_bbox_size:.2f} Å")
+                                print(f"  Current projection_size: {self.projection_size} px")
+                                print(f"  Correct projection_size: {correct_projection_size:.1f} px")
+                                print(f"  Scale ratio: {scale_ratio:.4f}")
+                                print(f"  Effective pixel size: {effective_pixel_size:.4f} Å/pixel")
                         elif model_size_angstroms is not None and model_size_angstroms > 0:
                             # Fallback to original model size if rotated bbox calculation failed
                             effective_pixel_size = model_size_angstroms / (self.projection_size / 1.2)
