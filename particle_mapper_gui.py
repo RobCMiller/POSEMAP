@@ -899,6 +899,12 @@ class ParticleMapperGUI:
         ttk.Button(color_frame, text="Pick", width=8,
                   command=self.pick_custom_arrow_color).pack(side=tk.LEFT, padx=2)
         
+        # Option to render arrow in PyMOL (avoids coordinate transformation issues)
+        self.render_arrow_in_pymol_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(viz_frame, text="Render Arrow in PyMOL (avoids coordinate issues)", 
+                       variable=self.render_arrow_in_pymol_var,
+                       command=self.update_display).pack(anchor=tk.W, pady=(5,0))
+        
         # Toggle for showing arrows at marker positions
         self.show_arrows_at_markers_var = tk.BooleanVar(value=self.show_arrows_at_markers)
         ttk.Checkbutton(viz_frame, text="Show Arrows at Marker Positions (longer, not from particle center)", 
@@ -1844,6 +1850,26 @@ class ParticleMapperGUI:
         if self.color_mode == 'chain':
             chain_color_map = self.chain_color_map if self.chain_color_map else None
         
+        # Get marker coordinates if PyMOL arrow rendering is enabled
+        marker1_coords = None
+        marker2_coords = None
+        render_arrow_in_pymol = getattr(self, 'render_arrow_in_pymol_var', None)
+        if render_arrow_in_pymol and render_arrow_in_pymol.get():
+            # Get marker coordinates from GUI entries
+            try:
+                marker1_x = float(self.marker1_x_entry.get())
+                marker1_y = float(self.marker1_y_entry.get())
+                marker1_z = float(self.marker1_z_entry.get())
+                marker2_x = float(self.marker2_x_entry.get())
+                marker2_y = float(self.marker2_y_entry.get())
+                marker2_z = float(self.marker2_z_entry.get())
+                marker1_coords = np.array([marker1_x, marker1_y, marker1_z])
+                marker2_coords = np.array([marker2_x, marker2_y, marker2_z])
+            except (ValueError, AttributeError):
+                # If marker entries don't exist or have invalid values, skip
+                marker1_coords = None
+                marker2_coords = None
+        
         projection = project_pdb_structure(
             self.pdb_data,
             euler_angles,  # CRITICAL: Each particle gets its unique Euler angles from .cs file
@@ -1855,7 +1881,10 @@ class ParticleMapperGUI:
             rotation_correction_y=self.rotation_correction_y,
             rotation_correction_z=self.rotation_correction_z,
             pdb_path=pdb_path,
-            chimerax_path=chimerax_path
+            chimerax_path=chimerax_path,
+            marker1_coords=marker1_coords,
+            marker2_coords=marker2_coords,
+            render_vector_arrow=(marker1_coords is not None and marker2_coords is not None)
         )
         
         if particle_idx < 2:
