@@ -2899,23 +2899,32 @@ class ParticleMapperGUI:
                         # 2. There might be a coordinate system offset in PyMOL's image rendering
                         # 3. The projection extent calculation might not match the actual image center
                         #
-                        # CRITICAL: Y coordinate is now correct (0 offset needed), but X still needs -70 pixels.
-                        # This suggests a systematic X offset in PyMOL's coordinate system.
-                        # The -70 pixel offset is about 28% of projection size, suggesting PyMOL's zoom
-                        # might use a different scale factor for X vs Y, or there's a coordinate system offset.
+                        # CRITICAL: Coordinate transformation for markers
+                        # 
+                        # Coordinate system conventions:
+                        # 1. Model space: PDB coordinates in Angstroms
+                        # 2. View space: After rotation R (from model to view)
+                        # 3. Projection plane: XY plane in view space (Z=0)
+                        # 4. Image coordinates: X right, Y up (Matplotlib convention)
                         #
-                        # Since Y works correctly with effective_pixel_size, we'll use that for Y.
-                        # For X, we need to apply a correction factor. The -70 pixel offset suggests
-                        # we need to shift X by approximately -70 pixels, which is about -100 Angstroms
-                        # at the effective pixel size (1.4331 Å/pixel).
+                        # Transformation steps:
+                        # - Center marker: marker_centered = marker_model - structure_center
+                        # - Rotate to view space: marker_rotated = R @ marker_centered
+                        # - Project to 2D: Use X and Y components (Z is depth, ignored)
+                        # - Convert to pixels: Divide by effective_pixel_size
                         #
-                        # Let's try applying a systematic X offset correction based on the projection size.
-                        # The offset is approximately -70/251 = -0.279 of the projection size.
-                        # This might be related to how PyMOL calculates the bounding box or centers the view.
-                        x_correction = -70.0  # Systematic X offset correction (in pixels)
-                        marker1_x_pixels = rotated_marker1[1] / effective_pixel_size + x_offset + x_correction
+                        # IMPORTANT: The coordinate swap (rotated[1] for X, rotated[0] for Y) is correct
+                        # and verified by tests. This accounts for PyMOL's coordinate system.
+                        #
+                        # The effective_pixel_size accounts for PyMOL's zoom(complete=1) scaling,
+                        # which uses the rotated bounding box size.
+                        #
+                        # Note: Y coordinate works correctly (0 offset needed), but X requires
+                        # manual offset. This suggests a systematic X offset in PyMOL's rendering
+                        # that we haven't yet identified. User can apply manual offsets via GUI.
+                        marker1_x_pixels = rotated_marker1[1] / effective_pixel_size + x_offset
                         marker1_y_pixels = rotated_marker1[0] / effective_pixel_size + y_offset
-                        marker2_x_pixels = rotated_marker2[1] / effective_pixel_size + x_offset + x_correction
+                        marker2_x_pixels = rotated_marker2[1] / effective_pixel_size + x_offset
                         marker2_y_pixels = rotated_marker2[0] / effective_pixel_size + y_offset
                         
                         # DEBUG: Print scaling information
