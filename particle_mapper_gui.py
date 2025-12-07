@@ -2830,6 +2830,11 @@ class ParticleMapperGUI:
                         self.ax.plot(marker2_x, marker2_y, 's', color='cyan', markersize=8, 
                                    markeredgecolor='black', markeredgewidth=1, zorder=25, label='Marker 2' if i == 0 else '')
                         
+                        # Draw a star at the projection center (particle center)
+                        self.ax.plot(center_x, center_y, '*', color='white', markersize=10, 
+                                   markeredgecolor='black', markeredgewidth=1, zorder=26, 
+                                   label='Projection Center' if i == 0 else '')
+                        
                         # DEBUG: Print marker positions for first particle only
                         if i == 0:
                             print(f"\n=== DEBUG Marker Projection (particle {i}) ===")
@@ -2856,14 +2861,17 @@ class ParticleMapperGUI:
                             chimerax_com = np.array([246.62, 222.54, 307.65])
                             centered_com = chimerax_com - structure_center
                             rotated_com = R @ centered_com
+                            # Use the same transformation as markers to test
                             com_x_pixels = rotated_com[1] / pixel_size   # Swap: use Y for X
                             com_y_pixels = -rotated_com[0] / pixel_size  # Swap: use X for Y, negate
                             com_x = center_x + com_x_pixels
                             com_y = center_y + com_y_pixels
-                            # Draw a red star at the ChimeraX COM position
-                            self.ax.plot(com_x, com_y, '*', color='red', markersize=12, 
-                                       markeredgecolor='black', markeredgewidth=1, zorder=26, 
-                                       label='ChimeraX COM' if i == 0 else '')
+                            # Draw a big pink circle at the ChimeraX COM position
+                            from matplotlib.patches import Circle
+                            circle = Circle((com_x, com_y), 15, color='pink', fill=True, 
+                                          edgecolor='black', linewidth=2, zorder=27, 
+                                          label='ChimeraX COM' if i == 0 else '')
+                            self.ax.add_patch(circle)
                             print(f"ChimeraX COM (centered): {centered_com}")
                             print(f"ChimeraX COM (rotated): {rotated_com}")
                             print(f"ChimeraX COM (projected, pixels from center): ({com_x_pixels:.2f}, {com_y_pixels:.2f})")
