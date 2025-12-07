@@ -858,11 +858,10 @@ class ParticleMapperGUI:
         self.marker_x_offset_entry = ttk.Entry(offset_frame, width=10)
         self.marker_x_offset_entry.insert(0, "0.0")
         self.marker_x_offset_entry.pack(side=tk.LEFT, padx=2)
+        ttk.Button(offset_frame, text="Apply", width=6, command=self.update_marker_x_offset).pack(side=tk.LEFT, padx=2)
         ttk.Label(offset_frame, text="(for debugging - adjust to find correct offset)").pack(side=tk.LEFT, padx=5)
         self.marker_x_offset_entry.bind('<Return>', self.update_marker_x_offset)
         self.marker_x_offset_entry.bind('<FocusOut>', self.update_marker_x_offset)
-        # Also bind to key release for real-time updates
-        self.marker_x_offset_entry.bind('<KeyRelease>', lambda e: self.update_marker_x_offset())
         
         # Chain selection (for chain_com and chain_axis methods)
         self.custom_chain_frame = ttk.Frame(viz_frame)
