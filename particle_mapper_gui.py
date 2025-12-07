@@ -2775,15 +2775,13 @@ class ParticleMapperGUI:
                         # - Use rotated[1] for X pixel coordinate
                         # - Use -rotated[0] for Y pixel coordinate
                         # 
-                        # The user says the vector is very close but pointing "up and slightly to the right"
-                        # when it should be "up and a little to the left". This suggests we need to adjust X.
-                        # The COM transformation uses rotated[1] for X and -rotated[0] for Y.
-                        # For markers, we're currently using -rotated[1] for X and rotated[0] for Y.
-                        # To shift left (more negative X), let's try using rotated[1] for X (same as COM)
-                        # but keep the Y transformation that works:
-                        marker1_x_pixels = rotated_marker1[1] / pixel_size    # Use rotated[1] for X (same as COM) to shift left
+                        # The user says the vector is very close but needs to shift MORE to the left.
+                        # The previous transformation was: -rotated[1] for X and rotated[0] for Y
+                        # This was close but slightly to the right. To shift more left, let's try
+                        # using -rotated[0] for X instead of -rotated[1]:
+                        marker1_x_pixels = -rotated_marker1[0] / pixel_size   # Use -rotated[0] for X to shift more left
                         marker1_y_pixels = rotated_marker1[0] / pixel_size    # Keep rotated[0] for Y
-                        marker2_x_pixels = rotated_marker2[1] / pixel_size    # Use rotated[1] for X (same as COM) to shift left
+                        marker2_x_pixels = -rotated_marker2[0] / pixel_size   # Use -rotated[0] for X to shift more left
                         marker2_y_pixels = rotated_marker2[0] / pixel_size    # Keep rotated[0] for Y
                         
                         # 4. Position markers on micrograph
