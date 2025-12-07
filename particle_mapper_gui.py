@@ -2948,16 +2948,24 @@ class ParticleMapperGUI:
                         # IMPORTANT: The coordinate swap (rotated[1] for X, rotated[0] for Y) is correct
                         # and verified by tests. This accounts for PyMOL's coordinate system.
                         #
-                        # The effective_pixel_size accounts for PyMOL's zoom(complete=1) scaling,
-                        # which uses the rotated bounding box size.
-                        #
-                        # Note: Y coordinate works correctly (0 offset needed), but X requires
-                        # manual offset. This suggests a systematic X offset in PyMOL's rendering
-                        # that we haven't yet identified. User can apply manual offsets via GUI.
-                        marker1_x_pixels = rotated_marker1[1] / effective_pixel_size + x_offset
-                        marker1_y_pixels = rotated_marker1[0] / effective_pixel_size + y_offset
-                        marker2_x_pixels = rotated_marker2[1] / effective_pixel_size + x_offset
-                        marker2_y_pixels = rotated_marker2[0] / effective_pixel_size + y_offset
+                        # CRITICAL FIX: The projection_size is calculated from the original model_size,
+                        # but PyMOL scales based on the rotated_bbox_size. This causes a mismatch.
+                        # The scale_ratio tells us how much the structure is scaled down.
+                        # We need to account for this in the coordinate transformation.
+                        if rotated_bbox_size is not None and rotated_bbox_size > 0 and model_size_angstroms is not None:
+                            correct_projection_size = (rotated_bbox_size / pixel_size) * 1.2
+                            scale_ratio = self.projection_size / correct_projection_size
+                            # The coordinates need to be scaled by the inverse of this ratio
+                            # because the structure is smaller in the image than it should be
+                            scale_correction = 1.0 / scale_ratio
+                        else:
+                            scale_correction = 1.0
+                        
+                        # Apply coordinate transformation with scale correction
+                        marker1_x_pixels = (rotated_marker1[1] / effective_pixel_size) * scale_correction + x_offset
+                        marker1_y_pixels = (rotated_marker1[0] / effective_pixel_size) * scale_correction + y_offset
+                        marker2_x_pixels = (rotated_marker2[1] / effective_pixel_size) * scale_correction + x_offset
+                        marker2_y_pixels = (rotated_marker2[0] / effective_pixel_size) * scale_correction + y_offset
                         
                         # DEBUG: Print scaling information
                         if i == 0:
@@ -2968,6 +2976,11 @@ class ParticleMapperGUI:
                             print(f"  Rotated bbox size (2D extent): {rotated_bbox_size:.2f} Å" if rotated_bbox_size else "  Rotated bbox size: unknown")
                             print(f"  Projection size: {self.projection_size} pixels")
                             print(f"  Effective pixel size (using rotated bbox): {effective_pixel_size:.4f} Å/pixel")
+                            if rotated_bbox_size is not None and rotated_bbox_size > 0 and model_size_angstroms is not None:
+                                correct_projection_size = (rotated_bbox_size / pixel_size) * 1.2
+                                scale_ratio = self.projection_size / correct_projection_size
+                                scale_correction = 1.0 / scale_ratio
+                                print(f"  Scale correction factor: {scale_correction:.4f}")
                             print(f"  User offsets - X: {x_offset}, Y: {y_offset} pixels")
                         
                         # 4. Position markers on micrograph
