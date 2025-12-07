@@ -2863,9 +2863,9 @@ class ParticleMapperGUI:
                             chimerax_com = np.array([246.62, 222.54, 307.65])
                             centered_com = chimerax_com - structure_center
                             rotated_com = R @ centered_com
-                            # Use the same transformation as markers to test
-                            com_x_pixels = rotated_com[1] / pixel_size   # Swap: use Y for X
-                            com_y_pixels = -rotated_com[0] / pixel_size  # Swap: use X for Y, negate
+                            # Use the CORRECT COM transformation (this is what works for the pink circle)
+                            com_x_pixels = rotated_com[1] / pixel_size   # COM uses rotated[1] for X
+                            com_y_pixels = -rotated_com[0] / pixel_size  # COM uses -rotated[0] for Y
                             com_x = center_x + com_x_pixels
                             com_y = center_y + com_y_pixels
                             # Draw a big pink circle at the ChimeraX COM position
