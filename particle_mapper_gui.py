@@ -151,6 +151,7 @@ class ParticleMapperGUI:
         self.custom_vector_params = {}  # Parameters for vector calculation (chain_ids, etc.)
         self.marker_positions = None  # Store marker positions [point1, point2] when using from_markers method
         self.marker_x_offset = 0.0  # X offset in pixels for marker positions (for debugging coordinate system)
+        self.marker_y_offset = 0.0  # Y offset in pixels for marker positions (for debugging coordinate system)
         self.marker_distance_angstroms = None  # Distance between markers in Angstroms (for default arrow length)
         self.show_arrows_at_markers = False  # Toggle to show arrows at marker positions
         
@@ -851,17 +852,23 @@ class ParticleMapperGUI:
         ttk.Button(self.custom_markers_frame, text="Calculate Vector (Marker 1 → Marker 2)", width=30,
                   command=self.update_custom_vector_from_markers).pack(pady=5)
         
-        # X offset input for debugging marker position
+        # X and Y offset inputs for debugging marker position
         offset_frame = ttk.Frame(self.custom_markers_frame)
         offset_frame.pack(fill=tk.X, pady=(5, 0))
         ttk.Label(offset_frame, text="Marker X Offset (px):").pack(side=tk.LEFT, padx=(0, 5))
         self.marker_x_offset_entry = ttk.Entry(offset_frame, width=10)
         self.marker_x_offset_entry.insert(0, "0.0")
         self.marker_x_offset_entry.pack(side=tk.LEFT, padx=2)
-        ttk.Button(offset_frame, text="Apply", width=6, command=self.update_marker_x_offset).pack(side=tk.LEFT, padx=2)
+        ttk.Label(offset_frame, text="Y Offset (px):").pack(side=tk.LEFT, padx=(5, 5))
+        self.marker_y_offset_entry = ttk.Entry(offset_frame, width=10)
+        self.marker_y_offset_entry.insert(0, "0.0")
+        self.marker_y_offset_entry.pack(side=tk.LEFT, padx=2)
+        ttk.Button(offset_frame, text="Apply", width=6, command=self.update_marker_offset).pack(side=tk.LEFT, padx=2)
         ttk.Label(offset_frame, text="(for debugging - adjust to find correct offset)").pack(side=tk.LEFT, padx=5)
-        self.marker_x_offset_entry.bind('<Return>', self.update_marker_x_offset)
-        self.marker_x_offset_entry.bind('<FocusOut>', self.update_marker_x_offset)
+        self.marker_x_offset_entry.bind('<Return>', self.update_marker_offset)
+        self.marker_x_offset_entry.bind('<FocusOut>', self.update_marker_offset)
+        self.marker_y_offset_entry.bind('<Return>', self.update_marker_offset)
+        self.marker_y_offset_entry.bind('<FocusOut>', self.update_marker_offset)
         
         # Chain selection (for chain_com and chain_axis methods)
         self.custom_chain_frame = ttk.Frame(viz_frame)
@@ -2792,17 +2799,18 @@ class ParticleMapperGUI:
                         # Current transformation: rotated[1] for X, rotated[0] for Y (correct direction, slightly off in X)
                         # Use the user-adjustable X offset from the GUI to fine-tune the position
                         # This will help us determine the exact offset needed and figure out why it's needed
-                        # Use user-adjustable X offset from GUI for debugging
-                        # Get the current offset value (default to 0.0 if not set)
+                        # Use user-adjustable X and Y offsets from GUI for debugging
+                        # Get the current offset values (default to 0.0 if not set)
                         x_offset = getattr(self, 'marker_x_offset', 0.0)
-                        marker1_x_pixels = rotated_marker1[1] / pixel_size + x_offset    # Add user-adjustable offset
-                        marker1_y_pixels = rotated_marker1[0] / pixel_size    # Keep rotated[0] for Y
-                        marker2_x_pixels = rotated_marker2[1] / pixel_size + x_offset    # Add user-adjustable offset
-                        marker2_y_pixels = rotated_marker2[0] / pixel_size    # Keep rotated[0] for Y
+                        y_offset = getattr(self, 'marker_y_offset', 0.0)
+                        marker1_x_pixels = rotated_marker1[1] / pixel_size + x_offset    # Add user-adjustable X offset
+                        marker1_y_pixels = rotated_marker1[0] / pixel_size + y_offset    # Add user-adjustable Y offset
+                        marker2_x_pixels = rotated_marker2[1] / pixel_size + x_offset    # Add user-adjustable X offset
+                        marker2_y_pixels = rotated_marker2[0] / pixel_size + y_offset    # Add user-adjustable Y offset
                         
-                        # DEBUG: Print offset being used
+                        # DEBUG: Print offsets being used
                         if i == 0:
-                            print(f"DEBUG: Using marker_x_offset = {x_offset} pixels")
+                            print(f"DEBUG: Using marker offsets - X: {x_offset}, Y: {y_offset} pixels")
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
@@ -3627,21 +3635,24 @@ class ParticleMapperGUI:
         except ValueError:
             messagebox.showerror("Error", "Invalid vector values. Please enter numeric values.")
     
-    def update_marker_x_offset(self, event=None):
-        """Update the X offset for marker positions from the GUI input."""
+    def update_marker_offset(self, event=None):
+        """Update the X and Y offsets for marker positions from the GUI input."""
         try:
             if hasattr(self, 'marker_x_offset_entry'):
                 self.marker_x_offset = float(self.marker_x_offset_entry.get().strip())
-                print(f"DEBUG: Updated marker_x_offset to {self.marker_x_offset}")
-                # Force redraw to update marker positions
-                if hasattr(self, 'current_micrograph_idx') and self.current_micrograph_idx is not None:
-                    # Just call update_display - it will redraw everything
-                    self.update_display(use_cache=True)
+            if hasattr(self, 'marker_y_offset_entry'):
+                self.marker_y_offset = float(self.marker_y_offset_entry.get().strip())
+            print(f"DEBUG: Updated marker offsets - X: {self.marker_x_offset}, Y: {self.marker_y_offset}")
+            # Force redraw to update marker positions
+            if hasattr(self, 'current_micrograph_idx') and self.current_micrograph_idx is not None:
+                # Just call update_display - it will redraw everything
+                self.update_display(use_cache=True)
         except (ValueError, AttributeError) as e:
-            print(f"DEBUG: Error updating marker_x_offset: {e}")
+            print(f"DEBUG: Error updating marker offsets: {e}")
             import traceback
             traceback.print_exc()
             self.marker_x_offset = 0.0
+            self.marker_y_offset = 0.0
     
     def update_custom_vector_from_markers(self):
         """Update custom vector from two ChimeraX marker positions."""
