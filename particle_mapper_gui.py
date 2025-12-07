@@ -147,9 +147,10 @@ class ParticleMapperGUI:
         self.custom_arrow_length = 180  # Doubled from 90 for better visibility
         self.custom_arrow_color = '#FF6B6B'  # Default red color to distinguish from viewing direction arrow
         self.custom_vector_3d = None  # 3D vector in model coordinate system (normalized)
-        self.custom_vector_method = 'user_defined'  # 'user_defined', 'chain_com', 'atom_selection', 'chain_axis'
+        self.custom_vector_method = 'user_defined'  # 'user_defined', 'chain_com', 'atom_selection', 'chain_axis', 'from_markers'
         self.custom_vector_params = {}  # Parameters for vector calculation (chain_ids, etc.)
         self.marker_positions = None  # Store marker positions [point1, point2] when using from_markers method
+        self.marker_distance_angstroms = None  # Distance between markers in Angstroms (for default arrow length)
         self.show_arrows_at_markers = False  # Toggle to show arrows at marker positions
         
         # Cache for fast projection toggle
@@ -2674,63 +2675,151 @@ class ParticleMapperGUI:
             # Draw custom structural vector arrow if enabled
             if self.show_custom_arrow and self.custom_vector_3d is not None:
                 try:
-                    # CRITICAL: The custom vector is already a direction vector (normalized)
-                    # It's defined in the model's coordinate system (centered at origin)
-                    # So we can directly rotate and project it
                     from scipy.spatial.transform import Rotation
                     rot = Rotation.from_euler('ZYZ', pose, degrees=False)
                     R = rot.as_matrix()
-                    rotated_vector = R @ self.custom_vector_3d
                     
                     # Get pixel size for proper conversion
                     pixel_size = self.pixel_size_angstroms if self.pixel_size_angstroms is not None else 1.0
                     
-                    # Project onto XY plane and convert to pixels
-                    # Arrow length is in pixels, so we multiply by pixel_size to get Angstroms, then divide by pixel_size
-                    # Actually, project_custom_vector expects length in pixels, so we pass it directly
-                    dx, dy = project_custom_vector(self.custom_vector_3d, pose, length=self.custom_arrow_length)
-                    
-                    z_component = rotated_vector[2]  # Z-component: positive = out of plane, negative = into plane
-                    
-                    # Visual indicators for in/out of plane:
-                    # - Line style: solid for in-plane (|z| < 0.3), dashed for out-of-plane
-                    # - Line width: thicker for more out-of-plane
-                    # - Alpha: brighter for more out-of-plane
-                    abs_z = abs(z_component)
-                    if abs_z < 0.3:
-                        linestyle = '-'  # Solid line for mostly in-plane
-                        linewidth = 1.5
-                        alpha = 0.6
+                    # CRITICAL: For 'from_markers' method, draw arrow from marker 1 to marker 2
+                    # For other methods, draw from particle center
+                    if self.custom_vector_method == 'from_markers' and self.marker_positions is not None and len(self.marker_positions) >= 2:
+                        # Get structure center (same as PyMOL uses)
+                        if hasattr(self, 'pdb_data') and self.pdb_data is not None:
+                            structure_center = np.mean(self.pdb_data['coords'], axis=0)
+                        else:
+                            structure_center = np.array([0.0, 0.0, 0.0])
+                        
+                        # Get marker positions
+                        marker1 = self.marker_positions[0]
+                        marker2 = self.marker_positions[1]
+                        
+                        # Center markers (same as PyMOL does for structure)
+                        centered_marker1 = marker1 - structure_center
+                        centered_marker2 = marker2 - structure_center
+                        
+                        # Rotate both markers by particle rotation
+                        rotated_marker1 = R @ centered_marker1
+                        rotated_marker2 = R @ centered_marker2
+                        
+                        # Project onto XY plane and convert to pixels
+                        marker1_x_pixels = rotated_marker1[0] / pixel_size
+                        marker1_y_pixels = rotated_marker1[1] / pixel_size
+                        marker2_x_pixels = rotated_marker2[0] / pixel_size
+                        marker2_y_pixels = rotated_marker2[1] / pixel_size
+                        
+                        # Marker positions on micrograph (relative to particle center)
+                        marker1_x = x_pixel + marker1_x_pixels
+                        marker1_y = y_pixel + marker1_y_pixels
+                        marker2_x = x_pixel + marker2_x_pixels
+                        marker2_y = y_pixel + marker2_y_pixels
+                        
+                        # Vector from marker 1 to marker 2 in 2D (projected)
+                        vec_2d_x = marker2_x - marker1_x
+                        vec_2d_y = marker2_y - marker1_y
+                        vec_2d_length = np.sqrt(vec_2d_x**2 + vec_2d_y**2)
+                        
+                        if vec_2d_length > 1e-6:
+                            # Normalize 2D vector
+                            vec_2d_x_norm = vec_2d_x / vec_2d_length
+                            vec_2d_y_norm = vec_2d_y / vec_2d_length
+                            
+                            # Arrow length in pixels (user can scale it)
+                            arrow_length_pixels = self.custom_arrow_length
+                            
+                            # Arrow direction (from marker 1 toward marker 2)
+                            dx = vec_2d_x_norm * arrow_length_pixels
+                            dy = vec_2d_y_norm * arrow_length_pixels
+                            
+                            # Calculate out-of-plane component for styling
+                            # Use the 3D vector's Z component after rotation
+                            rotated_vector = R @ self.custom_vector_3d
+                            z_component = rotated_vector[2]
+                            
+                            # Visual indicators for in/out of plane
+                            abs_z = abs(z_component)
+                            if abs_z < 0.3:
+                                linestyle = '-'
+                                linewidth = 1.5
+                                alpha = 0.6
+                            else:
+                                linestyle = '--' if z_component > 0 else ':'
+                                linewidth = 2.0 + abs_z * 1.0
+                                alpha = 0.8 + abs_z * 0.2
+                            
+                            # Draw arrow from marker 1 position
+                            self.ax.arrow(marker1_x, marker1_y, dx, dy,
+                                         head_width=arrow_length_pixels*0.3,
+                                         head_length=arrow_length_pixels*0.2,
+                                         fc=self.custom_arrow_color, ec=self.custom_arrow_color,
+                                         alpha=alpha, linewidth=linewidth, linestyle=linestyle, zorder=17)
+                            
+                            # Add perpendicular indicator for depth
+                            if abs_z > 0.1:
+                                perp_length = 5.0 * abs_z
+                                arrow_angle = np.arctan2(dy, dx)
+                                perp_angle = arrow_angle + np.pi/2
+                                perp_dx = np.cos(perp_angle) * perp_length
+                                perp_dy = np.sin(perp_angle) * perp_length
+                                mid_x = marker1_x + dx/2
+                                mid_y = marker1_y + dy/2
+                                self.ax.plot([mid_x - perp_dx/2, mid_x + perp_dx/2],
+                                            [mid_y - perp_dy/2, mid_y + perp_dy/2],
+                                            color=self.custom_arrow_color, linewidth=2, alpha=0.9, zorder=18)
                     else:
-                        linestyle = '--' if z_component > 0 else ':'  # Dashed for out, dotted for in
-                        linewidth = 2.0 + abs_z * 1.0  # Thicker for more out-of-plane
-                        alpha = 0.8 + abs_z * 0.2  # Brighter for more out-of-plane
-                    
-                    # Draw arrow with style based on out-of-plane component
-                    self.ax.arrow(x_pixel, y_pixel, dx, dy,
-                                 head_width=self.custom_arrow_length*0.3,
-                                 head_length=self.custom_arrow_length*0.2,
-                                 fc=self.custom_arrow_color, ec=self.custom_arrow_color, 
-                                 alpha=alpha, linewidth=linewidth, linestyle=linestyle, zorder=17)
-                    
-                    # Add a small perpendicular indicator line to show depth
-                    # Draw a short line perpendicular to the arrow direction
-                    if abs_z > 0.1:  # Only show if significantly out-of-plane
-                        perp_length = 5.0 * abs_z  # Length proportional to out-of-plane component
-                        # Perpendicular direction (rotate arrow direction by 90 degrees)
-                        arrow_angle = np.arctan2(dy, dx)
-                        perp_angle = arrow_angle + np.pi/2
-                        perp_dx = np.cos(perp_angle) * perp_length
-                        perp_dy = np.sin(perp_angle) * perp_length
-                        # Draw perpendicular line at arrow midpoint
-                        mid_x = x_pixel + dx/2
-                        mid_y = y_pixel + dy/2
-                        self.ax.plot([mid_x - perp_dx/2, mid_x + perp_dx/2],
-                                    [mid_y - perp_dy/2, mid_y + perp_dy/2],
-                                    color=self.custom_arrow_color, linewidth=2, alpha=0.9, zorder=18)
+                        # Original behavior: draw from particle center
+                        # CRITICAL: The custom vector is already a direction vector (normalized)
+                        # It's defined in the model's coordinate system (centered at origin)
+                        # So we can directly rotate and project it
+                        rotated_vector = R @ self.custom_vector_3d
+                        
+                        # Project onto XY plane and convert to pixels
+                        dx, dy = project_custom_vector(self.custom_vector_3d, pose, length=self.custom_arrow_length)
+                        
+                        z_component = rotated_vector[2]  # Z-component: positive = out of plane, negative = into plane
+                        
+                        # Visual indicators for in/out of plane:
+                        # - Line style: solid for in-plane (|z| < 0.3), dashed for out-of-plane
+                        # - Line width: thicker for more out-of-plane
+                        # - Alpha: brighter for more out-of-plane
+                        abs_z = abs(z_component)
+                        if abs_z < 0.3:
+                            linestyle = '-'  # Solid line for mostly in-plane
+                            linewidth = 1.5
+                            alpha = 0.6
+                        else:
+                            linestyle = '--' if z_component > 0 else ':'  # Dashed for out, dotted for in
+                            linewidth = 2.0 + abs_z * 1.0  # Thicker for more out-of-plane
+                            alpha = 0.8 + abs_z * 0.2  # Brighter for more out-of-plane
+                        
+                        # Draw arrow with style based on out-of-plane component
+                        self.ax.arrow(x_pixel, y_pixel, dx, dy,
+                                     head_width=self.custom_arrow_length*0.3,
+                                     head_length=self.custom_arrow_length*0.2,
+                                     fc=self.custom_arrow_color, ec=self.custom_arrow_color, 
+                                     alpha=alpha, linewidth=linewidth, linestyle=linestyle, zorder=17)
+                        
+                        # Add a small perpendicular indicator line to show depth
+                        # Draw a short line perpendicular to the arrow direction
+                        if abs_z > 0.1:  # Only show if significantly out-of-plane
+                            perp_length = 5.0 * abs_z  # Length proportional to out-of-plane component
+                            # Perpendicular direction (rotate arrow direction by 90 degrees)
+                            arrow_angle = np.arctan2(dy, dx)
+                            perp_angle = arrow_angle + np.pi/2
+                            perp_dx = np.cos(perp_angle) * perp_length
+                            perp_dy = np.sin(perp_angle) * perp_length
+                            # Draw perpendicular line at arrow midpoint
+                            mid_x = x_pixel + dx/2
+                            mid_y = y_pixel + dy/2
+                            self.ax.plot([mid_x - perp_dx/2, mid_x + perp_dx/2],
+                                        [mid_y - perp_dy/2, mid_y + perp_dy/2],
+                                        color=self.custom_arrow_color, linewidth=2, alpha=0.9, zorder=18)
                     
                 except Exception as e:
                     print(f"Error drawing custom arrow {i}: {e}")
+                    import traceback
+                    traceback.print_exc()
             
             # Draw arrows at marker positions if enabled (independent of regular custom arrow)
             if self.show_arrows_at_markers and self.marker_positions is not None and self.custom_vector_3d is not None:
@@ -3215,7 +3304,16 @@ class ParticleMapperGUI:
                         norm = np.linalg.norm(vec)
                         if norm > 1e-10:
                             self.custom_vector_3d = vec / norm
-                            self.custom_vector_method = 'from_markers'
+                            # Set method to from_markers if marker positions are available
+                            if len(lines) >= 9:
+                                self.custom_vector_method = 'from_markers'
+                                # Update method dropdown if it exists
+                                if hasattr(self, 'custom_vector_method_var'):
+                                    self.custom_vector_method_var.set('from_markers')
+                                    # Trigger method change handler to show marker frame
+                                    self.on_custom_vector_method_changed()
+                            else:
+                                self.custom_vector_method = 'user_defined'
                             
                             # Try to load marker positions if available (lines 4-9)
                             if len(lines) >= 9:
@@ -3226,10 +3324,13 @@ class ParticleMapperGUI:
                                     m2_x = float(lines[6])
                                     m2_y = float(lines[7])
                                     m2_z = float(lines[8])
-                                    self.marker_positions = [
-                                        np.array([m1_x, m1_y, m1_z]),
-                                        np.array([m2_x, m2_y, m2_z])
-                                    ]
+                                    point1 = np.array([m1_x, m1_y, m1_z])
+                                    point2 = np.array([m2_x, m2_y, m2_z])
+                                    self.marker_positions = [point1, point2]
+                                    
+                                    # Calculate distance between markers
+                                    self.marker_distance_angstroms = np.linalg.norm(point2 - point1)
+                                    
                                     # Update marker entry fields if they exist
                                     if hasattr(self, 'marker1_x_entry'):
                                         self.marker1_x_entry.delete(0, tk.END)
@@ -3244,9 +3345,20 @@ class ParticleMapperGUI:
                                         self.marker2_y_entry.insert(0, f"{m2_y:.1f}")
                                         self.marker2_z_entry.delete(0, tk.END)
                                         self.marker2_z_entry.insert(0, f"{m2_z:.1f}")
+                                    
+                                    # Set default arrow length to distance between markers (in pixels)
+                                    if self.pixel_size_angstroms is not None and self.pixel_size_angstroms > 0:
+                                        default_length_pixels = self.marker_distance_angstroms / self.pixel_size_angstroms
+                                        self.custom_arrow_length = int(default_length_pixels)
+                                        # Update slider if it exists
+                                        if hasattr(self, 'custom_arrow_var'):
+                                            self.custom_arrow_var.set(self.custom_arrow_length)
+                                        if hasattr(self, 'custom_arrow_label'):
+                                            self.custom_arrow_label.config(text=f"{self.custom_arrow_length} px")
+                                    
                                     print(f"Auto-loaded vector and markers from {vector_file}")
-                                except (ValueError, IndexError):
-                                    print(f"Auto-loaded vector from {vector_file} (marker positions not found or invalid)")
+                                except (ValueError, IndexError) as e:
+                                    print(f"Auto-loaded vector from {vector_file} (marker positions not found or invalid: {e})")
                             
                             # Update UI fields
                             if hasattr(self, 'custom_vector_x_entry'):
@@ -3345,9 +3457,22 @@ class ParticleMapperGUI:
             # Store marker positions for drawing arrows at marker locations
             self.marker_positions = [point1, point2]
             
-            # Calculate vector from marker 1 to marker 2
+            # Calculate distance between markers (for default arrow length)
+            self.marker_distance_angstroms = np.linalg.norm(point2 - point1)
+            
+            # Calculate vector from marker 1 to marker 2 (normalized)
             self.custom_vector_3d = calculate_vector_from_two_points(point1, point2)
             self.custom_vector_method = 'from_markers'
+            
+            # Set default arrow length to distance between markers (in pixels)
+            if self.pixel_size_angstroms is not None and self.pixel_size_angstroms > 0:
+                default_length_pixels = self.marker_distance_angstroms / self.pixel_size_angstroms
+                self.custom_arrow_length = int(default_length_pixels)
+                # Update slider if it exists
+                if hasattr(self, 'custom_arrow_var'):
+                    self.custom_arrow_var.set(self.custom_arrow_length)
+                if hasattr(self, 'custom_arrow_label'):
+                    self.custom_arrow_label.config(text=f"{self.custom_arrow_length} px")
             
             # Print vector value
             vector_str = f"[{self.custom_vector_3d[0]:.6f}, {self.custom_vector_3d[1]:.6f}, {self.custom_vector_3d[2]:.6f}]"
