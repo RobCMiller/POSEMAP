@@ -1085,8 +1085,11 @@ def project_pdb_cartoon_pymol(pdb_data: Dict, euler_angles: np.ndarray,
         # Markers are in model space (PDB coordinates)
         # The structure is centered first (cmd.center centers on COM), then rotated
         # We need to center the markers relative to structure COM, then rotate them
-        # Calculate structure COM
-        structure_com = pdb_data['coords'].mean(axis=0)
+        # Calculate structure COM (use 'com' key if available, otherwise calculate)
+        if 'com' in pdb_data:
+            structure_com = pdb_data['com']
+        else:
+            structure_com = pdb_data['coords'].mean(axis=0)
         # Center markers relative to structure COM (same as PyMOL does)
         marker1_centered = marker1_coords - structure_com
         marker2_centered = marker2_coords - structure_com
