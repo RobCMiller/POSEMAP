@@ -2768,19 +2768,19 @@ class ParticleMapperGUI:
                         # coordinate system. We need to account for how PyMOL maps view space
                         # coordinates to image pixels.
                         # 
-                        # Based on the debug output and ChimeraX coordinate system, we need to
-                        # transform the coordinates to match PyMOL's image coordinate system.
+                        # CRITICAL: The ChimeraX COM transformation is CORRECT (pink circle aligns with white star)
+                        # This means the coordinate system transformation is correct:
+                        # - Use rotated[1] for X pixel coordinate
+                        # - Use -rotated[0] for Y pixel coordinate
                         # 
-                        # The markers are appearing in the wrong quadrant. Based on testing:
-                        # - Original: (45.13, -21.80) = right and below (wrong)
-                        # - Negate both: (-45.13, 21.80) = left and above (still wrong)
-                        # 
-                        # The marker should be at bottom-left (negative X, negative Y from center).
-                        # Let's try swapping X and Y axes to see if PyMOL uses a different convention:
-                        marker1_x_pixels = rotated_marker1[1] / pixel_size   # Swap: use Y for X
-                        marker1_y_pixels = -rotated_marker1[0] / pixel_size  # Swap: use X for Y, negate
-                        marker2_x_pixels = rotated_marker2[1] / pixel_size   # Swap: use Y for X
-                        marker2_y_pixels = -rotated_marker2[0] / pixel_size  # Swap: use X for Y, negate
+                        # The markers should use the EXACT SAME transformation as the COM.
+                        # The debug shows markers are at (-21.80, -45.13) from center, which is
+                        # left and below. If they should be at bottom-left, this might be correct,
+                        # but the user says they're wrong. Let's use the same transformation as COM:
+                        marker1_x_pixels = rotated_marker1[1] / pixel_size   # Same as COM: use Y for X
+                        marker1_y_pixels = -rotated_marker1[0] / pixel_size  # Same as COM: use -X for Y
+                        marker2_x_pixels = rotated_marker2[1] / pixel_size   # Same as COM: use Y for X
+                        marker2_y_pixels = -rotated_marker2[0] / pixel_size  # Same as COM: use -X for Y
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
