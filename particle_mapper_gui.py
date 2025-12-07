@@ -2727,13 +2727,19 @@ class ParticleMapperGUI:
                         # - matplotlib with origin='lower' interprets them (bottom-left origin, Y up)
                         # - ChimeraX marker coordinates may be in a different coordinate system than PDB
                         # 
-                        # For now, we'll use the rotated coordinates directly and convert to pixels
-                        # If markers don't align, we may need to apply a coordinate system transformation
-                        # to convert from ChimeraX's coordinate system to PDB/PyMOL's coordinate system
+                        # CRITICAL: PyMOL image coordinate system transformation
+                        # PyMOL renders images with top-left origin (Y down in image coordinates)
+                        # matplotlib with origin='lower' interprets them with bottom-left origin (Y up)
+                        # This means the Y coordinate needs to be negated to match the display
+                        #
+                        # When PyMOL projects 3D coordinates to 2D image:
+                        # - Image has top-left origin: Y increases downward
+                        # - matplotlib with origin='lower': Y increases upward
+                        # - So we need to negate Y to account for the flip
                         marker1_x_pixels = rotated_marker1[0] / pixel_size
-                        marker1_y_pixels = rotated_marker1[1] / pixel_size
+                        marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
                         marker2_x_pixels = rotated_marker2[0] / pixel_size
-                        marker2_y_pixels = rotated_marker2[1] / pixel_size
+                        marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
