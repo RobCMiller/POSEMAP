@@ -2685,35 +2685,60 @@ class ParticleMapperGUI:
                     # CRITICAL: For 'from_markers' method, draw arrow from marker 1 to marker 2
                     # For other methods, draw from particle center
                     if self.custom_vector_method == 'from_markers' and self.marker_positions is not None and len(self.marker_positions) >= 2:
-                        # Get structure center (same as PyMOL uses)
+                        # Get structure center (same as PyMOL uses via cmd.center())
+                        # PyMOL centers on COM, which is the mean of all atom coordinates
                         if hasattr(self, 'pdb_data') and self.pdb_data is not None:
+                            # Use the same calculation as PyMOL's cmd.center()
                             structure_center = np.mean(self.pdb_data['coords'], axis=0)
                         else:
                             structure_center = np.array([0.0, 0.0, 0.0])
                         
-                        # Get marker positions
+                        # Get marker positions (in PDB/ChimeraX absolute coordinates, Angstroms)
                         marker1 = self.marker_positions[0]
                         marker2 = self.marker_positions[1]
                         
-                        # Center markers (same as PyMOL does for structure)
+                        # CRITICAL: Transform markers exactly as PyMOL transforms the structure:
+                        # 1. Center markers at structure COM (same as PyMOL's cmd.center())
                         centered_marker1 = marker1 - structure_center
                         centered_marker2 = marker2 - structure_center
                         
-                        # Rotate both markers by particle rotation
+                        # 2. Apply particle rotation (same rotation matrix R that PyMOL uses)
+                        # R rotates from model space to view space
                         rotated_marker1 = R @ centered_marker1
                         rotated_marker2 = R @ centered_marker2
                         
-                        # Project onto XY plane and convert to pixels
+                        # 3. Project onto XY plane (drop Z coordinate) - this is the projection plane
+                        # PyMOL renders the projection with Z pointing out of screen
+                        # The projection image shows X (right) and Y (up) axes
+                        # Convert from Angstroms to pixels
                         marker1_x_pixels = rotated_marker1[0] / pixel_size
                         marker1_y_pixels = rotated_marker1[1] / pixel_size
                         marker2_x_pixels = rotated_marker2[0] / pixel_size
                         marker2_y_pixels = rotated_marker2[1] / pixel_size
                         
-                        # Marker positions on micrograph (relative to particle center)
+                        # 4. Position markers on micrograph
+                        # The projection image is centered at particle center (x_pixel, y_pixel)
+                        # So markers are offset from particle center by their projected positions
                         marker1_x = x_pixel + marker1_x_pixels
                         marker1_y = y_pixel + marker1_y_pixels
                         marker2_x = x_pixel + marker2_x_pixels
                         marker2_y = y_pixel + marker2_y_pixels
+                        
+                        # DEBUG: Print marker positions for first particle only
+                        if i == 0:
+                            print(f"DEBUG Marker Projection (particle {i}):")
+                            print(f"  Structure center (COM): {structure_center}")
+                            print(f"  Marker 1 (absolute): {marker1}")
+                            print(f"  Marker 2 (absolute): {marker2}")
+                            print(f"  Marker 1 (centered): {centered_marker1}")
+                            print(f"  Marker 2 (centered): {centered_marker2}")
+                            print(f"  Marker 1 (rotated): {rotated_marker1}")
+                            print(f"  Marker 2 (rotated): {rotated_marker2}")
+                            print(f"  Marker 1 (projected, pixels): ({marker1_x_pixels:.2f}, {marker1_y_pixels:.2f})")
+                            print(f"  Marker 2 (projected, pixels): ({marker2_x_pixels:.2f}, {marker2_y_pixels:.2f})")
+                            print(f"  Particle center (pixels): ({x_pixel:.2f}, {y_pixel:.2f})")
+                            print(f"  Marker 1 (micrograph coords): ({marker1_x:.2f}, {marker1_y:.2f})")
+                            print(f"  Marker 2 (micrograph coords): ({marker2_x:.2f}, {marker2_y:.2f})")
                         
                         # Vector from marker 1 to marker 2 in 2D (projected)
                         vec_2d_x = marker2_x - marker1_x
