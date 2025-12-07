@@ -2828,6 +2828,8 @@ class ParticleMapperGUI:
                                 model_size_angstroms = np.max(max_coords - min_coords)
                                 
                                 # Calculate bounding box size AFTER rotation
+                                # PyMOL's zoom(complete=1) likely uses the 3D bounding box diagonal
+                                # or the maximum extent in any dimension after rotation
                                 # Center coordinates first
                                 center = coords.mean(axis=0)
                                 coords_centered = coords - center
@@ -2836,11 +2838,28 @@ class ParticleMapperGUI:
                                 # Calculate rotated bounding box
                                 min_rotated = coords_rotated.min(axis=0)
                                 max_rotated = coords_rotated.max(axis=0)
-                                # Project to 2D (XY plane) and get the maximum extent
-                                rotated_2d_extent = np.max([np.max(max_rotated[:2] - min_rotated[:2]), 
-                                                           np.max(np.abs(max_rotated[:2])), 
-                                                           np.max(np.abs(min_rotated[:2]))])
-                                rotated_bbox_size = rotated_2d_extent * 2  # Full extent (diameter)
+                                
+                                # Try multiple methods to see which matches PyMOL:
+                                # Method 1: 2D projection extent (XY plane)
+                                rotated_2d_extent_xy = np.max(max_rotated[:2] - min_rotated[:2])
+                                # Method 2: Maximum extent in any single dimension
+                                rotated_max_extent = np.max(max_rotated - min_rotated)
+                                # Method 3: 3D bounding box diagonal
+                                rotated_3d_diagonal = np.linalg.norm(max_rotated - min_rotated)
+                                # Method 4: Maximum distance from center in XY plane
+                                rotated_max_dist_xy = np.max(np.linalg.norm(coords_rotated[:, :2], axis=1)) * 2
+                                
+                                # Use the 2D projection extent for now (this is what we were using)
+                                # But also calculate others for debugging
+                                rotated_bbox_size = rotated_2d_extent_xy * 2  # Full extent (diameter)
+                                
+                                # Store alternative calculations for debugging
+                                if i == 0:  # Only print for first particle to avoid spam
+                                    print(f"DEBUG: Rotated bbox calculations:")
+                                    print(f"  2D XY extent: {rotated_2d_extent_xy:.2f} Å (diameter: {rotated_bbox_size:.2f} Å)")
+                                    print(f"  Max extent (any dim): {rotated_max_extent:.2f} Å")
+                                    print(f"  3D diagonal: {rotated_3d_diagonal:.2f} Å")
+                                    print(f"  Max dist from center (XY): {rotated_max_dist_xy:.2f} Å")
                         
                         # Calculate effective pixel size based on projection scaling
                         # CRITICAL: PyMOL's zoom(complete=1) scales based on the ROTATED bounding box,
