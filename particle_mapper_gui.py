@@ -2752,17 +2752,24 @@ class ParticleMapperGUI:
                         # - X: right (matches)
                         # - Y: up (flipped from PyMOL's image Y)
                         # 
-                        # CRITICAL: The markers are appearing in the wrong quadrant
-                        # Marker should be at bottom-left (negative X, negative Y from center)
-                        # but is appearing at (45.13, -21.80) which is right and below
-                        # This suggests we need to negate X to move it to the left
+                        # CRITICAL: Coordinate system transformation
+                        # We need to match how PyMOL projects 3D coordinates to 2D image pixels
+                        # The fallback renderer uses: coords_2d = coords_rotated[:, :2] (just X and Y)
+                        # and then flips the image with np.flipud() for display
                         # 
-                        # However, this might indicate a deeper coordinate system issue
-                        # between ChimeraX and PDB coordinate systems
-                        marker1_x_pixels = -rotated_marker1[0] / pixel_size  # Negate X to fix quadrant
-                        marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
-                        marker2_x_pixels = -rotated_marker2[0] / pixel_size  # Negate X to fix quadrant
-                        marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
+                        # PyMOL images are NOT flipped, but are displayed with origin='lower'
+                        # which means matplotlib flips the Y axis when displaying
+                        # 
+                        # So for markers, we should use the rotated coordinates directly,
+                        # but we need to account for the Y-axis flip that happens during display
+                        # 
+                        # However, the markers are still in the wrong position, suggesting
+                        # there might be a coordinate system mismatch between ChimeraX and PDB
+                        # Let's try using the coordinates as-is first (no negation)
+                        marker1_x_pixels = rotated_marker1[0] / pixel_size
+                        marker1_y_pixels = rotated_marker1[1] / pixel_size
+                        marker2_x_pixels = rotated_marker2[0] / pixel_size
+                        marker2_y_pixels = rotated_marker2[1] / pixel_size
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
