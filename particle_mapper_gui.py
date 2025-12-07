@@ -2752,11 +2752,16 @@ class ParticleMapperGUI:
                         # - X: right (matches)
                         # - Y: up (flipped from PyMOL's image Y)
                         # 
-                        # So we need to negate Y to account for the flip
-                        # But the X coordinate should be correct as-is
-                        marker1_x_pixels = rotated_marker1[0] / pixel_size
+                        # CRITICAL: The markers are appearing in the wrong quadrant
+                        # Marker should be at bottom-left (negative X, negative Y from center)
+                        # but is appearing at (45.13, -21.80) which is right and below
+                        # This suggests we need to negate X to move it to the left
+                        # 
+                        # However, this might indicate a deeper coordinate system issue
+                        # between ChimeraX and PDB coordinate systems
+                        marker1_x_pixels = -rotated_marker1[0] / pixel_size  # Negate X to fix quadrant
                         marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
-                        marker2_x_pixels = rotated_marker2[0] / pixel_size
+                        marker2_x_pixels = -rotated_marker2[0] / pixel_size  # Negate X to fix quadrant
                         marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
                         
                         # 4. Position markers on micrograph
