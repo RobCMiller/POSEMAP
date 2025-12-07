@@ -2715,12 +2715,16 @@ class ParticleMapperGUI:
                         # This means the projection's coordinate system matches the micrograph:
                         # - X: left to right (matches)
                         # - Y: bottom to top (matches, because origin='lower')
-                        # The projection is centered at (x_pixel, y_pixel) in micrograph coordinates
-                        # So a point at (0, 0) in projection space (center) maps to (x_pixel, y_pixel)
+                        # The projection is centered at (center_x, center_y) in micrograph coordinates
+                        # So a point at (0, 0) in projection space (center) maps to (center_x, center_y)
+                        # 
+                        # IMPORTANT: PyMOL images are loaded with PIL, which uses top-left origin (Y down)
+                        # But matplotlib with origin='lower' interprets them with bottom-left origin (Y up)
+                        # So the Y coordinate needs to be negated to match the display
                         marker1_x_pixels = rotated_marker1[0] / pixel_size
-                        marker1_y_pixels = rotated_marker1[1] / pixel_size
+                        marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
                         marker2_x_pixels = rotated_marker2[0] / pixel_size
-                        marker2_y_pixels = rotated_marker2[1] / pixel_size
+                        marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
