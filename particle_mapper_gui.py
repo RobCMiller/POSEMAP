@@ -2800,6 +2800,10 @@ class ParticleMapperGUI:
                         marker2_x_pixels = rotated_marker2[1] / pixel_size + x_offset    # Add user-adjustable offset
                         marker2_y_pixels = rotated_marker2[0] / pixel_size    # Keep rotated[0] for Y
                         
+                        # DEBUG: Print offset being used
+                        if i == 0:
+                            print(f"DEBUG: Using marker_x_offset = {x_offset} pixels")
+                        
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
                         # The projection is placed with: center_x = x_pixel + projection_offset_x + auto_offset_x
@@ -3629,11 +3633,14 @@ class ParticleMapperGUI:
             if hasattr(self, 'marker_x_offset_entry'):
                 self.marker_x_offset = float(self.marker_x_offset_entry.get().strip())
                 print(f"DEBUG: Updated marker_x_offset to {self.marker_x_offset}")
-                # Redraw to update marker positions
+                # Force redraw to update marker positions
                 if hasattr(self, 'current_micrograph_idx') and self.current_micrograph_idx is not None:
+                    # Just call update_display - it will redraw everything
                     self.update_display(use_cache=True)
         except (ValueError, AttributeError) as e:
             print(f"DEBUG: Error updating marker_x_offset: {e}")
+            import traceback
+            traceback.print_exc()
             self.marker_x_offset = 0.0
     
     def update_custom_vector_from_markers(self):
