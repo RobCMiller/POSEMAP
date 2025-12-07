@@ -2775,14 +2775,15 @@ class ParticleMapperGUI:
                         # - Use rotated[1] for X pixel coordinate
                         # - Use -rotated[0] for Y pixel coordinate
                         # 
-                        # The user says the vector is just shifted to the right in X.
-                        # The COM uses rotated[1] for X and -rotated[0] for Y and works correctly.
-                        # For markers, we need to shift X to the left (more negative).
-                        # Let's try using rotated[0] for X instead of rotated[1]:
-                        marker1_x_pixels = rotated_marker1[0] / pixel_size    # Use rotated[0] for X (different from COM)
-                        marker1_y_pixels = -rotated_marker1[1] / pixel_size   # Use -rotated[1] for Y (different from COM)
-                        marker2_x_pixels = rotated_marker2[0] / pixel_size    # Use rotated[0] for X (different from COM)
-                        marker2_y_pixels = -rotated_marker2[1] / pixel_size   # Use -rotated[1] for Y (different from COM)
+                        # The user says the vector was just shifted to the right in X a little bit.
+                        # Go back to the previous transformation that was close:
+                        # - Use -rotated[1] for X (negated compared to COM)
+                        # - Use rotated[0] for Y (not negated compared to COM)
+                        # This was close, just need to shift X left a bit
+                        marker1_x_pixels = -rotated_marker1[1] / pixel_size   # Back to previous: -rotated[1] for X
+                        marker1_y_pixels = rotated_marker1[0] / pixel_size    # Back to previous: rotated[0] for Y
+                        marker2_x_pixels = -rotated_marker2[1] / pixel_size   # Back to previous: -rotated[1] for X
+                        marker2_y_pixels = rotated_marker2[0] / pixel_size    # Back to previous: rotated[0] for Y
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
