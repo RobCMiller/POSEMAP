@@ -2768,13 +2768,19 @@ class ParticleMapperGUI:
                         # coordinate system. We need to account for how PyMOL maps view space
                         # coordinates to image pixels.
                         # 
-                        # Based on the debug output showing markers in wrong quadrant, we may need
-                        # to apply a coordinate system transformation. Let's try negating X to move
-                        # markers from right to left quadrant:
-                        marker1_x_pixels = -rotated_marker1[0] / pixel_size  # Negate X to fix quadrant
-                        marker1_y_pixels = -rotated_marker1[1] / pixel_size  # Negate Y for origin='lower'
-                        marker2_x_pixels = -rotated_marker2[0] / pixel_size  # Negate X to fix quadrant
-                        marker2_y_pixels = -rotated_marker2[1] / pixel_size  # Negate Y for origin='lower'
+                        # Based on the debug output and ChimeraX coordinate system, we need to
+                        # transform the coordinates to match PyMOL's image coordinate system.
+                        # 
+                        # The markers are appearing in the wrong quadrant. Based on testing:
+                        # - Original: (45.13, -21.80) = right and below (wrong)
+                        # - Negate both: (-45.13, 21.80) = left and above (still wrong)
+                        # 
+                        # The marker should be at bottom-left (negative X, negative Y from center).
+                        # Let's try swapping X and Y axes to see if PyMOL uses a different convention:
+                        marker1_x_pixels = rotated_marker1[1] / pixel_size   # Swap: use Y for X
+                        marker1_y_pixels = -rotated_marker1[0] / pixel_size  # Swap: use X for Y, negate
+                        marker2_x_pixels = rotated_marker2[1] / pixel_size   # Swap: use Y for X
+                        marker2_y_pixels = -rotated_marker2[0] / pixel_size  # Swap: use X for Y, negate
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
