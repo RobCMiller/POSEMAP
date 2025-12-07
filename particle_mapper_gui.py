@@ -2723,10 +2723,13 @@ class ParticleMapperGUI:
                         marker2_y_pixels = rotated_marker2[1] / pixel_size
                         
                         # 4. Position markers on micrograph
-                        # The projection image is centered at particle center (x_pixel, y_pixel)
-                        # Account for projection offset and auto COM offset (same as projection placement)
-                        center_x = x_pixel + self.projection_offset_x
-                        center_y = y_pixel + self.projection_offset_y
+                        # CRITICAL: Use the EXACT same center calculation as projection placement
+                        # The projection is placed with: center_x = x_pixel + projection_offset_x + auto_offset_x
+                        # We must use the same calculation for markers to ensure they align with the projection
+                        
+                        # Calculate auto_offset if enabled (same as projection placement code)
+                        auto_offset_x = 0.0
+                        auto_offset_y = 0.0
                         if hasattr(self, 'auto_correct_com_offset') and self.auto_correct_com_offset:
                             if self.pdb_data is not None:
                                 try:
@@ -2746,10 +2749,12 @@ class ParticleMapperGUI:
                                         (x_pixel, y_pixel), ps, self.projection_size,
                                         shifts_angstroms=shifts_angstroms
                                     )
-                                    center_x += auto_offset_x
-                                    center_y += auto_offset_y
                                 except Exception:
                                     pass  # Use zero offset if calculation fails
+                        
+                        # Calculate projection center (EXACT same as projection placement at line 2551-2552)
+                        center_x = x_pixel + self.projection_offset_x + auto_offset_x
+                        center_y = y_pixel + self.projection_offset_y + auto_offset_y
                         
                         # Markers are offset from projection center by their projected positions
                         marker1_x = center_x + marker1_x_pixels
