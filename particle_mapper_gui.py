@@ -150,6 +150,7 @@ class ParticleMapperGUI:
         self.custom_vector_method = 'user_defined'  # 'user_defined', 'chain_com', 'atom_selection', 'chain_axis', 'from_markers'
         self.custom_vector_params = {}  # Parameters for vector calculation (chain_ids, etc.)
         self.marker_positions = None  # Store marker positions [point1, point2] when using from_markers method
+        self.marker_x_offset = 0.0  # X offset in pixels for marker positions (for debugging coordinate system)
         self.marker_distance_angstroms = None  # Distance between markers in Angstroms (for default arrow length)
         self.show_arrows_at_markers = False  # Toggle to show arrows at marker positions
         
