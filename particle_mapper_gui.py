@@ -2776,12 +2776,13 @@ class ParticleMapperGUI:
                         # - Use -rotated[0] for Y pixel coordinate
                         # 
                         # The user says the vector is very close but needs to shift MORE to the left.
-                        # The transformation that was close: -rotated[1] for X and rotated[0] for Y
-                        # This was slightly to the right. To shift LEFT (more negative X), we need to
-                        # subtract MORE from X. Let's try using -rotated[0] for X instead:
-                        marker1_x_pixels = -rotated_marker1[0] / pixel_size   # Use -rotated[0] for X to shift more left
+                        # Go back to the EXACT transformation that was close: -rotated[1] for X and rotated[0] for Y
+                        # This was slightly to the right. To shift LEFT, we need to make X more negative.
+                        # Let's try subtracting a small constant offset or using a different approach.
+                        # Actually, let's just go back to the working one first:
+                        marker1_x_pixels = -rotated_marker1[1] / pixel_size   # Back to the close one: -rotated[1] for X
                         marker1_y_pixels = rotated_marker1[0] / pixel_size    # Keep rotated[0] for Y
-                        marker2_x_pixels = -rotated_marker2[0] / pixel_size   # Use -rotated[0] for X to shift more left
+                        marker2_x_pixels = -rotated_marker2[1] / pixel_size   # Back to the close one: -rotated[1] for X
                         marker2_y_pixels = rotated_marker2[0] / pixel_size    # Keep rotated[0] for Y
                         
                         # 4. Position markers on micrograph
