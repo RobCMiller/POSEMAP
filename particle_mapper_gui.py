@@ -2801,42 +2801,62 @@ class ParticleMapperGUI:
                         # This will help us determine the exact offset needed and figure out why it's needed
                         # CRITICAL INVESTIGATION: Why do we need -70 X and -30 Y offset?
                         # 
-                        # Possible causes:
-                        # 1. Pixel size mismatch: alignments3D/psize_A vs micrograph_psize_A
-                        # 2. Projection scaling: PyMOL renders at projection_size, but we need to account for
-                        #    how that relates to the actual structure size in Angstroms
-                        # 3. Coordinate system offset: PyMOL's image coordinate system might have an offset
-                        # 
-                        # The projection is rendered at projection_size pixels, and we place it with extent
-                        # based on projection_size. But the actual structure size in Angstroms might not
-                        # match this exactly, causing a scaling mismatch.
+                        # ROOT CAUSE ANALYSIS:
+                        # The projection size is calculated as: (model_size / pixel_size) * 1.2
+                        # This means the projection is scaled with a 1.2x factor for padding.
+                        # When PyMOL renders with cmd.zoom(complete=1), it scales the structure to fit
+                        # the viewport. The actual scale factor in the rendered image is:
+                        #   actual_scale = projection_size / (model_size * 1.2 / pixel_size)
+                        #   = projection_size * pixel_size / (model_size * 1.2)
                         #
-                        # Let's check if we need to use micrograph_psize instead of alignments3D/psize_A
-                        # for marker coordinate conversion:
+                        # But we're converting marker coordinates using pixel_size directly, which assumes
+                        # the scale is exactly pixel_size. We should use the actual scale factor from
+                        # the projection rendering.
+                        #
+                        # Calculate the actual scale factor from projection size and model dimensions:
+                        model_size_angstroms = None
+                        if hasattr(self, 'pdb_data') and self.pdb_data is not None:
+                            coords = self.pdb_data['coords']
+                            if len(coords) > 0:
+                                # Calculate bounding box size
+                                min_coords = coords.min(axis=0)
+                                max_coords = coords.max(axis=0)
+                                model_size_angstroms = np.max(max_coords - min_coords)
+                        
+                        # Calculate effective pixel size based on projection scaling
+                        # projection_size = (model_size / pixel_size) * 1.2
+                        # So: effective_pixel_size = model_size / (projection_size / 1.2)
+                        if model_size_angstroms is not None and model_size_angstroms > 0:
+                            effective_pixel_size = model_size_angstroms / (self.projection_size / 1.2)
+                        else:
+                            effective_pixel_size = pixel_size  # Fallback to alignment pixel size
+                        
+                        # Check for micrograph pixel size mismatch
                         micrograph_pixel_size = pixel_size  # Default to alignment pixel size
                         if 'micrograph_psize' in self.current_particles and len(self.current_particles['micrograph_psize']) > i:
                             micrograph_pixel_size = self.current_particles['micrograph_psize'][i]
-                            if i == 0:
-                                print(f"DEBUG: Using micrograph pixel size: {micrograph_pixel_size} vs alignment pixel size: {pixel_size}")
                         
                         # Use user-adjustable X and Y offsets from GUI for debugging
                         # Get the current offset values (default to 0.0 if not set)
                         x_offset = getattr(self, 'marker_x_offset', 0.0)
                         y_offset = getattr(self, 'marker_y_offset', 0.0)
                         
-                        # Convert marker coordinates using the same pixel size as the projection
-                        # The projection is scaled to projection_size pixels, so we need to account for
-                        # the relationship between structure size (Angstroms) and projection_size (pixels)
-                        marker1_x_pixels = rotated_marker1[1] / pixel_size + x_offset    # Add user-adjustable X offset
-                        marker1_y_pixels = rotated_marker1[0] / pixel_size + y_offset    # Add user-adjustable Y offset
-                        marker2_x_pixels = rotated_marker2[1] / pixel_size + x_offset    # Add user-adjustable X offset
-                        marker2_y_pixels = rotated_marker2[0] / pixel_size + y_offset    # Add user-adjustable Y offset
+                        # Convert marker coordinates using effective pixel size
+                        # This accounts for the 1.2x scaling factor in projection_size calculation
+                        marker1_x_pixels = rotated_marker1[1] / effective_pixel_size + x_offset
+                        marker1_y_pixels = rotated_marker1[0] / effective_pixel_size + y_offset
+                        marker2_x_pixels = rotated_marker2[1] / effective_pixel_size + x_offset
+                        marker2_y_pixels = rotated_marker2[0] / effective_pixel_size + y_offset
                         
-                        # DEBUG: Print offsets and pixel sizes being used
+                        # DEBUG: Print scaling information
                         if i == 0:
-                            print(f"DEBUG: Using marker offsets - X: {x_offset}, Y: {y_offset} pixels")
-                            print(f"DEBUG: Pixel size (alignment): {pixel_size}, Micrograph pixel size: {micrograph_pixel_size}")
-                            print(f"DEBUG: Projection size: {self.projection_size} pixels")
+                            print(f"DEBUG: Marker coordinate conversion:")
+                            print(f"  Alignment pixel size: {pixel_size:.4f} Å/pixel")
+                            print(f"  Micrograph pixel size: {micrograph_pixel_size:.4f} Å/pixel")
+                            print(f"  Model size: {model_size_angstroms:.2f} Å" if model_size_angstroms else "  Model size: unknown")
+                            print(f"  Projection size: {self.projection_size} pixels")
+                            print(f"  Effective pixel size (accounting for 1.2x scaling): {effective_pixel_size:.4f} Å/pixel")
+                            print(f"  User offsets - X: {x_offset}, Y: {y_offset} pixels")
                         
                         # 4. Position markers on micrograph
                         # CRITICAL: Use the EXACT same center calculation as projection placement
