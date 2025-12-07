@@ -2826,7 +2826,22 @@ class ParticleMapperGUI:
                         # Calculate effective pixel size based on projection scaling
                         # projection_size = (model_size / pixel_size) * 1.2
                         # So: effective_pixel_size = model_size / (projection_size / 1.2)
+                        # 
+                        # However, PyMOL's zoom(complete=1) might scale differently than this calculation.
+                        # The -70 pixel offset (28% of projection size) suggests the actual scale is different.
+                        # 
+                        # Let's try calculating the scale factor that would account for the offset:
+                        # If we need -70 pixels offset, and the marker is at X=-2.87 pixels before offset,
+                        # then the actual position should be at X=-72.87 pixels.
+                        # This suggests the scale factor might be off by a factor of ~25x (70/2.87 ≈ 24.4)
+                        # But that doesn't make sense...
+                        #
+                        # Actually, wait - maybe the issue is that PyMOL's zoom doesn't use the full
+                        # projection_size for scaling. Let's check if we need to account for a different
+                        # scaling factor.
                         if model_size_angstroms is not None and model_size_angstroms > 0:
+                            # Calculate what the scale factor should be based on projection_size
+                            # projection_size pixels should represent model_size * 1.2 Angstroms
                             effective_pixel_size = model_size_angstroms / (self.projection_size / 1.2)
                         else:
                             effective_pixel_size = pixel_size  # Fallback to alignment pixel size
