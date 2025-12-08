@@ -5050,10 +5050,10 @@ color #1 & nucleic #62466B
                 # Place extracted region in center of output
                 mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
                 
-                # IMPORTANT: Flip vertically to match display orientation
-                # The micrograph array has row 0 at top, but display uses origin='lower' (row 0 at bottom)
-                # So we need to flip the extracted region vertically
-                mg_output = np.flipud(mg_output)
+                # IMPORTANT: DO NOT flip here - let origin='lower' handle the orientation
+                # The main display uses origin='lower', which means array row 0 (top) is displayed at bottom
+                # The comparison window also uses origin='lower', so we should keep the same orientation
+                # mg_output already has the correct orientation (row 0 = top of array = bottom of display)
                 
                 # Apply same image enhancements as main GUI
                 # Use the same low-pass filter, brightness, and contrast settings
@@ -5102,29 +5102,27 @@ color #1 & nucleic #62466B
                     em_proj_norm = em_projection.copy().astype(np.float32)
                 
                 # Create side-by-side image
-                # IMPORTANT: comparison array is indexed as [row, col, channel]
-                # When displayed with origin='lower', row 0 is at bottom
-                # mg_extracted_norm is already flipped (row 0 at bottom), so it should match
+                # IMPORTANT: comparison array is indexed as [row, col, channel] where row 0 is at top
+                # When displayed with origin='lower', row 0 of comparison array is at bottom
+                # mg_extracted_norm has row 0 = top of array (not flipped), which matches main display
+                # em_proj_norm has row 0 = bottom (flipped in project_volume), which also matches main display
+                # But wait - if mg_extracted_norm has row 0 = top, and we put it in comparison[:, :box_size] (row 0 = top),
+                # then when displayed with origin='lower', row 0 of comparison is at bottom, which is correct!
+                # And if em_proj_norm has row 0 = bottom, and we put it in comparison[:, box_size:] (row 0 = top),
+                # then when displayed with origin='lower', row 0 of comparison is at bottom, which means em_proj_norm row 0 is at bottom, which is correct!
+                # So both should work correctly as-is
                 comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
                 # Left side: actual micrograph (grayscale -> RGB)
-                # mg_extracted_norm is (box_size, box_size) with row 0 at bottom (after flipud)
-                # comparison[:, :box_size] is (box_size, box_size) with row 0 at top
-                # When displayed with origin='lower', comparison row 0 is at bottom
-                # So we need to flip mg_extracted_norm again, or not flip it in the first place
-                # Actually, let's NOT flip mg_output, and instead let origin='lower' handle it
-                # Wait, but we already flipped it. Let me check if we should flip it back
-                # Actually, the issue is: mg_extracted_norm is flipped (row 0 = bottom)
-                # comparison[:, :box_size] expects row 0 = top
-                # When displayed with origin='lower', comparison row 0 = bottom
-                # So we need to flip mg_extracted_norm to put it in comparison correctly
-                comparison[:, :box_size, 0] = np.flipud(mg_extracted_norm)  # Flip back to match comparison array indexing
-                comparison[:, :box_size, 1] = np.flipud(mg_extracted_norm)
-                comparison[:, :box_size, 2] = np.flipud(mg_extracted_norm)
+                # mg_extracted_norm has row 0 = top of array, which will be displayed at bottom with origin='lower'
+                comparison[:, :box_size, 0] = mg_extracted_norm
+                comparison[:, :box_size, 1] = mg_extracted_norm
+                comparison[:, :box_size, 2] = mg_extracted_norm
                 # Right side: simulated EM projection (grayscale -> RGB)
-                # em_proj_norm is also flipped (from project_volume), so flip it back
-                comparison[:, box_size:, 0] = np.flipud(em_proj_norm)
-                comparison[:, box_size:, 1] = np.flipud(em_proj_norm)
-                comparison[:, box_size:, 2] = np.flipud(em_proj_norm)
+                # em_proj_norm has row 0 = bottom (flipped in project_volume), which will be displayed at bottom with origin='lower'
+                # But wait, if we put it in comparison[:, box_size:] (row 0 = top), then with origin='lower', it will be at bottom, which is correct!
+                comparison[:, box_size:, 0] = em_proj_norm
+                comparison[:, box_size:, 1] = em_proj_norm
+                comparison[:, box_size:, 2] = em_proj_norm
                 
                 # Create window in main thread
                 def create_window():
