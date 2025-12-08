@@ -510,7 +510,10 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     # This ensures the projection scale matches the micrograph
     # The output_size is in pixels, and each pixel represents pixel_size Angstroms
     print(f"  DEBUG: Projecting volume with Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
-    projection = project_volume(volume, euler_angles, output_size=output_size, pixel_size=pixel_size, half_size=half_size)
+    projection = project_volume(volume, euler_angles, output_size=output_size, pixel_size=pixel_size, half_size=half_size,
+                                rotation_correction_x=rotation_correction_x,
+                                rotation_correction_y=rotation_correction_y,
+                                rotation_correction_z=rotation_correction_z)
     print(f"  DEBUG: Projection generated, shape={projection.shape}, range=[{projection.min():.3f}, {projection.max():.3f}]")
     
     return projection
