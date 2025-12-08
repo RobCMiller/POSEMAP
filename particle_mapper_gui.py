@@ -4953,12 +4953,25 @@ color #1 & nucleic #62466B
                 # Array indexing: row 0 is top, row (height-1) is bottom
                 # Display coordinates (origin='lower'): y=0 is bottom, y=height is top
                 # Particle center (x_pixel, y_pixel) is in display coordinates
-                # To convert to array coordinates:
-                #   array_col = x_pixel (direct mapping)
-                #   array_row = mg_height - 1 - y_pixel (flip Y)
+                # Fractional coordinates: (0,0) is bottom-left, (1,1) is top-right
+                # So: y_frac=0 -> y_pixel=0 (bottom) -> array_row=height-1
+                #     y_frac=1 -> y_pixel=height (top) -> array_row=0
+                # To convert from display y_pixel to array row:
+                #   array_row = mg_height - 1 - int(round(y_pixel))
+                # But we need to be careful: y_pixel can be > mg_height due to shifts
                 # Extract square region centered at particle
                 array_x_center = int(round(x_pixel))
-                array_y_center = int(round(mg_height - 1 - y_pixel))  # Flip Y for array indexing
+                # Convert display y (0=bottom) to array row (0=top)
+                display_y_center = int(round(y_pixel))
+                array_y_center = mg_height - 1 - display_y_center
+                
+                # Debug output
+                print(f"Particle {particle_idx+1} extraction:")
+                print(f"  Fractional coords: ({center_x_frac:.4f}, {center_y_frac:.4f})")
+                print(f"  Pixel coords (display): ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"  Array coords: ({array_x_center}, {array_y_center})")
+                print(f"  Micrograph shape: {mg_height} x {mg_width}")
+                print(f"  Box size: {box_size}")
                 
                 # Calculate extraction bounds in array coordinates
                 array_x_min = max(0, array_x_center - box_size // 2)
@@ -4966,8 +4979,11 @@ color #1 & nucleic #62466B
                 array_y_min = max(0, array_y_center - box_size // 2)
                 array_y_max = min(mg_height, array_y_center + box_size // 2)
                 
+                print(f"  Extraction bounds: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
+                
                 # Extract region: array[row, col] = array[y, x]
                 mg_extracted = self.current_micrograph[array_y_min:array_y_max, array_x_min:array_x_max]
+                print(f"  Extracted shape: {mg_extracted.shape}")
                 
                 # Create output array and pad if needed (if near edges)
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)

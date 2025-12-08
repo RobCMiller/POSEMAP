@@ -141,17 +141,24 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     
     # Scale coordinates to match the physical size of the volume
     # The volume represents a physical space in Angstroms
-    # We need to scale the projection plane coordinates to match
-    # Calculate the physical size of the volume in Angstroms
     # Volume shape is [z, y, x], and pixel_size gives Angstroms per voxel
-    vol_physical_size = np.array([volume.shape[0], volume.shape[1], volume.shape[2]]) * pixel_size
-    # Use the maximum dimension to ensure the structure fits
-    max_vol_size = np.max(vol_physical_size)
+    # The volume was created with a specific pixel_size, so each voxel represents pixel_size Angstroms
+    # We want the projection to match the micrograph scale, so we need to ensure
+    # the projection plane coordinates are in the same physical units
     
-    # Scale projection coordinates to match physical size
-    # The projection output size in pixels should represent the same physical size
-    projection_physical_size = max(h, w) * pixel_size
-    scale = max_vol_size / projection_physical_size
+    # The volume's physical extent in Angstroms
+    vol_physical_size = np.array([volume.shape[0], volume.shape[1], volume.shape[2]]) * pixel_size
+    max_vol_extent = np.max(vol_physical_size)
+    
+    # The projection output size in pixels, each representing pixel_size Angstroms
+    # So the projection's physical extent is:
+    projection_physical_extent = max(h, w) * pixel_size
+    
+    # We want the volume to fill the projection, so scale the projection coordinates
+    # to match the volume's physical extent
+    # If volume is 200 Å and projection is 256 pixels at 1.1 Å/pixel = 281.6 Å,
+    # we need to scale coordinates by 200/281.6 = 0.71
+    scale = max_vol_extent / projection_physical_extent
     y_coords *= scale
     x_coords *= scale
     
@@ -271,8 +278,11 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
         # Limit maximum size for performance
         grid_size = min(grid_size, 256)  # Max 256^3 for reasonable speed
     
-    # Create coordinate grid
-    half_size = grid_size / 2.0 * pixel_size
+    # Create coordinate grid centered at structure center
+    # The grid should span the structure with some padding
+    # Use the actual extent plus padding to determine grid size
+    padding = max_extent * 0.2  # 20% padding on each side
+    half_size = (max_extent / 2.0) + padding
     x = np.linspace(center[0] - half_size, center[0] + half_size, grid_size)
     y = np.linspace(center[1] - half_size, center[1] + half_size, grid_size)
     z = np.linspace(center[2] - half_size, center[2] + half_size, grid_size)
