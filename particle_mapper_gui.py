@@ -5034,14 +5034,17 @@ color #1 & nucleic #62466B
                 # Generate simulated EM projection (right side)
                 # This simulates what the EM image would look like from this view
                 print(f"Generating EM simulation for particle {particle_idx+1}...")
+                print(f"  Using Euler angles: [{pose[0]:.6f}, {pose[1]:.6f}, {pose[2]:.6f}]")
+                print(f"  Output size: {box_size}x{box_size}, pixel_size: {pixel_size}")
                 em_projection = simulate_em_projection_from_pdb(
                     self.pdb_data,
-                    pose,
+                    pose,  # Euler angles [phi, theta, psi] in radians
                     output_size=(box_size, box_size),
                     pixel_size=pixel_size,
-                    atom_radius=2.0  # 2 Angstrom atom radius
+                    atom_radius=2.0,  # 2 Angstrom atom radius
+                    use_eman2=True  # Try EMAN2 first
                 )
-                print(f"EM simulation complete for particle {particle_idx+1}")
+                print(f"EM simulation complete for particle {particle_idx+1}, projection shape: {em_projection.shape}")
                 
                 # Normalize EM projection to [0, 1] for display
                 if em_projection.max() > em_projection.min():

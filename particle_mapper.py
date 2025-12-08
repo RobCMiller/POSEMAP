@@ -371,12 +371,17 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     --------
     np.ndarray : 2D projection (simulated EM image)
     """
+    # Debug: Print Euler angles being used
+    print(f"  DEBUG: Generating projection with Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
+    
     # Try EMAN2 first if requested and available
     if use_eman2:
         try:
-            return simulate_em_projection_from_pdb_eman2(
+            proj = simulate_em_projection_from_pdb_eman2(
                 pdb_data, euler_angles, output_size, pixel_size
             )
+            print(f"  DEBUG: EMAN2 projection generated, shape={proj.shape}, range=[{proj.min():.3f}, {proj.max():.3f}]")
+            return proj
         except ImportError:
             print("EMAN2 not available, falling back to NumPy projection method")
         except Exception as e:
@@ -387,7 +392,9 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     # Use the same pixel_size for the density map as the micrograph
     # This ensures the scale matches - each voxel in the density map represents
     # the same physical size (pixel_size Angstroms) as each pixel in the micrograph
+    print(f"  DEBUG: Generating density map with pixel_size={pixel_size}, atom_radius={atom_radius}")
     volume, volume_pixel_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius)
+    print(f"  DEBUG: Density map generated, shape={volume.shape}, pixel_size={volume_pixel_size}")
     
     # Verify pixel sizes match
     if abs(volume_pixel_size - pixel_size) > 0.001:
@@ -396,7 +403,9 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     # Project the volume at the same pixel size
     # This ensures the projection scale matches the micrograph
     # The output_size is in pixels, and each pixel represents pixel_size Angstroms
+    print(f"  DEBUG: Projecting volume with Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     projection = project_volume(volume, euler_angles, output_size=output_size, pixel_size=pixel_size)
+    print(f"  DEBUG: Projection generated, shape={projection.shape}, range=[{projection.min():.3f}, {projection.max():.3f}]")
     
     return projection
 
