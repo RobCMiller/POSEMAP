@@ -137,8 +137,12 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     # Apply rotation corrections to match PyMOL's behavior
     # PyMOL applies corrections in XYZ convention (intrinsic rotations)
     # In PyMOL: R_transform = R @ R_correction (for transform_object)
-    # This means: first apply R, then R_correction
-    # For coordinate transformation, we need R_correction @ R (compose from right to left)
+    # This means: first apply R_correction to the object, then R
+    # For coordinate transformation (rotating coordinates), we need the inverse:
+    #   (R @ R_correction)^T = R_correction^T @ R^T
+    # But since we're using R to transform coordinates (not objects), we need:
+    #   R_final = R @ R_correction (same as PyMOL's transform_object)
+    # Then for coordinate transformation: R_inv = (R @ R_correction)^T
     if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
         from scipy.spatial.transform import Rotation as Rot
         rot_x_rad = np.deg2rad(rotation_correction_x)
@@ -146,9 +150,10 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
         rot_z_rad = np.deg2rad(rotation_correction_z)
         rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
         R_correction = rot_correction.as_matrix()
-        # Apply correction AFTER the main rotation (same as PyMOL)
-        # R_correction @ R means: first R, then R_correction (compose from right to left)
-        R = R_correction @ R
+        # Apply correction AFTER the main rotation (same as PyMOL: R @ R_correction)
+        # This means: first R_correction, then R (when applied to object)
+        # For coordinate transformation, we use R directly (it will be inverted later)
+        R = R @ R_correction
     
     # Debug: Print rotation matrix to verify it's different for different angles
     print(f"  DEBUG project_volume: Euler=[{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
