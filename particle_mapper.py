@@ -204,6 +204,9 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
               f"y=[{coords_3d_voxels[:, 1].min():.1f}, {coords_3d_voxels[:, 1].max():.1f}], "
               f"z=[{coords_3d_voxels[:, 2].min():.1f}, {coords_3d_voxels[:, 2].max():.1f}]")
         print(f"  DEBUG project_volume: Volume shape: {volume.shape}, half_size={half_size:.2f}, grid_spacing={grid_spacing:.4f}")
+        # Debug: Check center voxel coordinate to see if rotation changes it
+        center_voxel = coords_3d_voxels[h * w // 2]
+        print(f"  DEBUG project_volume: Center voxel coord: ({center_voxel[0]:.1f}, {center_voxel[1]:.1f}, {center_voxel[2]:.1f})")
     else:
         # Fallback: estimate using pixel_size (approximate)
         coords_3d_voxels = coords_3d / pixel_size + vol_center_voxels
