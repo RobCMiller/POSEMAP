@@ -5047,40 +5047,62 @@ color #1 & nucleic #62466B
                     center_value = self.original_micrograph[array_y_center, array_x_center]
                     print(f"  Pixel value at particle center in original micrograph: {center_value:.3f}")
                 
-                mg_extracted = self.original_micrograph[array_y_min:array_y_max, array_x_min:array_x_max]
-                print(f"  Extracted shape: {mg_extracted.shape}")
+                # SIMPLE EXTRACTION: Extract a square box_size x box_size region centered on the particle
+                # This is like a "hole punch" - extract exactly box_size x box_size pixels
+                # Calculate the exact bounds for a box_size x box_size square centered at (array_x_center, array_y_center)
+                half_box = box_size // 2
+                
+                # Calculate bounds ensuring we stay within micrograph
+                x_start = array_x_center - half_box
+                x_end = array_x_center + half_box
+                y_start = array_y_center - half_box
+                y_end = array_y_center + half_box
+                
+                # Handle edge cases by adjusting if we go out of bounds
+                if x_start < 0:
+                    x_end += abs(x_start)
+                    x_start = 0
+                if x_end > mg_width:
+                    x_start -= (x_end - mg_width)
+                    x_end = mg_width
+                if y_start < 0:
+                    y_end += abs(y_start)
+                    y_start = 0
+                if y_end > mg_height:
+                    y_start -= (y_end - mg_height)
+                    y_end = mg_height
+                
+                # Ensure we still have box_size x box_size (or as close as possible)
+                actual_w = x_end - x_start
+                actual_h = y_end - y_start
+                
+                # Extract the region
+                mg_extracted = self.original_micrograph[y_start:y_end, x_start:x_end]
+                print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
+                print(f"  Extraction bounds: x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
                 print(f"  Extracted value range: [{mg_extracted.min():.3f}, {mg_extracted.max():.3f}], mean={mg_extracted.mean():.3f}")
                 
                 # Check where the particle center is in the extracted region
-                local_x = array_x_center - array_x_min
-                local_y = array_y_center - array_y_min
+                local_x = array_x_center - x_start
+                local_y = array_y_center - y_start
                 if 0 <= local_y < mg_extracted.shape[0] and 0 <= local_x < mg_extracted.shape[1]:
                     local_center_value = mg_extracted[local_y, local_x]
                     print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={local_center_value:.3f}")
                 
-                # Check a small region around the center to verify we're extracting the particle
-                check_radius = 10
-                check_y_min = max(0, local_y - check_radius)
-                check_y_max = min(mg_extracted.shape[0], local_y + check_radius)
-                check_x_min = max(0, local_x - check_radius)
-                check_x_max = min(mg_extracted.shape[1], local_x + check_radius)
-                center_region = mg_extracted[check_y_min:check_y_max, check_x_min:check_x_max]
-                print(f"  Center region ({check_radius*2}x{check_radius*2} around center): range=[{center_region.min():.3f}, {center_region.max():.3f}], mean={center_region.mean():.3f}, std={center_region.std():.3f}")
-                
-                # Compare with a corner region to see if center has more signal
-                corner_region = mg_extracted[:check_radius, :check_radius]
-                print(f"  Corner region (top-left {check_radius}x{check_radius}): range=[{corner_region.min():.3f}, {corner_region.max():.3f}], mean={corner_region.mean():.3f}, std={corner_region.std():.3f}")
-                
-                # Create output array and pad if needed (if near edges)
-                mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
-                extracted_h, extracted_w = mg_extracted.shape
-                
-                # Calculate padding offsets to center the extracted region
-                pad_y = (box_size - extracted_h) // 2
-                pad_x = (box_size - extracted_w) // 2
-                
-                # Place extracted region in center of output
-                mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
+                # Create output array - resize extracted region to exactly box_size x box_size if needed
+                if mg_extracted.shape == (box_size, box_size):
+                    # Perfect - already the right size
+                    mg_output = mg_extracted.copy()
+                else:
+                    # Need to resize or pad to get exactly box_size x box_size
+                    # Use interpolation to resize if needed
+                    from scipy.ndimage import zoom
+                    if actual_w != box_size or actual_h != box_size:
+                        zoom_y = box_size / actual_h
+                        zoom_x = box_size / actual_w
+                        mg_output = zoom(mg_extracted, (zoom_y, zoom_x), order=1)
+                    else:
+                        mg_output = mg_extracted.copy()
                 
                 # IMPORTANT: DO NOT flip here - let origin='lower' handle the orientation
                 # The main display uses origin='lower', which means array row 0 (top) is displayed at bottom
