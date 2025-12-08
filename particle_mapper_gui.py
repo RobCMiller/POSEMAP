@@ -5063,18 +5063,29 @@ color #1 & nucleic #62466B
                 actual_h = y_end - y_start
                 
                 # Extract the region
+                # CRITICAL: Verify we're not extracting from micrograph center
+                mg_center_x = mg_width // 2
+                mg_center_y = mg_height // 2
+                if abs(x_start - (mg_center_x - box_size//2)) < 10 and abs(y_start - (mg_center_y - box_size//2)) < 10:
+                    print(f"  WARNING: Extraction bounds are suspiciously close to micrograph center!")
+                    print(f"    Micrograph center extraction would be: x=[{mg_center_x - box_size//2}, {mg_center_x + box_size//2}], y=[{mg_center_y - box_size//2}, {mg_center_y + box_size//2}]")
+                
                 mg_extracted = self.original_micrograph[y_start:y_end, x_start:x_end]
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
                 print(f"  Extraction bounds: x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
                 print(f"  Extracted value range: [{mg_extracted.min():.3f}, {mg_extracted.max():.3f}], mean={mg_extracted.mean():.3f}")
                 
-                # Check where the particle center is in the extracted region
-                local_x = array_x_center - x_start
-                local_y = array_y_center - y_start
-                if 0 <= local_y < extracted_h and 0 <= local_x < extracted_w:
-                    local_center_value = mg_extracted[local_y, local_x]
-                    print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={local_center_value:.3f}")
+                # Verify the particle center is actually in the extracted region
+                if not (x_start <= array_x_center < x_end and y_start <= array_y_center < y_end):
+                    print(f"  ERROR: Particle center ({array_x_center}, {array_y_center}) is NOT in extraction bounds!")
+                else:
+                    local_x = array_x_center - x_start
+                    local_y = array_y_center - y_start
+                    if 0 <= local_y < extracted_h and 0 <= local_x < extracted_w:
+                        local_center_value = mg_extracted[local_y, local_x]
+                        print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={local_center_value:.3f}")
+                        print(f"    Expected center: ~({box_size//2}, {box_size//2}), actual: ({local_x}, {local_y})")
                 
                 # Create output array - pad or crop to exactly box_size x box_size
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
