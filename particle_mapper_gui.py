@@ -4885,18 +4885,11 @@ color #1 & nucleic #62466B
             center_x_frac = self.current_particles['center_x_frac'][particle_idx]
             center_y_frac = self.current_particles['center_y_frac'][particle_idx]
             
-            # Get pixel size - try from current_particles first, then matched_data, then GUI entry
+            # Get pixel size - try from current_particles first, then GUI entry
             if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > particle_idx:
                 pixel_size = self.current_particles['pixel_size'][particle_idx]
-            elif hasattr(self, 'matched_data') and 'pixel_size' in self.matched_data:
-                # Get the original index in matched_data for this particle
-                # Find which particle in matched_data corresponds to this particle_idx in current_particles
-                # This is complex, so fall back to GUI entry
-                try:
-                    pixel_size = float(self.pixel_size_entry.get().strip())
-                except (ValueError, AttributeError):
-                    pixel_size = 1.1  # Default
             else:
+                # Fall back to GUI entry or default
                 try:
                     pixel_size = float(self.pixel_size_entry.get().strip())
                 except (ValueError, AttributeError):
