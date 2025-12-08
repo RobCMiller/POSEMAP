@@ -190,8 +190,20 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     
     if half_size is not None:
         # Use provided half_size for accurate conversion
+        # The grid spans from -half_size to +half_size in Angstroms
+        # Voxel 0 corresponds to -half_size, voxel (grid_size-1) corresponds to +half_size
+        # Spacing between voxels: (2 * half_size) / (grid_size - 1)
         grid_spacing = 2.0 * half_size / (grid_size - 1)
+        # Convert from Angstroms (centered at origin) to voxel coordinates
+        # Add half_size to shift from [-half_size, +half_size] to [0, 2*half_size]
+        # Then divide by spacing to get voxel index
         coords_3d_voxels = (coords_3d + half_size) / grid_spacing
+        
+        # Debug: Check voxel coordinate ranges
+        print(f"  DEBUG project_volume: Voxel coord ranges: x=[{coords_3d_voxels[:, 0].min():.1f}, {coords_3d_voxels[:, 0].max():.1f}], "
+              f"y=[{coords_3d_voxels[:, 1].min():.1f}, {coords_3d_voxels[:, 1].max():.1f}], "
+              f"z=[{coords_3d_voxels[:, 2].min():.1f}, {coords_3d_voxels[:, 2].max():.1f}]")
+        print(f"  DEBUG project_volume: Volume shape: {volume.shape}, half_size={half_size:.2f}, grid_spacing={grid_spacing:.4f}")
     else:
         # Fallback: estimate using pixel_size (approximate)
         coords_3d_voxels = coords_3d / pixel_size + vol_center_voxels
@@ -215,12 +227,24 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     zd = coords_3d[:, 2] - z0
     
     # Clamp coordinates to valid range (volume shape is [z, y, x])
-    x0 = np.clip(x0, 0, volume.shape[2] - 1)
-    x1 = np.clip(x1, 0, volume.shape[2] - 1)
-    y0 = np.clip(y0, 0, volume.shape[1] - 1)
-    y1 = np.clip(y1, 0, volume.shape[1] - 1)
-    z0 = np.clip(z0, 0, volume.shape[0] - 1)
-    z1 = np.clip(z1, 0, volume.shape[0] - 1)
+    # Debug: Check how many coordinates are out of bounds
+    x0_clipped = np.clip(x0, 0, volume.shape[2] - 1)
+    x1_clipped = np.clip(x1, 0, volume.shape[2] - 1)
+    y0_clipped = np.clip(y0, 0, volume.shape[1] - 1)
+    y1_clipped = np.clip(y1, 0, volume.shape[1] - 1)
+    z0_clipped = np.clip(z0, 0, volume.shape[0] - 1)
+    z1_clipped = np.clip(z1, 0, volume.shape[0] - 1)
+    
+    # Count out-of-bounds coordinates
+    out_of_bounds = np.sum((x0 < 0) | (x0 >= volume.shape[2]) | 
+                          (y0 < 0) | (y0 >= volume.shape[1]) |
+                          (z0 < 0) | (z0 >= volume.shape[0]))
+    if out_of_bounds > 0:
+        print(f"  DEBUG project_volume: {out_of_bounds} coordinates out of bounds (out of {len(x0)})")
+    
+    x0, x1 = x0_clipped, x1_clipped
+    y0, y1 = y0_clipped, y1_clipped
+    z0, z1 = z0_clipped, z1_clipped
     
     # Trilinear interpolation (volume is indexed as [z, y, x] in numpy)
     c000 = volume[z0, y0, x0]
@@ -244,6 +268,10 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     
     # Reshape to 2D
     projection = projection.reshape(h, w)
+    
+    # Debug: Check projection statistics
+    print(f"  DEBUG project_volume: Projection stats: min={projection.min():.4f}, max={projection.max():.4f}, mean={projection.mean():.4f}, std={projection.std():.4f}")
+    print(f"  DEBUG project_volume: Non-zero pixels: {np.sum(projection > 0)} out of {h * w}")
     
     # IMPORTANT: Flip vertically to match display orientation
     # The projection is generated with y=0 at top (standard image convention)
