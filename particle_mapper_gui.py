@@ -4978,6 +4978,8 @@ color #1 & nucleic #62466B
                 
                 # Debug output
                 print(f"Particle {particle_idx+1} extraction:")
+                print(f"  Current micrograph idx: {self.current_micrograph_idx}")
+                print(f"  Current micrograph path: {self.current_micrograph_path}")
                 print(f"  Fractional coords: ({center_x_frac:.4f}, {center_y_frac:.4f})")
                 print(f"  Particle center (after shifts): ({x_pixel:.2f}, {y_pixel:.2f})")
                 print(f"  Projection center (with offsets): ({center_x:.2f}, {center_y:.2f})")
@@ -5005,8 +5007,14 @@ color #1 & nucleic #62466B
                 # Extract region: array[row, col] = array[y, x]
                 # Use original_micrograph (not current_micrograph which may be enhanced)
                 # We'll apply enhancements separately
+                # Verify we're extracting from the correct micrograph
+                if self.original_micrograph is None:
+                    raise ValueError("original_micrograph is None - micrograph not loaded")
+                print(f"  Original micrograph shape: {self.original_micrograph.shape}")
+                print(f"  Extracting from array coords: y=[{array_y_min}:{array_y_max}], x=[{array_x_min}:{array_x_max}]")
                 mg_extracted = self.original_micrograph[array_y_min:array_y_max, array_x_min:array_x_max]
                 print(f"  Extracted shape: {mg_extracted.shape}")
+                print(f"  Extracted value range: [{mg_extracted.min():.3f}, {mg_extracted.max():.3f}], mean={mg_extracted.mean():.3f}")
                 
                 # Create output array and pad if needed (if near edges)
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
