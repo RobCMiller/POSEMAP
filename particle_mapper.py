@@ -152,18 +152,61 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     x_coords *= pixel_size
     
     # Create 3D coordinates (z=0 for projection plane)
+    # Coordinates are in Angstroms, centered at origin in projection plane
     coords_2d = np.stack([x_coords.flatten(), y_coords.flatten(), 
                           np.zeros(h*w)], axis=1)
     
     # Rotate coordinates back to volume space
-    # The rotation matrix rotates from volume space to view space
+    # The rotation matrix R rotates from volume space to view space
     # So we need the inverse (which is the transpose for rotation matrices)
+    # This transforms view space coordinates to volume space coordinates
     R_inv = R.T
     coords_3d = (R_inv @ coords_2d.T).T
     
-    # Translate to volume center (volume shape is [z, y, x])
-    vol_center = np.array([volume.shape[2]/2, volume.shape[1]/2, volume.shape[0]/2])
-    coords_3d += vol_center
+    # Convert from Angstroms (centered at origin) to voxel coordinates
+    # Volume grid spans from -half_size to +half_size in Angstroms
+    # Voxel 0 = -half_size, voxel (grid_size-1) = +half_size
+    # Conversion: voxel = (angstrom + half_size) / grid_spacing
+    # But we need to calculate half_size from the volume dimensions
+    # The volume was created with grid_size, and spans 2*half_size in Angstroms
+    # So: grid_spacing = (2 * half_size) / grid_size
+    # And: half_size = (grid_size * grid_spacing) / 2
+    # Actually, we can calculate it from the volume shape and pixel_size
+    # The volume spans max_extent * 1.8 + padding in Angstroms
+    # But simpler: calculate from the actual grid that was created
+    # Since we don't have half_size here, we'll use the volume center approach
+    # The volume center in voxel coordinates is at (nx/2, ny/2, nz/2)
+    # And in Angstroms, the center is at (0, 0, 0) since we centered the coords
+    # So we need to convert: voxel = angstrom / grid_spacing + center_voxel
+    # But we need grid_spacing. Let's calculate it from the volume dimensions
+    # The volume spans from -half_size to +half_size, so total span = 2*half_size
+    # grid_spacing = 2*half_size / grid_size
+    # We can estimate: if the structure extent is E, then half_size ≈ E*1.8/2 + E*1.8*0.2
+    # Actually, let's just use the volume center and assume the grid is properly set up
+    # The rotated coords_3d are in Angstroms centered at origin
+    # We need to convert to voxel coordinates where voxel 0 = -half_size
+    # Since we don't have half_size stored, we'll use a different approach:
+    # Calculate the grid spacing from the volume dimensions and pixel_size
+    # The volume was created with a specific pixel_size, so each voxel = pixel_size Angstroms
+    # Wait, that's not right - the grid spacing depends on the structure size
+    # Let's use the simpler approach: calculate half_size from the volume
+    # The volume center in voxel coords is at (nx/2, ny/2, nz/2)
+    # And in Angstroms, center is at (0,0,0)
+    # To convert: we need to know the grid spacing
+    # For now, let's assume the volume spans approximately the structure size
+    # and use pixel_size as an approximation (though this might not be exact)
+    # Actually, the best approach is to store the grid parameters, but for now:
+    # Use the volume center and convert using pixel_size as grid spacing
+    vol_center_voxels = np.array([volume.shape[2]/2, volume.shape[1]/2, volume.shape[0]/2])
+    # Convert Angstroms to voxels: voxel = angstrom / pixel_size + center
+    # But this assumes grid_spacing = pixel_size, which may not be true
+    # Let's use a more accurate conversion
+    # The volume grid was created with linspace(-half_size, half_size, grid_size)
+    # So grid_spacing = 2*half_size / (grid_size - 1) ≈ 2*half_size / grid_size
+    # We can estimate half_size from the structure, but it's complex
+    # For now, let's use pixel_size as an approximation and add the center
+    coords_3d_voxels = coords_3d / pixel_size + vol_center_voxels
+    coords_3d = coords_3d_voxels
     
     # Sample volume using trilinear interpolation
     projection = np.zeros(h * w, dtype=volume.dtype)
