@@ -145,8 +145,10 @@ POSEMAP uses the following coordinate conventions:
 
 - **Euler Angles**: ZYZ convention (phi, theta, psi) in radians, as used by cryoSPARC
 - **Particle Locations**: Fractional coordinates (0-1) converted to pixel coordinates
-- **Micrograph Coordinates**: Origin at bottom-left, X right, Y up
+- **Micrograph Coordinates**: Origin at bottom-left, X right, Y up (Matplotlib convention)
 - **Volume Space**: Z-axis down beam, Y-axis up, X-axis right
+- **Model Space**: PDB/mmCIF coordinate system (Angstroms)
+- **View Space**: 3D coordinate system after rotation, with projection plane at Z=0
 
 ### Detailed Projection Mapping Pipeline
 
@@ -162,6 +164,7 @@ The projection mapping process transforms 3D atomic model coordinates to 2D micr
    - Convert Euler angles to rotation matrix `R` using `scipy.spatial.transform.Rotation.from_euler('ZYZ', [phi, theta, psi])`
    - `R` rotates coordinates **from model/volume space to view space**
    - The rotation matrix represents the orientation of the particle as viewed in the micrograph
+   - **Important**: `scipy` uses extrinsic ZYZ convention, equivalent to `Rz(psi) @ Ry(theta) @ Rz(phi)`
 
 #### 3. **Particle Center Calculation**
    - Convert fractional coordinates to pixel coordinates:
@@ -175,17 +178,38 @@ The projection mapping process transforms 3D atomic model coordinates to 2D micr
      y_pixel += shift_y / pixel_size
      ```
    - This gives the final particle center position in micrograph pixel coordinates
+   - **Note**: Shifts are applied in the same direction as the particle center (not negated)
 
 #### 4. **3D Structure Projection (PyMOL)**
    - Load atomic model (PDB/mmCIF) and center at its center of mass (COM)
+   - Calculate COM as mean of all atom coordinates: `COM = mean(coords, axis=0)`
    - Apply rotation matrix `R` using PyMOL's `transform_object`:
-     - The structure is centered at COM before rotation
-     - Rotation is applied around the origin (COM)
+     - The structure is centered at COM before rotation using `cmd.center()`
+     - Origin is set to COM using `cmd.origin()`
+     - Rotation is applied around the origin (COM) using `transform_object` with 4x4 transformation matrix
      - This rotates the structure from model space to view space
-   - Render 2D projection using PyMOL's ray tracing
+   - Render 2D projection using PyMOL's ray tracing with `cmd.png()`
    - The projection image center corresponds to the structure's COM after rotation
+   - **Critical**: PyMOL's `cmd.zoom(complete=1)` scales the structure to fit the viewport based on the **rotated** bounding box, not the original model size
 
-#### 5. **Projection Placement on Micrograph**
+#### 5. **Projection Size Calculation**
+   - Base projection size is calculated from original model dimensions:
+     ```
+     model_size = max(max_coords - min_coords)  # Maximum extent in any dimension
+     projection_size = (model_size / pixel_size) * 1.2  # 1.2x padding factor
+     ```
+   - However, PyMOL's `zoom(complete=1)` scales based on the **rotated** bounding box
+   - The rotated bounding box size can differ from the original model size:
+     ```
+     rotated_bbox_size = max distance from center in XY plane * 2
+     ```
+   - This creates a potential scaling mismatch that affects marker coordinate transformations
+   - **Effective pixel size** accounts for this:
+     ```
+     effective_pixel_size = rotated_bbox_size / (projection_size / 1.2)
+     ```
+
+#### 6. **Projection Placement on Micrograph**
    - The projection image is placed centered at the particle center coordinates:
      ```
      projection_extent = [
@@ -200,8 +224,26 @@ The projection mapping process transforms 3D atomic model coordinates to 2D micr
      center_x = x_pixel + offset_x
      center_y = y_pixel + offset_y
      ```
+   - The projection is overlaid using RGBA alpha blending
 
-#### 6. **Coordinate System Consistency**
+#### 7. **Marker Coordinate Transformation (ChimeraX Markers)**
+   - Markers are defined in model space (PDB coordinates) from ChimeraX
+   - Transform to micrograph coordinates:
+     1. **Center**: `marker_centered = marker_abs - structure_COM`
+     2. **Rotate**: `marker_rotated = R @ marker_centered`
+     3. **Project to 2D**: Use XY components of rotated marker
+     4. **Convert to pixels**: 
+        ```
+        marker_x_pixels = marker_rotated[1] / effective_pixel_size  # Note: X and Y are swapped
+        marker_y_pixels = marker_rotated[0] / effective_pixel_size
+        ```
+     5. **Place on micrograph**: Add to particle center coordinates
+   - **Critical Coordinate Swap**: PyMOL's image coordinate system swaps X and Y relative to view space:
+     - View space X → Image Y
+     - View space Y → Image X
+   - This swap is necessary because PyMOL renders with a different coordinate convention than our micrograph display
+
+#### 8. **Coordinate System Consistency**
    - **Critical Assumption**: The atomic model's COM in PDB coordinates should match the volume center used by cryoSPARC
    - If the model is perfectly fitted into the cryoSPARC map, the coordinate systems are aligned
    - PyMOL centers the structure at COM, so after rotation, the COM remains at the projection image center
@@ -211,12 +253,58 @@ The projection mapping process transforms 3D atomic model coordinates to 2D micr
      - Coordinate system mismatch between PDB and cryoSPARC volume
      - Need for fine-tuning offsets (available in GUI)
 
-#### 7. **Volume Projection (Reference Implementation)**
+#### 9. **Volume Projection (Reference Implementation)**
    For comparison, volume projection uses the inverse transformation:
    - Create 2D grid in projection plane (z=0 in view space)
    - Rotate coordinates **from view space back to volume space** using `R.T` (transpose = inverse for rotation matrices)
    - Translate to volume center and sample the volume
    - This confirms that `R` correctly transforms from model/volume space to view space
+
+### Known Issues and Potential Problems
+
+#### 1. **Projection Size Mismatch**
+   - **Problem**: `projection_size` is calculated from original model size, but PyMOL scales based on rotated bbox
+   - **Impact**: Marker coordinates may require offsets if not using `effective_pixel_size`
+   - **Solution**: Use `effective_pixel_size` calculated from `rotated_bbox_size` for marker transformations
+
+#### 2. **Coordinate System Swaps**
+   - **Problem**: PyMOL's image rendering swaps X and Y coordinates relative to view space
+   - **Impact**: Marker coordinates must swap X and Y: `image_x = view_y`, `image_y = view_x`
+   - **Solution**: Apply coordinate swap in marker transformation code
+
+#### 3. **Center of Mass Offset**
+   - **Problem**: PDB COM may not exactly match cryoSPARC volume center
+   - **Impact**: Small systematic offsets in projection placement
+   - **Solution**: Fine-tuning sliders in GUI, or automatic COM offset correction (if PDB-to-volume transformation is known)
+
+#### 4. **Pose Estimation Errors**
+   - **Problem**: cryoSPARC pose estimates may not be perfect for all particles
+   - **Impact**: Some particles show misalignment even with correct coordinate transformations
+   - **Solution**: This is expected and indicates imperfect refinement - use for quality control
+
+#### 5. **Pixel Size Inconsistencies**
+   - **Problem**: Different pixel sizes in refinement vs. passthrough files
+   - **Impact**: Incorrect scaling if wrong pixel size is used
+   - **Solution**: Always use pixel size from passthrough file (`location/micrograph_psize_A`)
+
+#### 6. **Sub-pixel Accuracy**
+   - **Problem**: Particle centers and shifts may have sub-pixel precision
+   - **Impact**: Rounding errors in pixel coordinate calculations
+   - **Solution**: Use float coordinates throughout, only round for final display
+
+### Verification Methods
+
+#### Side-by-Side Comparison
+   - Extract actual micrograph region (square box centered at particle center)
+   - Compare with simulated PyMOL projection
+   - Perfect alignment indicates correct coordinate transformations
+   - Misalignment suggests pose errors or coordinate system issues
+
+#### Marker Alignment
+   - Place markers in ChimeraX at known structural features
+   - Verify markers align with same features in projection overlay
+   - Systematic offsets indicate coordinate transformation errors
+   - Random offsets indicate pose estimation errors
 
 ## Rendering
 

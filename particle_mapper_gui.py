@@ -4835,6 +4835,8 @@ color #1 & nucleic #62466B
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label="Add Projection Image", 
                         command=lambda: self.add_projection_for_particle(particle_idx))
+        menu.add_command(label="Compare: Micrograph vs Projection", 
+                        command=lambda: self.compare_particle_projection(particle_idx))
         menu.add_command(label="Open in ChimeraX", 
                         command=lambda: self.open_chimerax(particle_idx=particle_idx))
         
