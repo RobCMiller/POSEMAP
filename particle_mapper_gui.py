@@ -2300,9 +2300,10 @@ class ParticleMapperGUI:
         
         # Low-pass filter
         if self.lowpass_A > 0:
-            # Convert Angstroms to pixels (assuming ~1.1 Å/pixel)
-            # Use a default pixel size if not available
-            pixel_size = getattr(self, 'volume_pixel_size', 1.1)
+            # Convert Angstroms to pixels
+            # Use provided pixel_size or fall back to default
+            if pixel_size is None:
+                pixel_size = getattr(self, 'volume_pixel_size', 1.1)
             sigma_pixels = self.lowpass_A / pixel_size
             enhanced = gaussian_filter(enhanced, sigma=sigma_pixels)
         
