@@ -4992,8 +4992,27 @@ color #1 & nucleic #62466B
                 # Display: y=0 at bottom, y=height at top
                 # Array: row 0 at top, row (height-1) at bottom
                 # Conversion: array_row = mg_height - 1 - display_y
+                # BUT WAIT: Let me verify this is correct by checking what the main display shows
+                # In the main display, we use origin='lower', which means:
+                # - Array row 0 (top) is displayed at y=0 (bottom)
+                # - Array row (height-1) (bottom) is displayed at y=height-1 (top)
+                # So if display_y = 2572, that means we're at row (height-1) - 2572 from the top
+                # Which is: array_row = height - 1 - display_y ✓
                 array_x_center = int(round(x_pixel))
                 array_y_center = mg_height - 1 - int(round(y_pixel))
+                
+                # Double-check: verify by looking at what's at this location in the original micrograph
+                # and comparing with what should be visible in the main display
+                if 0 <= array_y_center < mg_height and 0 <= array_x_center < mg_width:
+                    # Check a small region around the center to see if there's signal
+                    check_radius = 5
+                    check_y_min = max(0, array_y_center - check_radius)
+                    check_y_max = min(mg_height, array_y_center + check_radius)
+                    check_x_min = max(0, array_x_center - check_radius)
+                    check_x_max = min(mg_width, array_x_center + check_radius)
+                    check_region = self.original_micrograph[check_y_min:check_y_max, check_x_min:check_x_max]
+                    print(f"  Verification: Small region around particle center in original micrograph:")
+                    print(f"    Region shape: {check_region.shape}, range=[{check_region.min():.3f}, {check_region.max():.3f}], mean={check_region.mean():.3f}, std={check_region.std():.3f}")
                 
                 print(f"  Display coords (x_pixel, y_pixel): ({x_pixel:.2f}, {y_pixel:.2f})")
                 print(f"  Array coords (col, row): ({array_x_center}, {array_y_center})")
@@ -5038,6 +5057,19 @@ color #1 & nucleic #62466B
                 if 0 <= local_y < mg_extracted.shape[0] and 0 <= local_x < mg_extracted.shape[1]:
                     local_center_value = mg_extracted[local_y, local_x]
                     print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={local_center_value:.3f}")
+                
+                # Check a small region around the center to verify we're extracting the particle
+                check_radius = 10
+                check_y_min = max(0, local_y - check_radius)
+                check_y_max = min(mg_extracted.shape[0], local_y + check_radius)
+                check_x_min = max(0, local_x - check_radius)
+                check_x_max = min(mg_extracted.shape[1], local_x + check_radius)
+                center_region = mg_extracted[check_y_min:check_y_max, check_x_min:check_x_max]
+                print(f"  Center region ({check_radius*2}x{check_radius*2} around center): range=[{center_region.min():.3f}, {center_region.max():.3f}], mean={center_region.mean():.3f}, std={center_region.std():.3f}")
+                
+                # Compare with a corner region to see if center has more signal
+                corner_region = mg_extracted[:check_radius, :check_radius]
+                print(f"  Corner region (top-left {check_radius}x{check_radius}): range=[{corner_region.min():.3f}, {corner_region.max():.3f}], mean={corner_region.mean():.3f}, std={corner_region.std():.3f}")
                 
                 # Create output array and pad if needed (if near edges)
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
