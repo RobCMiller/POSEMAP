@@ -4988,11 +4988,16 @@ color #1 & nucleic #62466B
                 
                 # Convert display coordinates to array coordinates
                 # Use x_pixel, y_pixel (actual particle center) for extraction
+                # IMPORTANT: x_pixel and y_pixel are in display coordinates (origin='lower')
+                # Display: y=0 at bottom, y=height at top
+                # Array: row 0 at top, row (height-1) at bottom
+                # Conversion: array_row = mg_height - 1 - display_y
                 array_x_center = int(round(x_pixel))
-                # Convert display y (0=bottom) to array row (0=top)
                 array_y_center = mg_height - 1 - int(round(y_pixel))
                 
-                print(f"  Array coords: ({array_x_center}, {array_y_center})")
+                print(f"  Display coords (x_pixel, y_pixel): ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"  Array coords (col, row): ({array_x_center}, {array_y_center})")
+                print(f"  Verification: display_y={y_pixel:.2f} -> array_row={array_y_center} (should be {mg_height - 1 - int(round(y_pixel))})")
                 
                 # Calculate extraction bounds in array coordinates
                 # Extract a square box_size x box_size region centered at the particle
