@@ -5044,9 +5044,12 @@ color #1 & nucleic #62466B
                 print(f"  Using Euler angles: [{pose[0]:.6f}, {pose[1]:.6f}, {pose[2]:.6f}]")
                 print(f"  Output size: {box_size}x{box_size}, pixel_size: {pixel_size}")
                 # Get rotation corrections from GUI (same as used for PyMOL projections)
-                rotation_correction_x = getattr(self, 'rotation_correction_x', 0.0)
-                rotation_correction_y = getattr(self, 'rotation_correction_y', 180.0)  # Default Y=180
-                rotation_correction_z = getattr(self, 'rotation_correction_z', 180.0)  # Default Z=180
+                # These are the same corrections applied to PyMOL projections
+                rotation_correction_x = self.rotation_correction_x
+                rotation_correction_y = self.rotation_correction_y  # Default 180.0
+                rotation_correction_z = self.rotation_correction_z  # Default 180.0
+                
+                print(f"  DEBUG: Using rotation corrections: X={rotation_correction_x:.2f}°, Y={rotation_correction_y:.2f}°, Z={rotation_correction_z:.2f}°")
                 
                 em_projection = simulate_em_projection_from_pdb(
                     self.pdb_data,
