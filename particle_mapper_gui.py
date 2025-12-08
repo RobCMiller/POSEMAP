@@ -5102,15 +5102,29 @@ color #1 & nucleic #62466B
                     em_proj_norm = em_projection.copy().astype(np.float32)
                 
                 # Create side-by-side image
+                # IMPORTANT: comparison array is indexed as [row, col, channel]
+                # When displayed with origin='lower', row 0 is at bottom
+                # mg_extracted_norm is already flipped (row 0 at bottom), so it should match
                 comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
                 # Left side: actual micrograph (grayscale -> RGB)
-                comparison[:, :box_size, 0] = mg_extracted_norm
-                comparison[:, :box_size, 1] = mg_extracted_norm
-                comparison[:, :box_size, 2] = mg_extracted_norm
+                # mg_extracted_norm is (box_size, box_size) with row 0 at bottom (after flipud)
+                # comparison[:, :box_size] is (box_size, box_size) with row 0 at top
+                # When displayed with origin='lower', comparison row 0 is at bottom
+                # So we need to flip mg_extracted_norm again, or not flip it in the first place
+                # Actually, let's NOT flip mg_output, and instead let origin='lower' handle it
+                # Wait, but we already flipped it. Let me check if we should flip it back
+                # Actually, the issue is: mg_extracted_norm is flipped (row 0 = bottom)
+                # comparison[:, :box_size] expects row 0 = top
+                # When displayed with origin='lower', comparison row 0 = bottom
+                # So we need to flip mg_extracted_norm to put it in comparison correctly
+                comparison[:, :box_size, 0] = np.flipud(mg_extracted_norm)  # Flip back to match comparison array indexing
+                comparison[:, :box_size, 1] = np.flipud(mg_extracted_norm)
+                comparison[:, :box_size, 2] = np.flipud(mg_extracted_norm)
                 # Right side: simulated EM projection (grayscale -> RGB)
-                comparison[:, box_size:, 0] = em_proj_norm
-                comparison[:, box_size:, 1] = em_proj_norm
-                comparison[:, box_size:, 2] = em_proj_norm
+                # em_proj_norm is also flipped (from project_volume), so flip it back
+                comparison[:, box_size:, 0] = np.flipud(em_proj_norm)
+                comparison[:, box_size:, 1] = np.flipud(em_proj_norm)
+                comparison[:, box_size:, 2] = np.flipud(em_proj_norm)
                 
                 # Create window in main thread
                 def create_window():
