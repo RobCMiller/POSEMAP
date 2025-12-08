@@ -252,10 +252,15 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
         raise ValueError("No coordinates in PDB data")
     
     # Calculate bounding box
+    # IMPORTANT: Center the structure at origin before creating density map
+    # This ensures rotations are applied correctly
     min_coords = coords.min(axis=0)
     max_coords = coords.max(axis=0)
     extent = max_coords - min_coords
     center = (min_coords + max_coords) / 2.0
+    
+    # Center coordinates at origin
+    coords_centered = coords - center
     
     # Auto-calculate grid size if not provided
     if grid_size is None:
@@ -267,24 +272,26 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
         # Limit maximum size for performance, but allow larger for better quality
         grid_size = min(grid_size, 512)  # Max 512^3 for reasonable speed
     
-    # Create coordinate grid centered at structure center
+    # Create coordinate grid centered at origin (since we centered the coordinates)
     # The grid should span the structure with some padding
     # Calculate the actual extent we need to cover
     max_extent = np.max(extent) * 1.8  # Same as used for grid_size calculation
     padding = max_extent * 0.2  # 20% padding on each side
     half_size = (max_extent / 2.0) + padding
-    x = np.linspace(center[0] - half_size, center[0] + half_size, grid_size)
-    y = np.linspace(center[1] - half_size, center[1] + half_size, grid_size)
-    z = np.linspace(center[2] - half_size, center[2] + half_size, grid_size)
+    # Grid is centered at origin (0, 0, 0) since coords are centered
+    x = np.linspace(-half_size, half_size, grid_size)
+    y = np.linspace(-half_size, half_size, grid_size)
+    z = np.linspace(-half_size, half_size, grid_size)
     
     # Initialize volume
     volume = np.zeros((grid_size, grid_size, grid_size), dtype=np.float32)
     
     # Convert atom coordinates to grid indices
+    # Use centered coordinates
     # Much faster: use vectorized operations
-    x_indices = np.clip(np.round((coords[:, 0] - x[0]) / (x[1] - x[0])).astype(int), 0, grid_size - 1)
-    y_indices = np.clip(np.round((coords[:, 1] - y[0]) / (y[1] - y[0])).astype(int), 0, grid_size - 1)
-    z_indices = np.clip(np.round((coords[:, 2] - z[0]) / (z[1] - z[0])).astype(int), 0, grid_size - 1)
+    x_indices = np.clip(np.round((coords_centered[:, 0] - x[0]) / (x[1] - x[0])).astype(int), 0, grid_size - 1)
+    y_indices = np.clip(np.round((coords_centered[:, 1] - y[0]) / (y[1] - y[0])).astype(int), 0, grid_size - 1)
+    z_indices = np.clip(np.round((coords_centered[:, 2] - z[0]) / (z[1] - z[0])).astype(int), 0, grid_size - 1)
     
     # Add atoms to volume (simple point placement)
     # Use bincount for fast accumulation
