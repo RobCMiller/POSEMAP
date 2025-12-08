@@ -4998,8 +4998,18 @@ color #1 & nucleic #62466B
                 # - Array row (height-1) (bottom) is displayed at y=height-1 (top)
                 # So if display_y = 2572, that means we're at row (height-1) - 2572 from the top
                 # Which is: array_row = height - 1 - display_y ✓
+                # Convert display coordinates to array coordinates
+                # CRITICAL: Display uses origin='lower', so y=0 is at bottom
+                # Array has row 0 at top, so we need to flip Y coordinate
                 array_x_center = int(round(x_pixel))
                 array_y_center = mg_height - 1 - int(round(y_pixel))
+                
+                # Debug: Check if we're accidentally using micrograph center
+                mg_center_x = mg_width // 2
+                mg_center_y = mg_height // 2
+                print(f"  Micrograph center (array coords): ({mg_center_x}, {mg_center_y})")
+                print(f"  Particle center (array coords): ({array_x_center}, {array_y_center})")
+                print(f"  Distance from micrograph center: X={abs(array_x_center - mg_center_x)}, Y={abs(array_y_center - mg_center_y)}")
                 
                 # Double-check: verify by looking at what's at this location in the original micrograph
                 # and comparing with what should be visible in the main display
