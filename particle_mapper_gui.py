@@ -2291,7 +2291,7 @@ class ParticleMapperGUI:
             self.background_loading = False
             print("Background preloading thread finished")
     
-    def apply_enhancements(self, image):
+    def apply_enhancements(self, image, pixel_size=None):
         """Apply image enhancements."""
         if image is None:
             return None
@@ -2301,11 +2301,12 @@ class ParticleMapperGUI:
         # Low-pass filter
         if self.lowpass_A > 0:
             # Convert Angstroms to pixels
-            # Get pixel_size from GUI entry or fall back to default
-            try:
-                pixel_size = float(self.pixel_size_entry.get().strip())
-            except (ValueError, AttributeError):
-                pixel_size = getattr(self, 'volume_pixel_size', 1.1)
+            # Get pixel_size from parameter, GUI entry, or fall back to default
+            if pixel_size is None:
+                try:
+                    pixel_size = float(self.pixel_size_entry.get().strip())
+                except (ValueError, AttributeError):
+                    pixel_size = getattr(self, 'volume_pixel_size', 1.1)
             sigma_pixels = self.lowpass_A / pixel_size
             enhanced = gaussian_filter(enhanced, sigma=sigma_pixels)
         
