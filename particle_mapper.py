@@ -273,6 +273,12 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     print(f"  DEBUG project_volume: Projection stats: min={projection.min():.4f}, max={projection.max():.4f}, mean={projection.mean():.4f}, std={projection.std():.4f}")
     print(f"  DEBUG project_volume: Non-zero pixels: {np.sum(projection > 0)} out of {h * w}")
     
+    # Debug: Check if rotation is actually changing the sampled region
+    # Print a hash of the first 100 pixels to see if projections differ
+    sample_pixels = projection.flatten()[:100]
+    pixel_hash = hash(tuple(sample_pixels.round(decimals=4)))
+    print(f"  DEBUG project_volume: First 100 pixels hash: {pixel_hash}")
+    
     # IMPORTANT: Flip vertically to match display orientation
     # The projection is generated with y=0 at top (standard image convention)
     # But we display with origin='lower' (y=0 at bottom), so flip vertically
