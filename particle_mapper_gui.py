@@ -5012,9 +5012,27 @@ color #1 & nucleic #62466B
                     raise ValueError("original_micrograph is None - micrograph not loaded")
                 print(f"  Original micrograph shape: {self.original_micrograph.shape}")
                 print(f"  Extracting from array coords: y=[{array_y_min}:{array_y_max}], x=[{array_x_min}:{array_x_max}]")
+                
+                # Verify particle center is within extraction bounds
+                if array_x_center < array_x_min or array_x_center >= array_x_max or \
+                   array_y_center < array_y_min or array_y_center >= array_y_max:
+                    print(f"  WARNING: Particle center ({array_x_center}, {array_y_center}) is outside extraction bounds!")
+                
+                # Check pixel value at particle center in original micrograph
+                if 0 <= array_y_center < mg_height and 0 <= array_x_center < mg_width:
+                    center_value = self.original_micrograph[array_y_center, array_x_center]
+                    print(f"  Pixel value at particle center in original micrograph: {center_value:.3f}")
+                
                 mg_extracted = self.original_micrograph[array_y_min:array_y_max, array_x_min:array_x_max]
                 print(f"  Extracted shape: {mg_extracted.shape}")
                 print(f"  Extracted value range: [{mg_extracted.min():.3f}, {mg_extracted.max():.3f}], mean={mg_extracted.mean():.3f}")
+                
+                # Check where the particle center is in the extracted region
+                local_x = array_x_center - array_x_min
+                local_y = array_y_center - array_y_min
+                if 0 <= local_y < mg_extracted.shape[0] and 0 <= local_x < mg_extracted.shape[1]:
+                    local_center_value = mg_extracted[local_y, local_x]
+                    print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={local_center_value:.3f}")
                 
                 # Create output array and pad if needed (if near edges)
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
