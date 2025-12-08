@@ -103,7 +103,8 @@ def euler_to_rotation_matrix(euler_angles: np.ndarray, convention: str = 'ZYZ') 
 
 def project_volume(volume: np.ndarray, euler_angles: np.ndarray, 
                    output_size: Optional[Tuple[int, int]] = None,
-                   pixel_size: float = 1.0) -> np.ndarray:
+                   pixel_size: float = 1.0,
+                   half_size: Optional[float] = None) -> np.ndarray:
     """
     Project a 3D volume at given Euler angles.
     
@@ -166,46 +167,20 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     # Convert from Angstroms (centered at origin) to voxel coordinates
     # Volume grid spans from -half_size to +half_size in Angstroms
     # Voxel 0 = -half_size, voxel (grid_size-1) = +half_size
-    # Conversion: voxel = (angstrom + half_size) / grid_spacing
-    # But we need to calculate half_size from the volume dimensions
-    # The volume was created with grid_size, and spans 2*half_size in Angstroms
-    # So: grid_spacing = (2 * half_size) / grid_size
-    # And: half_size = (grid_size * grid_spacing) / 2
-    # Actually, we can calculate it from the volume shape and pixel_size
-    # The volume spans max_extent * 1.8 + padding in Angstroms
-    # But simpler: calculate from the actual grid that was created
-    # Since we don't have half_size here, we'll use the volume center approach
-    # The volume center in voxel coordinates is at (nx/2, ny/2, nz/2)
-    # And in Angstroms, the center is at (0, 0, 0) since we centered the coords
-    # So we need to convert: voxel = angstrom / grid_spacing + center_voxel
-    # But we need grid_spacing. Let's calculate it from the volume dimensions
-    # The volume spans from -half_size to +half_size, so total span = 2*half_size
-    # grid_spacing = 2*half_size / grid_size
-    # We can estimate: if the structure extent is E, then half_size ≈ E*1.8/2 + E*1.8*0.2
-    # Actually, let's just use the volume center and assume the grid is properly set up
-    # The rotated coords_3d are in Angstroms centered at origin
-    # We need to convert to voxel coordinates where voxel 0 = -half_size
-    # Since we don't have half_size stored, we'll use a different approach:
-    # Calculate the grid spacing from the volume dimensions and pixel_size
-    # The volume was created with a specific pixel_size, so each voxel = pixel_size Angstroms
-    # Wait, that's not right - the grid spacing depends on the structure size
-    # Let's use the simpler approach: calculate half_size from the volume
-    # The volume center in voxel coords is at (nx/2, ny/2, nz/2)
-    # And in Angstroms, center is at (0,0,0)
-    # To convert: we need to know the grid spacing
-    # For now, let's assume the volume spans approximately the structure size
-    # and use pixel_size as an approximation (though this might not be exact)
-    # Actually, the best approach is to store the grid parameters, but for now:
-    # Use the volume center and convert using pixel_size as grid spacing
+    # The grid was created with: np.linspace(-half_size, half_size, grid_size)
+    # So grid_spacing = 2*half_size / (grid_size - 1)
+    # To convert: voxel = (angstrom + half_size) / grid_spacing
     vol_center_voxels = np.array([volume.shape[2]/2, volume.shape[1]/2, volume.shape[0]/2])
-    # Convert Angstroms to voxels: voxel = angstrom / pixel_size + center
-    # But this assumes grid_spacing = pixel_size, which may not be true
-    # Let's use a more accurate conversion
-    # The volume grid was created with linspace(-half_size, half_size, grid_size)
-    # So grid_spacing = 2*half_size / (grid_size - 1) ≈ 2*half_size / grid_size
-    # We can estimate half_size from the structure, but it's complex
-    # For now, let's use pixel_size as an approximation and add the center
-    coords_3d_voxels = coords_3d / pixel_size + vol_center_voxels
+    grid_size = volume.shape[0]  # Assuming cubic volume
+    
+    if half_size is not None:
+        # Use provided half_size for accurate conversion
+        grid_spacing = 2.0 * half_size / (grid_size - 1)
+        coords_3d_voxels = (coords_3d + half_size) / grid_spacing
+    else:
+        # Fallback: estimate using pixel_size (approximate)
+        coords_3d_voxels = coords_3d / pixel_size + vol_center_voxels
+    
     coords_3d = coords_3d_voxels
     
     # Sample volume using trilinear interpolation
@@ -260,7 +235,7 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
 
 def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0, 
                        grid_size: Optional[int] = None,
-                       atom_radius: float = 2.0) -> Tuple[np.ndarray, float]:
+                       atom_radius: float = 2.0) -> Tuple[np.ndarray, float, float]:
     """
     Convert PDB atomic coordinates to a 3D density map.
     
@@ -352,7 +327,8 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     sigma = atom_radius / pixel_size  # Convert radius to pixels
     volume = gaussian_filter(volume, sigma=sigma, mode='constant', cval=0.0)
     
-    return volume, pixel_size
+    # Return volume, pixel_size, and half_size (for coordinate conversion)
+    return volume, pixel_size, half_size
 
 
 def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarray,
@@ -370,7 +346,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         raise ImportError("EMAN2 is not available. Please install EMAN2 or use the fallback method.")
     
     # Convert PDB to density map first
-    volume, _ = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0)
+    volume, _, _ = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0)
     
     # Convert numpy array to EMAN2 EMData
     # EMAN2 expects [nx, ny, nz] format
@@ -443,8 +419,8 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     # This ensures the scale matches - each voxel in the density map represents
     # the same physical size (pixel_size Angstroms) as each pixel in the micrograph
     print(f"  DEBUG: Generating density map with pixel_size={pixel_size}, atom_radius={atom_radius}")
-    volume, volume_pixel_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius)
-    print(f"  DEBUG: Density map generated, shape={volume.shape}, pixel_size={volume_pixel_size}")
+    volume, volume_pixel_size, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius)
+    print(f"  DEBUG: Density map generated, shape={volume.shape}, pixel_size={volume_pixel_size}, half_size={half_size:.2f}")
     
     # Verify pixel sizes match
     if abs(volume_pixel_size - pixel_size) > 0.001:
@@ -454,7 +430,7 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     # This ensures the projection scale matches the micrograph
     # The output_size is in pixels, and each pixel represents pixel_size Angstroms
     print(f"  DEBUG: Projecting volume with Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
-    projection = project_volume(volume, euler_angles, output_size=output_size, pixel_size=pixel_size)
+    projection = project_volume(volume, euler_angles, output_size=output_size, pixel_size=pixel_size, half_size=half_size)
     print(f"  DEBUG: Projection generated, shape={projection.shape}, range=[{projection.min():.3f}, {projection.max():.3f}]")
     
     return projection
