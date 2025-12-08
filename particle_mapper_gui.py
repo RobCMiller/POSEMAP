@@ -5017,7 +5017,8 @@ color #1 & nucleic #62466B
                 
                 # Apply same image enhancements as main GUI
                 # Use the same low-pass filter, brightness, and contrast settings
-                mg_enhanced = self.enhance_micrograph(mg_output, pixel_size=pixel_size)
+                # Pass pixel_size to ensure correct scaling
+                mg_enhanced = self.apply_enhancements(mg_output, pixel_size=pixel_size)
                 
                 # Normalize micrograph region to [0, 1] for display (same as main GUI)
                 if mg_enhanced.max() > mg_enhanced.min():
