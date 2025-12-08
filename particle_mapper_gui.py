@@ -5003,7 +5003,9 @@ color #1 & nucleic #62466B
                 print(f"  Extraction bounds: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
                 
                 # Extract region: array[row, col] = array[y, x]
-                mg_extracted = self.current_micrograph[array_y_min:array_y_max, array_x_min:array_x_max]
+                # Use original_micrograph (not current_micrograph which may be enhanced)
+                # We'll apply enhancements separately
+                mg_extracted = self.original_micrograph[array_y_min:array_y_max, array_x_min:array_x_max]
                 print(f"  Extracted shape: {mg_extracted.shape}")
                 
                 # Create output array and pad if needed (if near edges)

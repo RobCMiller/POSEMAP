@@ -131,6 +131,10 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     # Get rotation matrix
     R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
     
+    # Debug: Print rotation matrix to verify it's different for different angles
+    print(f"  DEBUG project_volume: Euler=[{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
+    print(f"  DEBUG project_volume: R[0,0]={R[0,0]:.6f}, R[0,1]={R[0,1]:.6f}, R[0,2]={R[0,2]:.6f}")
+    
     # Create coordinate grid for output projection
     h, w = output_size
     center_out = np.array([h/2, w/2])
@@ -141,14 +145,13 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     x_coords -= center_out[1]
     
     # Scale coordinates to match the physical size
-    # The volume was created with pixel_size, so each voxel = pixel_size Angstroms
     # The projection output is in pixels, each representing pixel_size Angstroms
-    # So we need to scale the projection coordinates to match the volume's coordinate system
-    # The volume spans from -half_size to +half_size in Angstroms (centered at structure COM)
-    # The projection coordinates are in pixels, so we need to convert to Angstroms
-    # Each pixel in the projection = pixel_size Angstroms
     # So: projection_coord_in_angstroms = projection_coord_in_pixels * pixel_size
-    # The volume's coordinate system is in Angstroms, so we need to scale by pixel_size
+    # The volume's coordinate system is in Angstroms, centered at origin
+    # The volume grid spans from -half_size to +half_size in Angstroms
+    # We need to scale the projection coordinates to match this physical extent
+    # The projection should show the same physical size as the micrograph
+    # So scale by pixel_size to convert pixels to Angstroms
     y_coords *= pixel_size
     x_coords *= pixel_size
     
@@ -163,6 +166,11 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     # This transforms view space coordinates to volume space coordinates
     R_inv = R.T
     coords_3d = (R_inv @ coords_2d.T).T
+    
+    # Debug: Check a sample of rotated coordinates to verify rotation is working
+    sample_idx = h * w // 2  # Middle pixel
+    print(f"  DEBUG project_volume: Sample coord before rotation: ({coords_2d[sample_idx,0]:.2f}, {coords_2d[sample_idx,1]:.2f}, {coords_2d[sample_idx,2]:.2f})")
+    print(f"  DEBUG project_volume: Sample coord after rotation: ({coords_3d[sample_idx,0]:.2f}, {coords_3d[sample_idx,1]:.2f}, {coords_3d[sample_idx,2]:.2f})")
     
     # Convert from Angstroms (centered at origin) to voxel coordinates
     # Volume grid spans from -half_size to +half_size in Angstroms
