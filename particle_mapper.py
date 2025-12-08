@@ -139,9 +139,19 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     y_coords -= center_out[0]
     x_coords -= center_out[1]
     
-    # Scale to match volume dimensions (assuming square, use average dimension)
-    vol_size = np.mean(volume.shape)
-    scale = vol_size / max(h, w)
+    # Scale coordinates to match the physical size of the volume
+    # The volume represents a physical space in Angstroms
+    # We need to scale the projection plane coordinates to match
+    # Calculate the physical size of the volume in Angstroms
+    # Volume shape is [z, y, x], and pixel_size gives Angstroms per voxel
+    vol_physical_size = np.array([volume.shape[0], volume.shape[1], volume.shape[2]]) * pixel_size
+    # Use the maximum dimension to ensure the structure fits
+    max_vol_size = np.max(vol_physical_size)
+    
+    # Scale projection coordinates to match physical size
+    # The projection output size in pixels should represent the same physical size
+    projection_physical_size = max(h, w) * pixel_size
+    scale = max_vol_size / projection_physical_size
     y_coords *= scale
     x_coords *= scale
     
@@ -314,7 +324,7 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     output_size : tuple
         Output projection size (height, width) in pixels
     pixel_size : float
-        Pixel size in Angstroms
+        Pixel size in Angstroms (same as micrograph pixel size)
     atom_radius : float
         Radius of atoms in Angstroms for density map generation
         
@@ -323,9 +333,12 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     np.ndarray : 2D projection (simulated EM image)
     """
     # Convert PDB to density map
+    # Use the same pixel_size for the density map as the micrograph
+    # This ensures the scale matches
     volume, _ = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius)
     
-    # Project the volume
+    # Project the volume at the same pixel size
+    # This ensures the projection scale matches the micrograph
     projection = project_volume(volume, euler_angles, output_size=output_size, pixel_size=pixel_size)
     
     return projection

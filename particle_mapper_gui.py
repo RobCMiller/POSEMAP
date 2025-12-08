@@ -4949,10 +4949,25 @@ color #1 & nucleic #62466B
                 y_max = int(min(mg_height, y_pixel + half_size))
                 
                 # Extract region from micrograph
-                # Micrograph array indexing: [row, col] = [y, x]
-                # y increases downward in array, but upward in micrograph coordinates
-                # So we need: mg[mg_height - y_max : mg_height - y_min, x_min : x_max]
-                mg_extracted = self.current_micrograph[mg_height - y_max:mg_height - y_min, x_min:x_max]
+                # Micrograph array: stored as [height, width] = [rows, cols]
+                # Array indexing: row 0 is top, row (height-1) is bottom
+                # Display coordinates (origin='lower'): y=0 is bottom, y=height is top
+                # Particle center (x_pixel, y_pixel) is in display coordinates
+                # To convert to array coordinates:
+                #   array_col = x_pixel (direct mapping)
+                #   array_row = mg_height - 1 - y_pixel (flip Y)
+                # Extract square region centered at particle
+                array_x_center = int(round(x_pixel))
+                array_y_center = int(round(mg_height - 1 - y_pixel))  # Flip Y for array indexing
+                
+                # Calculate extraction bounds in array coordinates
+                array_x_min = max(0, array_x_center - box_size // 2)
+                array_x_max = min(mg_width, array_x_center + box_size // 2)
+                array_y_min = max(0, array_y_center - box_size // 2)
+                array_y_max = min(mg_height, array_y_center + box_size // 2)
+                
+                # Extract region: array[row, col] = array[y, x]
+                mg_extracted = self.current_micrograph[array_y_min:array_y_max, array_x_min:array_x_max]
                 
                 # Create output array and pad if needed (if near edges)
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
