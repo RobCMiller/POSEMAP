@@ -4886,25 +4886,27 @@ color #1 & nucleic #62466B
             messagebox.showwarning("No Structure", "No structure file loaded. Cannot generate projection.")
             return
         
-        try:
-            self.status_var.set(f"Generating comparison for particle {particle_idx+1}...")
-            self.root.update()
-            
-            # Get particle data
-            pose = self.current_particles['poses'][particle_idx]
-            shift = self.current_particles['shifts'][particle_idx]
-            center_x_frac = self.current_particles['center_x_frac'][particle_idx]
-            center_y_frac = self.current_particles['center_y_frac'][particle_idx]
-            
-            # Get pixel size - try from current_particles first, then GUI entry
-            if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > particle_idx:
-                pixel_size = self.current_particles['pixel_size'][particle_idx]
-            else:
-                # Fall back to GUI entry or default
-                try:
-                    pixel_size = float(self.pixel_size_entry.get().strip())
-                except (ValueError, AttributeError):
-                    pixel_size = 1.1  # Default
+        # Run in background thread to avoid freezing GUI
+        def generate_comparison():
+            try:
+                # Update status in main thread
+                self.root.after(0, lambda: self.status_var.set(f"Generating comparison for particle {particle_idx+1}..."))
+                
+                # Get particle data
+                pose = self.current_particles['poses'][particle_idx]
+                shift = self.current_particles['shifts'][particle_idx]
+                center_x_frac = self.current_particles['center_x_frac'][particle_idx]
+                center_y_frac = self.current_particles['center_y_frac'][particle_idx]
+                
+                # Get pixel size - try from current_particles first, then GUI entry
+                if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > particle_idx:
+                    pixel_size = self.current_particles['pixel_size'][particle_idx]
+                else:
+                    # Fall back to GUI entry or default
+                    try:
+                        pixel_size = float(self.pixel_size_entry.get().strip())
+                    except (ValueError, AttributeError):
+                        pixel_size = 1.1  # Default
             
             # Get micrograph shape - use the stored shape (singular, not array)
             if 'micrograph_shape' in self.current_particles and self.current_particles['micrograph_shape'] is not None:
@@ -4996,49 +4998,53 @@ color #1 & nucleic #62466B
             comparison[:, box_size:, 1] = em_proj_norm
             comparison[:, box_size:, 2] = em_proj_norm
             
-            # Create new window to display comparison
-            comparison_window = tk.Toplevel(self.root)
-            comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection")
-            comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
-            
-            # Create matplotlib figure
-            fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
-            ax = fig.add_subplot(111)
-            ax.imshow(comparison, origin='lower', aspect='auto')
-            ax.axvline(x=box_size, color='red', linewidth=2, linestyle='--', label='Divider')
-            ax.set_xlabel('Left: Actual Micrograph | Right: Simulated Projection')
-            ax.set_title(f'Particle {particle_idx+1} Comparison\n(Should match if projection mapping is correct)')
-            ax.axis('off')
-            
-            # Add labels
-            ax.text(box_size / 2, box_size - 20, 'Actual Micrograph', 
-                   ha='center', va='top', color='white', fontsize=12, 
-                   bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
-            ax.text(box_size * 1.5, box_size - 20, 'Simulated Projection', 
-                   ha='center', va='top', color='white', fontsize=12,
-                   bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
-            
-            # Embed in tkinter
-            canvas = FigureCanvasTkAgg(fig, comparison_window)
-            canvas.draw()
-            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-            
-            # Add save button
-            def save_comparison():
-                from tkinter import filedialog
-                filename = filedialog.asksaveasfilename(
-                    defaultextension='.png',
-                    filetypes=[('PNG files', '*.png'), ('All files', '*.*')],
-                    initialfile=f'particle_{particle_idx+1}_comparison.png'
-                )
-                if filename:
-                    fig.savefig(filename, dpi=150, bbox_inches='tight')
-                    messagebox.showinfo("Saved", f"Comparison saved to {filename}")
-            
-            save_button = tk.Button(comparison_window, text="Save Comparison", command=save_comparison)
-            save_button.pack(pady=5)
-            
-            self.status_var.set(f"Comparison generated for particle {particle_idx+1}")
+                # Create window in main thread
+                def create_window():
+                    comparison_window = tk.Toplevel(self.root)
+                    comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection")
+                    comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
+                    
+                    # Create matplotlib figure
+                    fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
+                    ax = fig.add_subplot(111)
+                    ax.imshow(comparison, origin='lower', aspect='auto')
+                    ax.axvline(x=box_size, color='red', linewidth=2, linestyle='--', label='Divider')
+                    ax.set_xlabel('Left: Actual Micrograph | Right: Simulated Projection')
+                    ax.set_title(f'Particle {particle_idx+1} Comparison\n(Should match if projection mapping is correct)')
+                    ax.axis('off')
+                    
+                    # Add labels
+                    ax.text(box_size / 2, box_size - 20, 'Actual Micrograph', 
+                           ha='center', va='top', color='white', fontsize=12, 
+                           bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+                    ax.text(box_size * 1.5, box_size - 20, 'Simulated Projection', 
+                           ha='center', va='top', color='white', fontsize=12,
+                           bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+                    
+                    # Embed in tkinter
+                    canvas = FigureCanvasTkAgg(fig, comparison_window)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                    
+                    # Add save button
+                    def save_comparison():
+                        from tkinter import filedialog
+                        filename = filedialog.asksaveasfilename(
+                            defaultextension='.png',
+                            filetypes=[('PNG files', '*.png'), ('All files', '*.*')],
+                            initialfile=f'particle_{particle_idx+1}_comparison.png'
+                        )
+                        if filename:
+                            fig.savefig(filename, dpi=150, bbox_inches='tight')
+                            messagebox.showinfo("Saved", f"Comparison saved to {filename}")
+                    
+                    save_button = tk.Button(comparison_window, text="Save Comparison", command=save_comparison)
+                    save_button.pack(pady=5)
+                    
+                    self.status_var.set(f"Comparison generated for particle {particle_idx+1}")
+                
+                # Create window in main thread
+                self.root.after(0, create_window)
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to generate comparison: {str(e)}")

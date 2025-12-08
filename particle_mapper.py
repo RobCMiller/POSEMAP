@@ -216,6 +216,7 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     Convert PDB atomic coordinates to a 3D density map.
     
     Voxelizes atoms as Gaussian blobs to create a density map suitable for EM simulation.
+    Uses an optimized approach with sparse representation and scipy gaussian filtering.
     
     Parameters:
     -----------
@@ -248,11 +249,13 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     
     # Auto-calculate grid size if not provided
     if grid_size is None:
-        # Add padding (20% on each side)
-        max_extent = np.max(extent) * 1.4
+        # Add padding (40% on each side)
+        max_extent = np.max(extent) * 1.8
         grid_size = int(np.ceil(max_extent / pixel_size))
         # Make it a reasonable size (round up to nearest 32 for efficiency)
         grid_size = ((grid_size + 31) // 32) * 32
+        # Limit maximum size for performance
+        grid_size = min(grid_size, 256)  # Max 256^3 for reasonable speed
     
     # Create coordinate grid
     half_size = grid_size / 2.0 * pixel_size
@@ -263,41 +266,22 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     # Initialize volume
     volume = np.zeros((grid_size, grid_size, grid_size), dtype=np.float32)
     
-    # Voxelize atoms as Gaussian blobs
-    # Use a more efficient approach: for each atom, add Gaussian contribution
+    # Convert atom coordinates to grid indices
+    # Much faster: use vectorized operations
+    x_indices = np.clip(np.round((coords[:, 0] - x[0]) / (x[1] - x[0])).astype(int), 0, grid_size - 1)
+    y_indices = np.clip(np.round((coords[:, 1] - y[0]) / (y[1] - y[0])).astype(int), 0, grid_size - 1)
+    z_indices = np.clip(np.round((coords[:, 2] - z[0]) / (z[1] - z[0])).astype(int), 0, grid_size - 1)
+    
+    # Add atoms to volume (simple point placement)
+    # Use bincount for fast accumulation
+    flat_indices = z_indices * grid_size * grid_size + y_indices * grid_size + x_indices
+    np.add.at(volume.flat, flat_indices, 1.0)
+    
+    # Apply Gaussian filter to create smooth density blobs
+    # This is much faster than computing Gaussian for each atom individually
+    from scipy.ndimage import gaussian_filter
     sigma = atom_radius / pixel_size  # Convert radius to pixels
-    sigma_sq = sigma * sigma
-    
-    # For efficiency, only add contributions within 3*sigma
-    cutoff = int(np.ceil(3 * sigma))
-    
-    for atom_coord in coords:
-        # Find closest grid point
-        x_idx = np.argmin(np.abs(x - atom_coord[0]))
-        y_idx = np.argmin(np.abs(y - atom_coord[1]))
-        z_idx = np.argmin(np.abs(z - atom_coord[2]))
-        
-        # Add Gaussian blob around this atom
-        for dz in range(-cutoff, cutoff + 1):
-            for dy in range(-cutoff, cutoff + 1):
-                for dx in range(-cutoff, cutoff + 1):
-                    z_i = z_idx + dz
-                    y_i = y_idx + dy
-                    x_i = x_idx + dx
-                    
-                    if 0 <= z_i < grid_size and 0 <= y_i < grid_size and 0 <= x_i < grid_size:
-                        # Calculate distance from atom center
-                        grid_x = x[x_i]
-                        grid_y = y[y_i]
-                        grid_z = z[z_i]
-                        
-                        dist_sq = ((grid_x - atom_coord[0])**2 + 
-                                  (grid_y - atom_coord[1])**2 + 
-                                  (grid_z - atom_coord[2])**2)
-                        
-                        # Gaussian contribution
-                        contribution = np.exp(-dist_sq / (2 * sigma_sq))
-                        volume[z_i, y_i, x_i] += contribution
+    volume = gaussian_filter(volume, sigma=sigma, mode='constant', cval=0.0)
     
     return volume, pixel_size
 
