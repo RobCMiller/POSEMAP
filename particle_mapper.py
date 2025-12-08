@@ -104,7 +104,10 @@ def euler_to_rotation_matrix(euler_angles: np.ndarray, convention: str = 'ZYZ') 
 def project_volume(volume: np.ndarray, euler_angles: np.ndarray, 
                    output_size: Optional[Tuple[int, int]] = None,
                    pixel_size: float = 1.0,
-                   half_size: Optional[float] = None) -> np.ndarray:
+                   half_size: Optional[float] = None,
+                   rotation_correction_x: float = 0.0,
+                   rotation_correction_y: float = 0.0,
+                   rotation_correction_z: float = 0.0) -> np.ndarray:
     """
     Project a 3D volume at given Euler angles.
     
@@ -131,8 +134,21 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     # Get rotation matrix
     R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
     
+    # Apply rotation corrections to match PyMOL's behavior
+    # PyMOL applies corrections in XYZ convention (intrinsic rotations)
+    if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
+        from scipy.spatial.transform import Rotation as Rot
+        rot_x_rad = np.deg2rad(rotation_correction_x)
+        rot_y_rad = np.deg2rad(rotation_correction_y)
+        rot_z_rad = np.deg2rad(rotation_correction_z)
+        rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
+        R_correction = rot_correction.as_matrix()
+        # Apply correction AFTER the main rotation (same as PyMOL)
+        R = R_correction @ R
+    
     # Debug: Print rotation matrix to verify it's different for different angles
     print(f"  DEBUG project_volume: Euler=[{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
+    print(f"  DEBUG project_volume: Rotation corrections: X={rotation_correction_x:.2f}°, Y={rotation_correction_y:.2f}°, Z={rotation_correction_z:.2f}°")
     print(f"  DEBUG project_volume: R[0,0]={R[0,0]:.6f}, R[0,1]={R[0,1]:.6f}, R[0,2]={R[0,2]:.6f}")
     
     # Create coordinate grid for output projection
@@ -430,7 +446,10 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
                                     output_size: Tuple[int, int],
                                     pixel_size: float = 1.0,
                                     atom_radius: float = 2.0,
-                                    use_eman2: bool = True) -> np.ndarray:
+                                    use_eman2: bool = True,
+                                    rotation_correction_x: float = 0.0,
+                                    rotation_correction_y: float = 0.0,
+                                    rotation_correction_z: float = 0.0) -> np.ndarray:
     """
     Simulate an EM projection from a PDB structure.
     

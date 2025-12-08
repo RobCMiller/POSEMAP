@@ -5043,13 +5043,21 @@ color #1 & nucleic #62466B
                 print(f"Generating EM simulation for particle {particle_idx+1}...")
                 print(f"  Using Euler angles: [{pose[0]:.6f}, {pose[1]:.6f}, {pose[2]:.6f}]")
                 print(f"  Output size: {box_size}x{box_size}, pixel_size: {pixel_size}")
+                # Get rotation corrections from GUI (same as used for PyMOL projections)
+                rotation_correction_x = getattr(self, 'rotation_correction_x', 0.0)
+                rotation_correction_y = getattr(self, 'rotation_correction_y', 180.0)  # Default Y=180
+                rotation_correction_z = getattr(self, 'rotation_correction_z', 180.0)  # Default Z=180
+                
                 em_projection = simulate_em_projection_from_pdb(
                     self.pdb_data,
                     pose,  # Euler angles [phi, theta, psi] in radians
                     output_size=(box_size, box_size),
                     pixel_size=pixel_size,
                     atom_radius=2.0,  # 2 Angstrom atom radius
-                    use_eman2=True  # Try EMAN2 first
+                    use_eman2=True,  # Try EMAN2 first
+                    rotation_correction_x=rotation_correction_x,
+                    rotation_correction_y=rotation_correction_y,
+                    rotation_correction_z=rotation_correction_z
                 )
                 print(f"EM simulation complete for particle {particle_idx+1}, projection shape: {em_projection.shape}")
                 
