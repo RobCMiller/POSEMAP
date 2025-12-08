@@ -5018,34 +5018,10 @@ color #1 & nucleic #62466B
                 print(f"  Array coords (col, row): ({array_x_center}, {array_y_center})")
                 print(f"  Verification: display_y={y_pixel:.2f} -> array_row={array_y_center} (should be {mg_height - 1 - int(round(y_pixel))})")
                 
-                # Calculate extraction bounds in array coordinates
-                # Extract a square box_size x box_size region centered at the particle
-                half_box = box_size // 2
-                array_x_min = max(0, array_x_center - half_box)
-                array_x_max = min(mg_width, array_x_center + half_box)
-                array_y_min = max(0, array_y_center - half_box)
-                array_y_max = min(mg_height, array_y_center + half_box)
-                
-                print(f"  Extraction bounds: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
-                
-                # Extract region: array[row, col] = array[y, x]
-                # Use original_micrograph (not current_micrograph which may be enhanced)
-                # We'll apply enhancements separately
                 # Verify we're extracting from the correct micrograph
                 if self.original_micrograph is None:
                     raise ValueError("original_micrograph is None - micrograph not loaded")
                 print(f"  Original micrograph shape: {self.original_micrograph.shape}")
-                print(f"  Extracting from array coords: y=[{array_y_min}:{array_y_max}], x=[{array_x_min}:{array_x_max}]")
-                
-                # Verify particle center is within extraction bounds
-                if array_x_center < array_x_min or array_x_center >= array_x_max or \
-                   array_y_center < array_y_min or array_y_center >= array_y_max:
-                    print(f"  WARNING: Particle center ({array_x_center}, {array_y_center}) is outside extraction bounds!")
-                
-                # Check pixel value at particle center in original micrograph
-                if 0 <= array_y_center < mg_height and 0 <= array_x_center < mg_width:
-                    center_value = self.original_micrograph[array_y_center, array_x_center]
-                    print(f"  Pixel value at particle center in original micrograph: {center_value:.3f}")
                 
                 # SIMPLE EXTRACTION: Extract a square box_size x box_size region centered on the particle
                 # This is like a "hole punch" - extract exactly box_size x box_size pixels
@@ -5089,20 +5065,18 @@ color #1 & nucleic #62466B
                     local_center_value = mg_extracted[local_y, local_x]
                     print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={local_center_value:.3f}")
                 
-                # Create output array - resize extracted region to exactly box_size x box_size if needed
-                if mg_extracted.shape == (box_size, box_size):
-                    # Perfect - already the right size
-                    mg_output = mg_extracted.copy()
-                else:
-                    # Need to resize or pad to get exactly box_size x box_size
-                    # Use interpolation to resize if needed
-                    from scipy.ndimage import zoom
-                    if actual_w != box_size or actual_h != box_size:
-                        zoom_y = box_size / actual_h
-                        zoom_x = box_size / actual_w
-                        mg_output = zoom(mg_extracted, (zoom_y, zoom_x), order=1)
-                    else:
-                        mg_output = mg_extracted.copy()
+                # Create output array - pad or crop to exactly box_size x box_size
+                mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
+                
+                # Calculate where to place the extracted region in the output array
+                # If extraction was clipped at edges, center the extracted region in the output
+                pad_x = (box_size - extracted_w) // 2
+                pad_y = (box_size - extracted_h) // 2
+                
+                # Place extracted region in output array
+                mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
+                
+                print(f"  Output shape: {mg_output.shape}, padding: x={pad_x}, y={pad_y}")
                 
                 # IMPORTANT: DO NOT flip here - let origin='lower' handle the orientation
                 # The main display uses origin='lower', which means array row 0 (top) is displayed at bottom
