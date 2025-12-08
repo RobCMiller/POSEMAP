@@ -139,28 +139,17 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     y_coords -= center_out[0]
     x_coords -= center_out[1]
     
-    # Scale coordinates to match the physical size of the volume
-    # The volume represents a physical space in Angstroms
-    # Volume shape is [z, y, x], and pixel_size gives Angstroms per voxel
-    # The volume was created with a specific pixel_size, so each voxel represents pixel_size Angstroms
-    # We want the projection to match the micrograph scale, so we need to ensure
-    # the projection plane coordinates are in the same physical units
-    
-    # The volume's physical extent in Angstroms
-    vol_physical_size = np.array([volume.shape[0], volume.shape[1], volume.shape[2]]) * pixel_size
-    max_vol_extent = np.max(vol_physical_size)
-    
-    # The projection output size in pixels, each representing pixel_size Angstroms
-    # So the projection's physical extent is:
-    projection_physical_extent = max(h, w) * pixel_size
-    
-    # We want the volume to fill the projection, so scale the projection coordinates
-    # to match the volume's physical extent
-    # If volume is 200 Å and projection is 256 pixels at 1.1 Å/pixel = 281.6 Å,
-    # we need to scale coordinates by 200/281.6 = 0.71
-    scale = max_vol_extent / projection_physical_extent
-    y_coords *= scale
-    x_coords *= scale
+    # Scale coordinates to match the physical size
+    # The volume was created with pixel_size, so each voxel = pixel_size Angstroms
+    # The projection output is in pixels, each representing pixel_size Angstroms
+    # So we need to scale the projection coordinates to match the volume's coordinate system
+    # The volume spans from -half_size to +half_size in Angstroms (centered at structure COM)
+    # The projection coordinates are in pixels, so we need to convert to Angstroms
+    # Each pixel in the projection = pixel_size Angstroms
+    # So: projection_coord_in_angstroms = projection_coord_in_pixels * pixel_size
+    # The volume's coordinate system is in Angstroms, so we need to scale by pixel_size
+    y_coords *= pixel_size
+    x_coords *= pixel_size
     
     # Create 3D coordinates (z=0 for projection plane)
     coords_2d = np.stack([x_coords.flatten(), y_coords.flatten(), 

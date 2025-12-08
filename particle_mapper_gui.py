@@ -4916,17 +4916,41 @@ color #1 & nucleic #62466B
                     micrograph_shape = self.current_micrograph.shape
                 
                 # Calculate particle center in pixel coordinates
+                # Use EXACT same calculation as main display to ensure consistency
                 mg_height, mg_width = micrograph_shape[0], micrograph_shape[1]
                 x_pixel = center_x_frac * mg_width
                 y_pixel = center_y_frac * mg_height
                 
-                # Apply shifts
+                # Apply shifts (same as main display)
                 x_pixel += shift[0] / pixel_size
                 y_pixel += shift[1] / pixel_size
                 
-                # Apply fine-tuning offsets
-                x_pixel += self.projection_offset_x
-                y_pixel += self.projection_offset_y
+                # Calculate auto COM offset if enabled (same as main display)
+                auto_offset_x = 0.0
+                auto_offset_y = 0.0
+                if hasattr(self, 'auto_correct_com_offset') and self.auto_correct_com_offset:
+                    if self.pdb_data is not None:
+                        try:
+                            if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > particle_idx:
+                                pixel_size_for_com = self.current_particles['pixel_size'][particle_idx]
+                            else:
+                                try:
+                                    pixel_size_for_com = float(self.pixel_size_entry.get().strip())
+                                except (ValueError, AttributeError):
+                                    pixel_size_for_com = pixel_size
+                            
+                            auto_offset_x, auto_offset_y = calculate_com_offset_correction(
+                                self.pdb_data, pose,
+                                (x_pixel, y_pixel), pixel_size_for_com, self.projection_size,
+                                shifts_angstroms=(shift[0], shift[1])
+                            )
+                        except Exception as e:
+                            # If calculation fails, use zero offset
+                            pass
+                
+                # Apply fine-tuning offsets and auto offsets (same as main display)
+                center_x = x_pixel + self.projection_offset_x + auto_offset_x
+                center_y = y_pixel + self.projection_offset_y + auto_offset_y
                 
                 # Get box size from GUI entry (default 256)
                 try:
@@ -4949,35 +4973,35 @@ color #1 & nucleic #62466B
                 y_max = int(min(mg_height, y_pixel + half_size))
                 
                 # Extract region from micrograph
+                # Use center_x and center_y (same as main display uses for projection extent)
                 # Micrograph array: stored as [height, width] = [rows, cols]
                 # Array indexing: row 0 is top, row (height-1) is bottom
                 # Display coordinates (origin='lower'): y=0 is bottom, y=height is top
-                # Particle center (x_pixel, y_pixel) is in display coordinates
-                # Fractional coordinates: (0,0) is bottom-left, (1,1) is top-right
-                # So: y_frac=0 -> y_pixel=0 (bottom) -> array_row=height-1
-                #     y_frac=1 -> y_pixel=height (top) -> array_row=0
-                # To convert from display y_pixel to array row:
-                #   array_row = mg_height - 1 - int(round(y_pixel))
-                # But we need to be careful: y_pixel can be > mg_height due to shifts
-                # Extract square region centered at particle
-                array_x_center = int(round(x_pixel))
-                # Convert display y (0=bottom) to array row (0=top)
-                display_y_center = int(round(y_pixel))
-                array_y_center = mg_height - 1 - display_y_center
+                # center_x and center_y are in display coordinates (same as used for projection extent)
+                # To convert from display y (0=bottom) to array row (0=top):
+                #   array_row = mg_height - 1 - int(round(display_y))
                 
                 # Debug output
                 print(f"Particle {particle_idx+1} extraction:")
                 print(f"  Fractional coords: ({center_x_frac:.4f}, {center_y_frac:.4f})")
-                print(f"  Pixel coords (display): ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"  Array coords: ({array_x_center}, {array_y_center})")
+                print(f"  Base pixel coords: ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"  Final center (with offsets): ({center_x:.2f}, {center_y:.2f})")
                 print(f"  Micrograph shape: {mg_height} x {mg_width}")
                 print(f"  Box size: {box_size}")
                 
+                # Convert display coordinates to array coordinates
+                array_x_center = int(round(center_x))
+                # Convert display y (0=bottom) to array row (0=top)
+                array_y_center = mg_height - 1 - int(round(center_y))
+                
+                print(f"  Array coords: ({array_x_center}, {array_y_center})")
+                
                 # Calculate extraction bounds in array coordinates
-                array_x_min = max(0, array_x_center - box_size // 2)
-                array_x_max = min(mg_width, array_x_center + box_size // 2)
-                array_y_min = max(0, array_y_center - box_size // 2)
-                array_y_max = min(mg_height, array_y_center + box_size // 2)
+                half_box = box_size // 2
+                array_x_min = max(0, array_x_center - half_box)
+                array_x_max = min(mg_width, array_x_center + half_box)
+                array_y_min = max(0, array_y_center - half_box)
+                array_y_max = min(mg_height, array_y_center + half_box)
                 
                 print(f"  Extraction bounds: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
                 
