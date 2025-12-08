@@ -4967,27 +4967,28 @@ color #1 & nucleic #62466B
                     box_size = 256  # Default
                 
                 # Extract region from micrograph
-                # Use center_x and center_y (same as main display uses for projection extent)
+                # IMPORTANT: Use x_pixel, y_pixel (particle center) NOT center_x, center_y (projection center)
+                # The projection offsets are for aligning the projection, not for finding the particle
                 # Micrograph array: stored as [height, width] = [rows, cols]
                 # Array indexing: row 0 is top, row (height-1) is bottom
                 # Display coordinates (origin='lower'): y=0 is bottom, y=height is top
-                # center_x and center_y are in display coordinates (same as used for projection extent)
+                # x_pixel and y_pixel are the actual particle center in display coordinates
                 # To convert from display y (0=bottom) to array row (0=top):
                 #   array_row = mg_height - 1 - int(round(display_y))
                 
                 # Debug output
                 print(f"Particle {particle_idx+1} extraction:")
                 print(f"  Fractional coords: ({center_x_frac:.4f}, {center_y_frac:.4f})")
-                print(f"  Base pixel coords: ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"  Final center (with offsets): ({center_x:.2f}, {center_y:.2f})")
+                print(f"  Particle center (after shifts): ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"  Projection center (with offsets): ({center_x:.2f}, {center_y:.2f})")
                 print(f"  Micrograph shape: {mg_height} x {mg_width}")
                 print(f"  Box size: {box_size}")
                 
                 # Convert display coordinates to array coordinates
-                # center_x and center_y are the EXACT coordinates used for projection placement
-                array_x_center = int(round(center_x))
+                # Use x_pixel, y_pixel (actual particle center) for extraction
+                array_x_center = int(round(x_pixel))
                 # Convert display y (0=bottom) to array row (0=top)
-                array_y_center = mg_height - 1 - int(round(center_y))
+                array_y_center = mg_height - 1 - int(round(y_pixel))
                 
                 print(f"  Array coords: ({array_x_center}, {array_y_center})")
                 
