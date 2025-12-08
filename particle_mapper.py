@@ -346,7 +346,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         raise ImportError("EMAN2 is not available. Please install EMAN2 or use the fallback method.")
     
     # Convert PDB to density map first
-    volume, _, _ = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0)
+    volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0)
     
     # Convert numpy array to EMAN2 EMData
     # EMAN2 expects [nx, ny, nz] format
