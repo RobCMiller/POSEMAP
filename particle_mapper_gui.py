@@ -522,6 +522,17 @@ class ParticleMapperGUI:
                   command=self.auto_scale_projection_size).pack(side=tk.LEFT)
         ttk.Label(pixel_frame, text="(for automatic projection sizing)", 
                  font=('TkDefaultFont', 8), foreground='gray').pack(side=tk.LEFT, padx=(5, 0))
+        
+        # Particle extraction box size for comparison
+        ttk.Label(files_frame, text="Particle Box Size (px):").pack(anchor=tk.W, pady=(10,0))
+        box_size_frame = ttk.Frame(files_frame)
+        box_size_frame.pack(fill=tk.X, pady=2)
+        self.particle_box_size_entry = ttk.Entry(box_size_frame, width=15)
+        self.particle_box_size_entry.pack(side=tk.LEFT, padx=(0, 5))
+        self.particle_box_size_entry.insert(0, "256")  # Default 256 pixels
+        ttk.Label(box_size_frame, text="(for particle extraction in comparison)", 
+                 font=('TkDefaultFont', 8), foreground='gray').pack(side=tk.LEFT, padx=(5, 0))
+        
         # Show auto-detection status if micrograph dir was auto-detected
         if hasattr(self, 'auto_detected_micrographs') and self.auto_detected_micrographs:
             auto_status = "✓ Auto-detected from ref_movies/ref_micrographs/ref_mics/"
@@ -4915,67 +4926,75 @@ color #1 & nucleic #62466B
             x_pixel += self.projection_offset_x
             y_pixel += self.projection_offset_y
             
-            # Extract micrograph region (left side)
-            box_size = self.projection_size
+            # Get box size from GUI entry (default 256)
+            try:
+                box_size = int(self.particle_box_size_entry.get().strip())
+                if box_size < 32:
+                    box_size = 256  # Minimum reasonable size
+                if box_size > 1024:
+                    box_size = 1024  # Maximum reasonable size
+            except (ValueError, AttributeError):
+                box_size = 256  # Default
+            
             half_size = box_size / 2.0
             
             # Calculate extraction bounds (in micrograph coordinates)
+            # Note: micrograph is stored as [height, width]
+            # x_pixel and y_pixel are in micrograph pixel coordinates
             x_min = int(max(0, x_pixel - half_size))
             x_max = int(min(mg_width, x_pixel + half_size))
             y_min = int(max(0, y_pixel - half_size))
             y_max = int(min(mg_height, y_pixel + half_size))
             
             # Extract region from micrograph
-            # Note: micrograph is stored as [height, width], and y increases upward
-            # Matplotlib convention: origin at bottom-left, so we need to flip Y
+            # Micrograph array indexing: [row, col] = [y, x]
+            # y increases downward in array, but upward in micrograph coordinates
+            # So we need: mg[mg_height - y_max : mg_height - y_min, x_min : x_max]
             mg_extracted = self.current_micrograph[mg_height - y_max:mg_height - y_min, x_min:x_max]
             
-            # Resize to exact box_size if needed (if near edges)
-            if mg_extracted.shape[0] != box_size or mg_extracted.shape[1] != box_size:
-                from PIL import Image
-                mg_pil = Image.fromarray(mg_extracted)
-                mg_pil = mg_pil.resize((box_size, box_size), Image.Resampling.LANCZOS)
-                mg_extracted = np.array(mg_pil)
+            # Create output array and pad if needed (if near edges)
+            mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
+            extracted_h, extracted_w = mg_extracted.shape
+            
+            # Calculate padding offsets
+            pad_y = (box_size - extracted_h) // 2
+            pad_x = (box_size - extracted_w) // 2
+            
+            # Place extracted region in center of output
+            mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
             
             # Normalize micrograph region to [0, 1] for display
-            if mg_extracted.max() > mg_extracted.min():
-                mg_extracted_norm = (mg_extracted - mg_extracted.min()) / (mg_extracted.max() - mg_extracted.min())
+            if mg_output.max() > mg_output.min():
+                mg_extracted_norm = (mg_output - mg_output.min()) / (mg_output.max() - mg_output.min())
             else:
-                mg_extracted_norm = mg_extracted.copy()
+                mg_extracted_norm = mg_output.copy().astype(np.float32)
             
-            # Generate PyMOL projection (right side)
-            projection = self._generate_pdb_projection_for_particle(
-                particle_idx, pose, output_size=(self.projection_size, self.projection_size)
+            # Generate simulated EM projection (right side)
+            # This simulates what the EM image would look like from this view
+            em_projection = simulate_em_projection_from_pdb(
+                self.pdb_data,
+                pose,
+                output_size=(box_size, box_size),
+                pixel_size=pixel_size,
+                atom_radius=2.0  # 2 Angstrom atom radius
             )
             
-            # Convert projection to grayscale for comparison (if it's RGBA)
-            if len(projection.shape) == 3 and projection.shape[2] == 4:
-                # Convert RGBA to grayscale
-                # Use alpha channel to mask background
-                alpha = projection[:, :, 3:4]
-                rgb = projection[:, :, :3]
-                # Weighted average for grayscale: 0.299*R + 0.587*G + 0.114*B
-                proj_gray = (0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2])
-                # Apply alpha mask (set background to 0)
-                proj_gray = proj_gray * alpha[:, :, 0]
-                # Normalize to [0, 1]
-                if proj_gray.max() > 0:
-                    proj_gray = proj_gray / proj_gray.max()
+            # Normalize EM projection to [0, 1] for display
+            if em_projection.max() > em_projection.min():
+                em_proj_norm = (em_projection - em_projection.min()) / (em_projection.max() - em_projection.min())
             else:
-                proj_gray = projection.copy()
-                if proj_gray.max() > proj_gray.min():
-                    proj_gray = (proj_gray - proj_gray.min()) / (proj_gray.max() - proj_gray.min())
+                em_proj_norm = em_projection.copy().astype(np.float32)
             
             # Create side-by-side image
             comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
-            # Left side: micrograph (grayscale -> RGB)
+            # Left side: actual micrograph (grayscale -> RGB)
             comparison[:, :box_size, 0] = mg_extracted_norm
             comparison[:, :box_size, 1] = mg_extracted_norm
             comparison[:, :box_size, 2] = mg_extracted_norm
-            # Right side: projection (grayscale -> RGB)
-            comparison[:, box_size:, 0] = proj_gray
-            comparison[:, box_size:, 1] = proj_gray
-            comparison[:, box_size:, 2] = proj_gray
+            # Right side: simulated EM projection (grayscale -> RGB)
+            comparison[:, box_size:, 0] = em_proj_norm
+            comparison[:, box_size:, 1] = em_proj_norm
+            comparison[:, box_size:, 2] = em_proj_norm
             
             # Create new window to display comparison
             comparison_window = tk.Toplevel(self.root)

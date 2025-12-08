@@ -209,6 +209,135 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     return projection
 
 
+def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0, 
+                       grid_size: Optional[int] = None,
+                       atom_radius: float = 2.0) -> Tuple[np.ndarray, float]:
+    """
+    Convert PDB atomic coordinates to a 3D density map.
+    
+    Voxelizes atoms as Gaussian blobs to create a density map suitable for EM simulation.
+    
+    Parameters:
+    -----------
+    pdb_data : dict
+        PDB structure data from load_pdb_structure()
+    pixel_size : float
+        Pixel size in Angstroms for the density map
+    grid_size : int, optional
+        Size of the cubic grid. If None, auto-calculated from structure extent
+    atom_radius : float
+        Radius of atoms in Angstroms for Gaussian blob (default 2.0 Å)
+        
+    Returns:
+    --------
+    volume : np.ndarray
+        3D density map as [z, y, x] array
+    pixel_size : float
+        Pixel size used (same as input)
+    """
+    coords = pdb_data['coords']
+    
+    if len(coords) == 0:
+        raise ValueError("No coordinates in PDB data")
+    
+    # Calculate bounding box
+    min_coords = coords.min(axis=0)
+    max_coords = coords.max(axis=0)
+    extent = max_coords - min_coords
+    center = (min_coords + max_coords) / 2.0
+    
+    # Auto-calculate grid size if not provided
+    if grid_size is None:
+        # Add padding (20% on each side)
+        max_extent = np.max(extent) * 1.4
+        grid_size = int(np.ceil(max_extent / pixel_size))
+        # Make it a reasonable size (round up to nearest 32 for efficiency)
+        grid_size = ((grid_size + 31) // 32) * 32
+    
+    # Create coordinate grid
+    half_size = grid_size / 2.0 * pixel_size
+    x = np.linspace(center[0] - half_size, center[0] + half_size, grid_size)
+    y = np.linspace(center[1] - half_size, center[1] + half_size, grid_size)
+    z = np.linspace(center[2] - half_size, center[2] + half_size, grid_size)
+    
+    # Initialize volume
+    volume = np.zeros((grid_size, grid_size, grid_size), dtype=np.float32)
+    
+    # Voxelize atoms as Gaussian blobs
+    # Use a more efficient approach: for each atom, add Gaussian contribution
+    sigma = atom_radius / pixel_size  # Convert radius to pixels
+    sigma_sq = sigma * sigma
+    
+    # For efficiency, only add contributions within 3*sigma
+    cutoff = int(np.ceil(3 * sigma))
+    
+    for atom_coord in coords:
+        # Find closest grid point
+        x_idx = np.argmin(np.abs(x - atom_coord[0]))
+        y_idx = np.argmin(np.abs(y - atom_coord[1]))
+        z_idx = np.argmin(np.abs(z - atom_coord[2]))
+        
+        # Add Gaussian blob around this atom
+        for dz in range(-cutoff, cutoff + 1):
+            for dy in range(-cutoff, cutoff + 1):
+                for dx in range(-cutoff, cutoff + 1):
+                    z_i = z_idx + dz
+                    y_i = y_idx + dy
+                    x_i = x_idx + dx
+                    
+                    if 0 <= z_i < grid_size and 0 <= y_i < grid_size and 0 <= x_i < grid_size:
+                        # Calculate distance from atom center
+                        grid_x = x[x_i]
+                        grid_y = y[y_i]
+                        grid_z = z[z_i]
+                        
+                        dist_sq = ((grid_x - atom_coord[0])**2 + 
+                                  (grid_y - atom_coord[1])**2 + 
+                                  (grid_z - atom_coord[2])**2)
+                        
+                        # Gaussian contribution
+                        contribution = np.exp(-dist_sq / (2 * sigma_sq))
+                        volume[z_i, y_i, x_i] += contribution
+    
+    return volume, pixel_size
+
+
+def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
+                                    output_size: Tuple[int, int],
+                                    pixel_size: float = 1.0,
+                                    atom_radius: float = 2.0) -> np.ndarray:
+    """
+    Simulate an EM projection from a PDB structure.
+    
+    Converts PDB to density map, then projects it at the given orientation.
+    This produces a simulated EM image that can be compared to actual micrograph data.
+    
+    Parameters:
+    -----------
+    pdb_data : dict
+        PDB structure data from load_pdb_structure()
+    euler_angles : np.ndarray
+        Euler angles [phi, theta, psi] in radians (ZYZ convention)
+    output_size : tuple
+        Output projection size (height, width) in pixels
+    pixel_size : float
+        Pixel size in Angstroms
+    atom_radius : float
+        Radius of atoms in Angstroms for density map generation
+        
+    Returns:
+    --------
+    np.ndarray : 2D projection (simulated EM image)
+    """
+    # Convert PDB to density map
+    volume, _ = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius)
+    
+    # Project the volume
+    projection = project_volume(volume, euler_angles, output_size=output_size, pixel_size=pixel_size)
+    
+    return projection
+
+
 def get_particle_orientation_arrow(euler_angles: np.ndarray, length: float = 50.0) -> Tuple[np.ndarray, np.ndarray]:
     """
     Get arrow direction for visualizing particle viewing direction.
