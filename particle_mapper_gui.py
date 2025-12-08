@@ -4907,97 +4907,102 @@ color #1 & nucleic #62466B
                         pixel_size = float(self.pixel_size_entry.get().strip())
                     except (ValueError, AttributeError):
                         pixel_size = 1.1  # Default
-            
-            # Get micrograph shape - use the stored shape (singular, not array)
-            if 'micrograph_shape' in self.current_particles and self.current_particles['micrograph_shape'] is not None:
-                micrograph_shape = self.current_particles['micrograph_shape']
-            else:
-                # Fall back to actual micrograph dimensions
-                micrograph_shape = self.current_micrograph.shape
-            
-            # Calculate particle center in pixel coordinates
-            mg_height, mg_width = micrograph_shape[0], micrograph_shape[1]
-            x_pixel = center_x_frac * mg_width
-            y_pixel = center_y_frac * mg_height
-            
-            # Apply shifts
-            x_pixel += shift[0] / pixel_size
-            y_pixel += shift[1] / pixel_size
-            
-            # Apply fine-tuning offsets
-            x_pixel += self.projection_offset_x
-            y_pixel += self.projection_offset_y
-            
-            # Get box size from GUI entry (default 256)
-            try:
-                box_size = int(self.particle_box_size_entry.get().strip())
-                if box_size < 32:
-                    box_size = 256  # Minimum reasonable size
-                if box_size > 1024:
-                    box_size = 1024  # Maximum reasonable size
-            except (ValueError, AttributeError):
-                box_size = 256  # Default
-            
-            half_size = box_size / 2.0
-            
-            # Calculate extraction bounds (in micrograph coordinates)
-            # Note: micrograph is stored as [height, width]
-            # x_pixel and y_pixel are in micrograph pixel coordinates
-            x_min = int(max(0, x_pixel - half_size))
-            x_max = int(min(mg_width, x_pixel + half_size))
-            y_min = int(max(0, y_pixel - half_size))
-            y_max = int(min(mg_height, y_pixel + half_size))
-            
-            # Extract region from micrograph
-            # Micrograph array indexing: [row, col] = [y, x]
-            # y increases downward in array, but upward in micrograph coordinates
-            # So we need: mg[mg_height - y_max : mg_height - y_min, x_min : x_max]
-            mg_extracted = self.current_micrograph[mg_height - y_max:mg_height - y_min, x_min:x_max]
-            
-            # Create output array and pad if needed (if near edges)
-            mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
-            extracted_h, extracted_w = mg_extracted.shape
-            
-            # Calculate padding offsets
-            pad_y = (box_size - extracted_h) // 2
-            pad_x = (box_size - extracted_w) // 2
-            
-            # Place extracted region in center of output
-            mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
-            
-            # Normalize micrograph region to [0, 1] for display
-            if mg_output.max() > mg_output.min():
-                mg_extracted_norm = (mg_output - mg_output.min()) / (mg_output.max() - mg_output.min())
-            else:
-                mg_extracted_norm = mg_output.copy().astype(np.float32)
-            
-            # Generate simulated EM projection (right side)
-            # This simulates what the EM image would look like from this view
-            em_projection = simulate_em_projection_from_pdb(
-                self.pdb_data,
-                pose,
-                output_size=(box_size, box_size),
-                pixel_size=pixel_size,
-                atom_radius=2.0  # 2 Angstrom atom radius
-            )
-            
-            # Normalize EM projection to [0, 1] for display
-            if em_projection.max() > em_projection.min():
-                em_proj_norm = (em_projection - em_projection.min()) / (em_projection.max() - em_projection.min())
-            else:
-                em_proj_norm = em_projection.copy().astype(np.float32)
-            
-            # Create side-by-side image
-            comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
-            # Left side: actual micrograph (grayscale -> RGB)
-            comparison[:, :box_size, 0] = mg_extracted_norm
-            comparison[:, :box_size, 1] = mg_extracted_norm
-            comparison[:, :box_size, 2] = mg_extracted_norm
-            # Right side: simulated EM projection (grayscale -> RGB)
-            comparison[:, box_size:, 0] = em_proj_norm
-            comparison[:, box_size:, 1] = em_proj_norm
-            comparison[:, box_size:, 2] = em_proj_norm
-            
+                
+                # Get micrograph shape - use the stored shape (singular, not array)
+                if 'micrograph_shape' in self.current_particles and self.current_particles['micrograph_shape'] is not None:
+                    micrograph_shape = self.current_particles['micrograph_shape']
+                else:
+                    # Fall back to actual micrograph dimensions
+                    micrograph_shape = self.current_micrograph.shape
+                
+                # Calculate particle center in pixel coordinates
+                mg_height, mg_width = micrograph_shape[0], micrograph_shape[1]
+                x_pixel = center_x_frac * mg_width
+                y_pixel = center_y_frac * mg_height
+                
+                # Apply shifts
+                x_pixel += shift[0] / pixel_size
+                y_pixel += shift[1] / pixel_size
+                
+                # Apply fine-tuning offsets
+                x_pixel += self.projection_offset_x
+                y_pixel += self.projection_offset_y
+                
+                # Get box size from GUI entry (default 256)
+                try:
+                    box_size = int(self.particle_box_size_entry.get().strip())
+                    if box_size < 32:
+                        box_size = 256  # Minimum reasonable size
+                    if box_size > 1024:
+                        box_size = 1024  # Maximum reasonable size
+                except (ValueError, AttributeError):
+                    box_size = 256  # Default
+                
+                half_size = box_size / 2.0
+                
+                # Calculate extraction bounds (in micrograph coordinates)
+                # Note: micrograph is stored as [height, width]
+                # x_pixel and y_pixel are in micrograph pixel coordinates
+                x_min = int(max(0, x_pixel - half_size))
+                x_max = int(min(mg_width, x_pixel + half_size))
+                y_min = int(max(0, y_pixel - half_size))
+                y_max = int(min(mg_height, y_pixel + half_size))
+                
+                # Extract region from micrograph
+                # Micrograph array indexing: [row, col] = [y, x]
+                # y increases downward in array, but upward in micrograph coordinates
+                # So we need: mg[mg_height - y_max : mg_height - y_min, x_min : x_max]
+                mg_extracted = self.current_micrograph[mg_height - y_max:mg_height - y_min, x_min:x_max]
+                
+                # Create output array and pad if needed (if near edges)
+                mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
+                extracted_h, extracted_w = mg_extracted.shape
+                
+                # Calculate padding offsets
+                pad_y = (box_size - extracted_h) // 2
+                pad_x = (box_size - extracted_w) // 2
+                
+                # Place extracted region in center of output
+                mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
+                
+                # Normalize micrograph region to [0, 1] for display
+                if mg_output.max() > mg_output.min():
+                    mg_extracted_norm = (mg_output - mg_output.min()) / (mg_output.max() - mg_output.min())
+                else:
+                    mg_extracted_norm = mg_output.copy().astype(np.float32)
+                
+                # Update status
+                self.root.after(0, lambda: self.status_var.set(f"Generating density map for particle {particle_idx+1}..."))
+                
+                # Generate simulated EM projection (right side)
+                # This simulates what the EM image would look like from this view
+                print(f"Generating EM simulation for particle {particle_idx+1}...")
+                em_projection = simulate_em_projection_from_pdb(
+                    self.pdb_data,
+                    pose,
+                    output_size=(box_size, box_size),
+                    pixel_size=pixel_size,
+                    atom_radius=2.0  # 2 Angstrom atom radius
+                )
+                print(f"EM simulation complete for particle {particle_idx+1}")
+                
+                # Normalize EM projection to [0, 1] for display
+                if em_projection.max() > em_projection.min():
+                    em_proj_norm = (em_projection - em_projection.min()) / (em_projection.max() - em_projection.min())
+                else:
+                    em_proj_norm = em_projection.copy().astype(np.float32)
+                
+                # Create side-by-side image
+                comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
+                # Left side: actual micrograph (grayscale -> RGB)
+                comparison[:, :box_size, 0] = mg_extracted_norm
+                comparison[:, :box_size, 1] = mg_extracted_norm
+                comparison[:, :box_size, 2] = mg_extracted_norm
+                # Right side: simulated EM projection (grayscale -> RGB)
+                comparison[:, box_size:, 0] = em_proj_norm
+                comparison[:, box_size:, 1] = em_proj_norm
+                comparison[:, box_size:, 2] = em_proj_norm
+                
                 # Create window in main thread
                 def create_window():
                     comparison_window = tk.Toplevel(self.root)
