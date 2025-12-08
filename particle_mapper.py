@@ -238,6 +238,10 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     """
     coords = pdb_data['coords']
     
+    # Ensure coords is a numpy array
+    if not isinstance(coords, np.ndarray):
+        coords = np.array(coords)
+    
     if len(coords) == 0:
         raise ValueError("No coordinates in PDB data")
     
@@ -275,7 +279,12 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     # Add atoms to volume (simple point placement)
     # Use bincount for fast accumulation
     flat_indices = z_indices * grid_size * grid_size + y_indices * grid_size + x_indices
-    np.add.at(volume.flat, flat_indices, 1.0)
+    # Ensure flat_indices is a numpy array
+    flat_indices = np.asarray(flat_indices, dtype=np.int64)
+    # Use ravel() instead of .flat for np.add.at
+    volume_flat = volume.ravel()
+    np.add.at(volume_flat, flat_indices, 1.0)
+    volume = volume_flat.reshape(volume.shape)
     
     # Apply Gaussian filter to create smooth density blobs
     # This is much faster than computing Gaussian for each atom individually
