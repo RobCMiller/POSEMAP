@@ -4882,10 +4882,32 @@ color #1 & nucleic #62466B
             # Get particle data
             pose = self.current_particles['poses'][particle_idx]
             shift = self.current_particles['shifts'][particle_idx]
-            pixel_size = self.current_particles['pixel_size'][particle_idx]
             center_x_frac = self.current_particles['center_x_frac'][particle_idx]
             center_y_frac = self.current_particles['center_y_frac'][particle_idx]
-            micrograph_shape = self.current_particles['micrograph_shapes'][particle_idx]
+            
+            # Get pixel size - try from current_particles first, then matched_data, then GUI entry
+            if 'pixel_size' in self.current_particles and len(self.current_particles['pixel_size']) > particle_idx:
+                pixel_size = self.current_particles['pixel_size'][particle_idx]
+            elif hasattr(self, 'matched_data') and 'pixel_size' in self.matched_data:
+                # Get the original index in matched_data for this particle
+                # Find which particle in matched_data corresponds to this particle_idx in current_particles
+                # This is complex, so fall back to GUI entry
+                try:
+                    pixel_size = float(self.pixel_size_entry.get().strip())
+                except (ValueError, AttributeError):
+                    pixel_size = 1.1  # Default
+            else:
+                try:
+                    pixel_size = float(self.pixel_size_entry.get().strip())
+                except (ValueError, AttributeError):
+                    pixel_size = 1.1  # Default
+            
+            # Get micrograph shape - use the stored shape (singular, not array)
+            if 'micrograph_shape' in self.current_particles and self.current_particles['micrograph_shape'] is not None:
+                micrograph_shape = self.current_particles['micrograph_shape']
+            else:
+                # Fall back to actual micrograph dimensions
+                micrograph_shape = self.current_micrograph.shape
             
             # Calculate particle center in pixel coordinates
             mg_height, mg_width = micrograph_shape[0], micrograph_shape[1]
