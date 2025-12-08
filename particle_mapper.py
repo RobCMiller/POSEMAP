@@ -275,12 +275,13 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
         grid_size = int(np.ceil(max_extent / pixel_size))
         # Make it a reasonable size (round up to nearest 32 for efficiency)
         grid_size = ((grid_size + 31) // 32) * 32
-        # Limit maximum size for performance
-        grid_size = min(grid_size, 256)  # Max 256^3 for reasonable speed
+        # Limit maximum size for performance, but allow larger for better quality
+        grid_size = min(grid_size, 512)  # Max 512^3 for reasonable speed
     
     # Create coordinate grid centered at structure center
     # The grid should span the structure with some padding
-    # Use the actual extent plus padding to determine grid size
+    # Calculate the actual extent we need to cover
+    max_extent = np.max(extent) * 1.8  # Same as used for grid_size calculation
     padding = max_extent * 0.2  # 20% padding on each side
     half_size = (max_extent / 2.0) + padding
     x = np.linspace(center[0] - half_size, center[0] + half_size, grid_size)
@@ -344,11 +345,17 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     """
     # Convert PDB to density map
     # Use the same pixel_size for the density map as the micrograph
-    # This ensures the scale matches
-    volume, _ = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius)
+    # This ensures the scale matches - each voxel in the density map represents
+    # the same physical size (pixel_size Angstroms) as each pixel in the micrograph
+    volume, volume_pixel_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius)
+    
+    # Verify pixel sizes match
+    if abs(volume_pixel_size - pixel_size) > 0.001:
+        print(f"Warning: Volume pixel size ({volume_pixel_size}) doesn't match requested ({pixel_size})")
     
     # Project the volume at the same pixel size
     # This ensures the projection scale matches the micrograph
+    # The output_size is in pixels, and each pixel represents pixel_size Angstroms
     projection = project_volume(volume, euler_angles, output_size=output_size, pixel_size=pixel_size)
     
     return projection
