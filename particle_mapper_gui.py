@@ -5019,6 +5019,11 @@ color #1 & nucleic #62466B
                 # Place extracted region in center of output
                 mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
                 
+                # IMPORTANT: Flip vertically to match display orientation
+                # The micrograph array has row 0 at top, but display uses origin='lower' (row 0 at bottom)
+                # So we need to flip the extracted region vertically
+                mg_output = np.flipud(mg_output)
+                
                 # Apply same image enhancements as main GUI
                 # Use the same low-pass filter, brightness, and contrast settings
                 # Pass pixel_size to ensure correct scaling

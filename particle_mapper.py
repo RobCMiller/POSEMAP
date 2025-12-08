@@ -156,7 +156,10 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     x_coords *= pixel_size
     
     # Create 3D coordinates (z=0 for projection plane)
+    # IMPORTANT: In cryo-EM, the beam direction is typically along the Z-axis
+    # The projection plane is the XY plane (z=0)
     # Coordinates are in Angstroms, centered at origin in projection plane
+    # Stack as [x, y, z] where z=0 for all projection plane points
     coords_2d = np.stack([x_coords.flatten(), y_coords.flatten(), 
                           np.zeros(h*w)], axis=1)
     
@@ -169,8 +172,12 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     
     # Debug: Check a sample of rotated coordinates to verify rotation is working
     sample_idx = h * w // 2  # Middle pixel
-    print(f"  DEBUG project_volume: Sample coord before rotation: ({coords_2d[sample_idx,0]:.2f}, {coords_2d[sample_idx,1]:.2f}, {coords_2d[sample_idx,2]:.2f})")
-    print(f"  DEBUG project_volume: Sample coord after rotation: ({coords_3d[sample_idx,0]:.2f}, {coords_3d[sample_idx,1]:.2f}, {coords_3d[sample_idx,2]:.2f})")
+    corner_idx = 0  # Top-left corner
+    center_idx = h * w // 2 + w // 2  # Center pixel
+    print(f"  DEBUG project_volume: Sample coord before rotation (corner): ({coords_2d[corner_idx,0]:.2f}, {coords_2d[corner_idx,1]:.2f}, {coords_2d[corner_idx,2]:.2f})")
+    print(f"  DEBUG project_volume: Sample coord after rotation (corner): ({coords_3d[corner_idx,0]:.2f}, {coords_3d[corner_idx,1]:.2f}, {coords_3d[corner_idx,2]:.2f})")
+    print(f"  DEBUG project_volume: Sample coord before rotation (center): ({coords_2d[center_idx,0]:.2f}, {coords_2d[center_idx,1]:.2f}, {coords_2d[center_idx,2]:.2f})")
+    print(f"  DEBUG project_volume: Sample coord after rotation (center): ({coords_3d[center_idx,0]:.2f}, {coords_3d[center_idx,1]:.2f}, {coords_3d[center_idx,2]:.2f})")
     
     # Convert from Angstroms (centered at origin) to voxel coordinates
     # Volume grid spans from -half_size to +half_size in Angstroms
@@ -237,6 +244,11 @@ def project_volume(volume: np.ndarray, euler_angles: np.ndarray,
     
     # Reshape to 2D
     projection = projection.reshape(h, w)
+    
+    # IMPORTANT: Flip vertically to match display orientation
+    # The projection is generated with y=0 at top (standard image convention)
+    # But we display with origin='lower' (y=0 at bottom), so flip vertically
+    projection = np.flipud(projection)
     
     return projection
 
