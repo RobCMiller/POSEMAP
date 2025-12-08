@@ -35,7 +35,7 @@ from particle_mapper import (
     fractional_to_pixel_coords, load_pdb_structure, project_pdb_structure,
     calculate_custom_vector_from_pdb, project_custom_vector,
     calculate_structure_com, calculate_com_offset_correction,
-    calculate_vector_from_two_points
+    calculate_vector_from_two_points, simulate_em_projection_from_pdb
 )
 from scipy.ndimage import gaussian_filter
 
