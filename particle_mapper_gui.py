@@ -4851,6 +4851,167 @@ color #1 & nucleic #62466B
         
         menu.tk_popup(x_tk, y_tk)
     
+    def compare_particle_projection(self, particle_idx):
+        """
+        Create a side-by-side comparison image showing:
+        - Left: Actual micrograph particle region (extracted like a particle extractor)
+        - Right: Simulated PyMOL projection
+        
+        This allows verification that the projection matching is correct.
+        """
+        if self.current_micrograph_idx is None or self.current_particles is None:
+            messagebox.showwarning("No Data", "No micrograph or particle data loaded.")
+            return
+        
+        if particle_idx >= len(self.current_particles['poses']):
+            messagebox.showwarning("Invalid Particle", f"Particle index {particle_idx} is out of range.")
+            return
+        
+        if self.current_micrograph is None:
+            messagebox.showwarning("No Micrograph", "No micrograph loaded.")
+            return
+        
+        if self.pdb_data is None:
+            messagebox.showwarning("No Structure", "No structure file loaded. Cannot generate projection.")
+            return
+        
+        try:
+            self.status_var.set(f"Generating comparison for particle {particle_idx+1}...")
+            self.root.update()
+            
+            # Get particle data
+            pose = self.current_particles['poses'][particle_idx]
+            shift = self.current_particles['shifts'][particle_idx]
+            pixel_size = self.current_particles['pixel_size'][particle_idx]
+            center_x_frac = self.current_particles['center_x_frac'][particle_idx]
+            center_y_frac = self.current_particles['center_y_frac'][particle_idx]
+            micrograph_shape = self.current_particles['micrograph_shapes'][particle_idx]
+            
+            # Calculate particle center in pixel coordinates
+            mg_height, mg_width = micrograph_shape[0], micrograph_shape[1]
+            x_pixel = center_x_frac * mg_width
+            y_pixel = center_y_frac * mg_height
+            
+            # Apply shifts
+            x_pixel += shift[0] / pixel_size
+            y_pixel += shift[1] / pixel_size
+            
+            # Apply fine-tuning offsets
+            x_pixel += self.projection_offset_x
+            y_pixel += self.projection_offset_y
+            
+            # Extract micrograph region (left side)
+            box_size = self.projection_size
+            half_size = box_size / 2.0
+            
+            # Calculate extraction bounds (in micrograph coordinates)
+            x_min = int(max(0, x_pixel - half_size))
+            x_max = int(min(mg_width, x_pixel + half_size))
+            y_min = int(max(0, y_pixel - half_size))
+            y_max = int(min(mg_height, y_pixel + half_size))
+            
+            # Extract region from micrograph
+            # Note: micrograph is stored as [height, width], and y increases upward
+            # Matplotlib convention: origin at bottom-left, so we need to flip Y
+            mg_extracted = self.current_micrograph[mg_height - y_max:mg_height - y_min, x_min:x_max]
+            
+            # Resize to exact box_size if needed (if near edges)
+            if mg_extracted.shape[0] != box_size or mg_extracted.shape[1] != box_size:
+                from PIL import Image
+                mg_pil = Image.fromarray(mg_extracted)
+                mg_pil = mg_pil.resize((box_size, box_size), Image.Resampling.LANCZOS)
+                mg_extracted = np.array(mg_pil)
+            
+            # Normalize micrograph region to [0, 1] for display
+            if mg_extracted.max() > mg_extracted.min():
+                mg_extracted_norm = (mg_extracted - mg_extracted.min()) / (mg_extracted.max() - mg_extracted.min())
+            else:
+                mg_extracted_norm = mg_extracted.copy()
+            
+            # Generate PyMOL projection (right side)
+            projection = self._generate_pdb_projection_for_particle(
+                particle_idx, pose, output_size=(self.projection_size, self.projection_size)
+            )
+            
+            # Convert projection to grayscale for comparison (if it's RGBA)
+            if len(projection.shape) == 3 and projection.shape[2] == 4:
+                # Convert RGBA to grayscale
+                # Use alpha channel to mask background
+                alpha = projection[:, :, 3:4]
+                rgb = projection[:, :, :3]
+                # Weighted average for grayscale: 0.299*R + 0.587*G + 0.114*B
+                proj_gray = (0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2])
+                # Apply alpha mask (set background to 0)
+                proj_gray = proj_gray * alpha[:, :, 0]
+                # Normalize to [0, 1]
+                if proj_gray.max() > 0:
+                    proj_gray = proj_gray / proj_gray.max()
+            else:
+                proj_gray = projection.copy()
+                if proj_gray.max() > proj_gray.min():
+                    proj_gray = (proj_gray - proj_gray.min()) / (proj_gray.max() - proj_gray.min())
+            
+            # Create side-by-side image
+            comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
+            # Left side: micrograph (grayscale -> RGB)
+            comparison[:, :box_size, 0] = mg_extracted_norm
+            comparison[:, :box_size, 1] = mg_extracted_norm
+            comparison[:, :box_size, 2] = mg_extracted_norm
+            # Right side: projection (grayscale -> RGB)
+            comparison[:, box_size:, 0] = proj_gray
+            comparison[:, box_size:, 1] = proj_gray
+            comparison[:, box_size:, 2] = proj_gray
+            
+            # Create new window to display comparison
+            comparison_window = tk.Toplevel(self.root)
+            comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection")
+            comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
+            
+            # Create matplotlib figure
+            fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
+            ax = fig.add_subplot(111)
+            ax.imshow(comparison, origin='lower', aspect='auto')
+            ax.axvline(x=box_size, color='red', linewidth=2, linestyle='--', label='Divider')
+            ax.set_xlabel('Left: Actual Micrograph | Right: Simulated Projection')
+            ax.set_title(f'Particle {particle_idx+1} Comparison\n(Should match if projection mapping is correct)')
+            ax.axis('off')
+            
+            # Add labels
+            ax.text(box_size / 2, box_size - 20, 'Actual Micrograph', 
+                   ha='center', va='top', color='white', fontsize=12, 
+                   bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+            ax.text(box_size * 1.5, box_size - 20, 'Simulated Projection', 
+                   ha='center', va='top', color='white', fontsize=12,
+                   bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+            
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, comparison_window)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            # Add save button
+            def save_comparison():
+                from tkinter import filedialog
+                filename = filedialog.asksaveasfilename(
+                    defaultextension='.png',
+                    filetypes=[('PNG files', '*.png'), ('All files', '*.*')],
+                    initialfile=f'particle_{particle_idx+1}_comparison.png'
+                )
+                if filename:
+                    fig.savefig(filename, dpi=150, bbox_inches='tight')
+                    messagebox.showinfo("Saved", f"Comparison saved to {filename}")
+            
+            save_button = tk.Button(comparison_window, text="Save Comparison", command=save_comparison)
+            save_button.pack(pady=5)
+            
+            self.status_var.set(f"Comparison generated for particle {particle_idx+1}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to generate comparison: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            self.status_var.set("Error generating comparison")
+    
     def add_projection_for_particle(self, particle_idx):
         """Generate and add projection for a specific particle."""
         if self.current_micrograph_idx is None or self.current_particles is None:
