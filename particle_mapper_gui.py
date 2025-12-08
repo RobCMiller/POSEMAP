@@ -5045,12 +5045,18 @@ color #1 & nucleic #62466B
                 
                 # Create window in main thread
                 self.root.after(0, create_window)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to generate comparison: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            self.status_var.set("Error generating comparison")
+                
+            except Exception as e:
+                error_msg = f"Failed to generate comparison: {str(e)}"
+                print(f"ERROR: {error_msg}")
+                import traceback
+                traceback.print_exc()
+                self.root.after(0, lambda: messagebox.showerror("Error", error_msg))
+                self.root.after(0, lambda: self.status_var.set("Error generating comparison"))
+        
+        # Start background thread
+        thread = threading.Thread(target=generate_comparison, daemon=True)
+        thread.start()
     
     def add_projection_for_particle(self, particle_idx):
         """Generate and add projection for a specific particle."""
