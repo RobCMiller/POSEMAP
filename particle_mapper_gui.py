@@ -4962,16 +4962,6 @@ color #1 & nucleic #62466B
                 except (ValueError, AttributeError):
                     box_size = 256  # Default
                 
-                half_size = box_size / 2.0
-                
-                # Calculate extraction bounds (in micrograph coordinates)
-                # Note: micrograph is stored as [height, width]
-                # x_pixel and y_pixel are in micrograph pixel coordinates
-                x_min = int(max(0, x_pixel - half_size))
-                x_max = int(min(mg_width, x_pixel + half_size))
-                y_min = int(max(0, y_pixel - half_size))
-                y_max = int(min(mg_height, y_pixel + half_size))
-                
                 # Extract region from micrograph
                 # Use center_x and center_y (same as main display uses for projection extent)
                 # Micrograph array: stored as [height, width] = [rows, cols]
@@ -4990,6 +4980,7 @@ color #1 & nucleic #62466B
                 print(f"  Box size: {box_size}")
                 
                 # Convert display coordinates to array coordinates
+                # center_x and center_y are the EXACT coordinates used for projection placement
                 array_x_center = int(round(center_x))
                 # Convert display y (0=bottom) to array row (0=top)
                 array_y_center = mg_height - 1 - int(round(center_y))
@@ -4997,6 +4988,7 @@ color #1 & nucleic #62466B
                 print(f"  Array coords: ({array_x_center}, {array_y_center})")
                 
                 # Calculate extraction bounds in array coordinates
+                # Extract a square box_size x box_size region centered at the particle
                 half_box = box_size // 2
                 array_x_min = max(0, array_x_center - half_box)
                 array_x_max = min(mg_width, array_x_center + half_box)
@@ -5013,18 +5005,22 @@ color #1 & nucleic #62466B
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
                 extracted_h, extracted_w = mg_extracted.shape
                 
-                # Calculate padding offsets
+                # Calculate padding offsets to center the extracted region
                 pad_y = (box_size - extracted_h) // 2
                 pad_x = (box_size - extracted_w) // 2
                 
                 # Place extracted region in center of output
                 mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
                 
-                # Normalize micrograph region to [0, 1] for display
-                if mg_output.max() > mg_output.min():
-                    mg_extracted_norm = (mg_output - mg_output.min()) / (mg_output.max() - mg_output.min())
+                # Apply same image enhancements as main GUI
+                # Use the same low-pass filter, brightness, and contrast settings
+                mg_enhanced = self.enhance_micrograph(mg_output, pixel_size=pixel_size)
+                
+                # Normalize micrograph region to [0, 1] for display (same as main GUI)
+                if mg_enhanced.max() > mg_enhanced.min():
+                    mg_extracted_norm = (mg_enhanced - mg_enhanced.min()) / (mg_enhanced.max() - mg_enhanced.min())
                 else:
-                    mg_extracted_norm = mg_output.copy().astype(np.float32)
+                    mg_extracted_norm = mg_enhanced.copy().astype(np.float32)
                 
                 # Update status
                 self.root.after(0, lambda: self.status_var.set(f"Generating density map for particle {particle_idx+1}..."))

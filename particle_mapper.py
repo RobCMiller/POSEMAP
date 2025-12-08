@@ -305,10 +305,49 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     return volume, pixel_size
 
 
+def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarray,
+                                          output_size: Tuple[int, int],
+                                          pixel_size: float = 1.0) -> np.ndarray:
+    """
+    Simulate an EM projection using EMAN2.
+    
+    This function uses EMAN2's projection capabilities for more accurate EM simulation.
+    """
+    try:
+        from EMAN2 import EMData, Transform
+        import numpy as np
+    except ImportError:
+        raise ImportError("EMAN2 is not available. Please install EMAN2 or use the fallback method.")
+    
+    # Convert PDB to density map first
+    volume, _ = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0)
+    
+    # Convert numpy array to EMAN2 EMData
+    # EMAN2 expects [nx, ny, nz] format
+    em_volume = EMData()
+    em_volume.set_size(volume.shape[2], volume.shape[1], volume.shape[0])  # [x, y, z]
+    em_volume.set_array(volume.transpose(2, 1, 0))  # Transpose to [x, y, z]
+    
+    # Create transform from Euler angles
+    # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
+    transform = Transform({"type": "eman", "az": euler_angles[0], 
+                          "alt": euler_angles[1], "phi": euler_angles[2]})
+    
+    # Project the volume
+    h, w = output_size
+    projection = em_volume.project("standard", transform, {"size": (w, h)})
+    
+    # Convert back to numpy array
+    proj_array = projection.numpy().copy()
+    
+    return proj_array
+
+
 def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
                                     output_size: Tuple[int, int],
                                     pixel_size: float = 1.0,
-                                    atom_radius: float = 2.0) -> np.ndarray:
+                                    atom_radius: float = 2.0,
+                                    use_eman2: bool = True) -> np.ndarray:
     """
     Simulate an EM projection from a PDB structure.
     
@@ -332,6 +371,18 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     --------
     np.ndarray : 2D projection (simulated EM image)
     """
+    # Try EMAN2 first if requested and available
+    if use_eman2:
+        try:
+            return simulate_em_projection_from_pdb_eman2(
+                pdb_data, euler_angles, output_size, pixel_size
+            )
+        except ImportError:
+            print("EMAN2 not available, falling back to NumPy projection method")
+        except Exception as e:
+            print(f"EMAN2 projection failed: {e}, falling back to NumPy method")
+    
+    # Fallback to NumPy-based projection
     # Convert PDB to density map
     # Use the same pixel_size for the density map as the micrograph
     # This ensures the scale matches - each voxel in the density map represents
