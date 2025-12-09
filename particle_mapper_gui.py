@@ -5279,25 +5279,7 @@ color #1 & nucleic #62466B
                     print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={center_value:.3f}")
                     print(f"    Expected local center: ~({box_size//2}, {box_size//2}) = (288, 288)")
                     
-                    # Save extracted region to file for visual verification
-                    try:
-                        from PIL import Image
-                        import os
-                        # Normalize for saving
-                        if mg_extracted.max() > mg_extracted.min():
-                            mg_normalized = (mg_extracted - mg_extracted.min()) / (mg_extracted.max() - mg_extracted.min())
-                        else:
-                            mg_normalized = mg_extracted.copy()
-                        mg_uint8 = (mg_normalized * 255).astype(np.uint8)
-                        img = Image.fromarray(mg_uint8, mode='L')
-                        debug_dir = Path(__file__).parent / "debug_extractions"
-                        debug_dir.mkdir(exist_ok=True)
-                        debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}.png"
-                        img.save(debug_path)
-                        print(f"  SAVED extracted region to: {debug_path}")
-                        print(f"    This should match what's in the purple box!")
-                    except Exception as e:
-                        print(f"  Could not save debug image: {e}")
+                    # We'll save the debug image AFTER normalization and flip to match what's displayed
                 else:
                     print(f"  ERROR: Particle center is NOT in extraction region!")
                     print(f"    This means we're extracting the wrong region!")
