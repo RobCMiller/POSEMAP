@@ -5012,8 +5012,23 @@ color #1 & nucleic #62466B
                 # Convert to array coordinates (for extraction from numpy array)
                 # Display: y=0 at bottom, y=height at top
                 # Array: row 0 at top, row (height-1) at bottom
+                # CRITICAL: The main display draws the particle marker at (x_pixel, y_pixel) with origin='lower'
+                # So the marker appears at display coordinates (x_pixel, y_pixel)
+                # To extract from the array, we need to convert display y to array row
+                # Since origin='lower' means array row (height-1) is at display y=0,
+                # and array row 0 is at display y=(height-1),
+                # we have: array_row = height - 1 - display_y
                 array_x_center = x_pixel_int
                 array_y_center = mg_height - 1 - y_pixel_int
+                
+                # Debug: Print the exact coordinates we're using
+                print(f"  Using EXACT coordinates from .cs file:")
+                print(f"    Fractional: ({center_x_frac:.6f}, {center_y_frac:.6f})")
+                print(f"    Pixel (before shifts): ({center_x_frac * mg_shape[1]:.2f}, {center_y_frac * mg_shape[0]:.2f})")
+                print(f"    Shift (Angstroms): ({shift[0]:.3f}, {shift[1]:.3f})")
+                print(f"    Pixel (after shifts): ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"    Pixel (rounded): ({x_pixel_int}, {y_pixel_int})")
+                print(f"    Array coords: ({array_x_center}, {array_y_center})")
                 
                 # Debug: Check if we're accidentally using micrograph center
                 mg_center_x = mg_width // 2
