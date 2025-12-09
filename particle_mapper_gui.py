@@ -5143,6 +5143,7 @@ color #1 & nucleic #62466B
                 
                 print(f"  DEBUG: Extraction bounds calculation:")
                 print(f"    Purple box display: x=[{box_x_min:.2f}, {box_x_max:.2f}], y=[{box_y_min:.2f}, {box_y_max:.2f}]")
+                print(f"    Purple box center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
                 print(f"    Array center: ({array_x_center}, {array_y_center})")
                 print(f"    Array bounds (before clamping): x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
                 # Convert array bounds back to display to verify they match purple box
@@ -5152,6 +5153,19 @@ color #1 & nucleic #62466B
                 display_y_max_from_array = mg_height - 1 - y_start
                 print(f"    Array bounds -> Display: x=[{display_x_min_from_array}, {display_x_max_from_array}], y=[{display_y_min_from_array:.2f}, {display_y_max_from_array:.2f}]")
                 print(f"    Match: X={abs(display_x_min_from_array - box_x_min) < 1 and abs(display_x_max_from_array - box_x_max) < 1}, Y={abs(display_y_min_from_array - box_y_min) < 1 and abs(display_y_max_from_array - box_y_max) < 1}")
+                print(f"    X difference: min={abs(display_x_min_from_array - box_x_min):.2f}, max={abs(display_x_max_from_array - box_x_max):.2f}")
+                print(f"    Y difference: min={abs(display_y_min_from_array - box_y_min):.2f}, max={abs(display_y_max_from_array - box_y_max):.2f}")
+                
+                # CRITICAL: Verify the conversion is correct
+                # Purple box is at display coordinates (x_pixel, y_pixel)
+                # We need to extract from array at (array_x_center, array_y_center)
+                # Verify: array_x_center should equal x_pixel (rounded)
+                # Verify: array_y_center should equal mg_height - 1 - y_pixel (rounded)
+                expected_array_x = int(round(x_pixel))
+                expected_array_y = mg_height - 1 - int(round(y_pixel))
+                print(f"    Verification: Expected array center: ({expected_array_x}, {expected_array_y}), Actual: ({array_x_center}, {array_y_center})")
+                if expected_array_x != array_x_center or expected_array_y != array_y_center:
+                    print(f"    WARNING: Array center mismatch! This could cause wrong extraction area.")
                 
                 # Handle edge cases by adjusting if we go out of bounds
                 if x_start < 0:
