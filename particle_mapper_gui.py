@@ -5184,22 +5184,11 @@ color #1 & nucleic #62466B
                 print(f"    Array bounds: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
                 print(f"    Array bounds -> display: x=[{array_x_min}, {array_x_max}], y=[{mg_height - 1 - array_y_max}, {mg_height - 1 - array_y_min}]")
                 
-                # Extract directly using purple box bounds
+                # Extract directly using purple box bounds (clamped to micrograph bounds)
                 x_start = max(0, array_x_min)
                 x_end = min(mg_width, array_x_max)
                 y_start = max(0, array_y_min)
                 y_end = min(mg_height, array_y_max)
-                
-                # SIMPLE EXTRACTION: Extract a square box_size x box_size region centered on the particle
-                # Extract from the ENHANCED micrograph so it matches exactly what's shown in the purple box
-                # Calculate the exact bounds for a box_size x box_size square centered at (array_x_center, array_y_center)
-                half_box = box_size // 2
-                
-                # Calculate bounds ensuring we stay within micrograph
-                x_start = array_x_center - half_box
-                x_end = array_x_center + half_box
-                y_start = array_y_center - half_box
-                y_end = array_y_center + half_box
                 
                 print(f"  DEBUG: Extraction bounds calculation:")
                 print(f"    Purple box display: x=[{box_x_min:.2f}, {box_x_max:.2f}], y=[{box_y_min:.2f}, {box_y_max:.2f}]")
