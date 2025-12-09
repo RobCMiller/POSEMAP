@@ -4991,6 +4991,12 @@ color #1 & nucleic #62466B
                 half_box = box_size // 2
                 box_x_min = x_pixel - half_box
                 box_y_min = y_pixel - half_box
+                box_x_max = x_pixel + half_box
+                box_y_max = y_pixel + half_box
+                
+                print(f"  DEBUG: Purple box coordinates (display):")
+                print(f"    Box center: ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"    Box bounds: x=[{box_x_min:.2f}, {box_x_max:.2f}], y=[{box_y_min:.2f}, {box_y_max:.2f}]")
                 
                 # Draw the box in the main thread
                 def draw_extraction_box():
