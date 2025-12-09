@@ -5009,7 +5009,9 @@ color #1 & nucleic #62466B
                 mg_center_y = mg_height // 2
                 print(f"  Micrograph center (array coords): ({mg_center_x}, {mg_center_y})")
                 print(f"  Particle center (array coords): ({array_x_center}, {array_y_center})")
-                print(f"  Distance from micrograph center: X={abs(array_x_center - mg_center_x)}, Y={abs(array_y_center - mg_center_y)}")
+                dist_x = abs(int(array_x_center) - int(mg_center_x))
+                dist_y = abs(int(array_y_center) - int(mg_center_y))
+                print(f"  Distance from micrograph center: X={dist_x}, Y={dist_y}")
                 
                 # Double-check: verify by looking at what's at this location in the original micrograph
                 # and comparing with what should be visible in the main display
