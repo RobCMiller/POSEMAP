@@ -5131,6 +5131,18 @@ color #1 & nucleic #62466B
                 y_start = array_y_center - half_box
                 y_end = array_y_center + half_box
                 
+                print(f"  DEBUG: Extraction bounds calculation:")
+                print(f"    Purple box display: x=[{box_x_min:.2f}, {box_x_max:.2f}], y=[{box_y_min:.2f}, {box_y_max:.2f}]")
+                print(f"    Array center: ({array_x_center}, {array_y_center})")
+                print(f"    Array bounds (before clamping): x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
+                # Convert array bounds back to display to verify they match purple box
+                display_x_min_from_array = x_start
+                display_x_max_from_array = x_end
+                display_y_min_from_array = mg_height - 1 - y_end  # Flip Y back
+                display_y_max_from_array = mg_height - 1 - y_start
+                print(f"    Array bounds -> Display: x=[{display_x_min_from_array}, {display_x_max_from_array}], y=[{display_y_min_from_array:.2f}, {display_y_max_from_array:.2f}]")
+                print(f"    Match: X={abs(display_x_min_from_array - box_x_min) < 1 and abs(display_x_max_from_array - box_x_max) < 1}, Y={abs(display_y_min_from_array - box_y_min) < 1 and abs(display_y_max_from_array - box_y_max) < 1}")
+                
                 # Handle edge cases by adjusting if we go out of bounds
                 if x_start < 0:
                     x_end += abs(x_start)
