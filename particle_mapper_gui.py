@@ -189,6 +189,7 @@ class ParticleMapperGUI:
         self.zoom_box_rect = None  # Rectangle patch for zoom box
         self.zoom_xlim = None  # Saved x limits before zoom
         self.zoom_ylim = None  # Saved y limits before zoom
+        self.extraction_box_rect = None  # Rectangle patch for extraction box overlay
         
         # Background preloading
         self.background_loading = False  # Flag to prevent multiple background threads
@@ -4960,15 +4961,47 @@ color #1 & nucleic #62466B
                 center_x = x_pixel + self.projection_offset_x + auto_offset_x
                 center_y = y_pixel + self.projection_offset_y + auto_offset_y
                 
-                # Get box size from GUI entry (default 256)
+                # Get box size from GUI entry (default 576)
                 try:
                     box_size = int(self.particle_box_size_entry.get().strip())
                     if box_size < 32:
-                        box_size = 256  # Minimum reasonable size
+                        box_size = 576  # Minimum reasonable size
                     if box_size > 1024:
                         box_size = 1024  # Maximum reasonable size
                 except (ValueError, AttributeError):
-                    box_size = 256  # Default
+                    box_size = 576  # Default
+                
+                # Draw purple extraction box on main display
+                # Calculate box bounds in display coordinates (same as particle center)
+                half_box = box_size // 2
+                box_x_min = x_pixel - half_box
+                box_y_min = y_pixel - half_box
+                
+                # Draw the box in the main thread
+                def draw_extraction_box():
+                    from matplotlib.patches import Rectangle
+                    # Remove old extraction box if it exists
+                    if hasattr(self, 'extraction_box_rect') and self.extraction_box_rect is not None:
+                        try:
+                            self.extraction_box_rect.remove()
+                        except:
+                            pass
+                    
+                    # Draw purple outlined box (no fill) showing the extraction region
+                    self.extraction_box_rect = Rectangle(
+                        (box_x_min, box_y_min),
+                        box_size,
+                        box_size,
+                        linewidth=2,
+                        edgecolor='purple',
+                        facecolor='none',
+                        linestyle='-',
+                        zorder=30  # High zorder to be on top of everything
+                    )
+                    self.ax.add_patch(self.extraction_box_rect)
+                    self.canvas.draw_idle()
+                
+                self.root.after(0, draw_extraction_box)
                 
                 # Extract region from micrograph
                 # IMPORTANT: Use x_pixel, y_pixel (particle center) NOT center_x, center_y (projection center)
