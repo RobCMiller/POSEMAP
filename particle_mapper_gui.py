@@ -529,7 +529,7 @@ class ParticleMapperGUI:
         box_size_frame.pack(fill=tk.X, pady=2)
         self.particle_box_size_entry = ttk.Entry(box_size_frame, width=15)
         self.particle_box_size_entry.pack(side=tk.LEFT, padx=(0, 5))
-        self.particle_box_size_entry.insert(0, "256")  # Default 256 pixels
+        self.particle_box_size_entry.insert(0, "576")  # Default 576 pixels
         ttk.Label(box_size_frame, text="(for particle extraction in comparison)", 
                  font=('TkDefaultFont', 8), foreground='gray').pack(side=tk.LEFT, padx=(5, 0))
         
