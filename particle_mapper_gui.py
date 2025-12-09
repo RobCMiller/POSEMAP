@@ -5152,19 +5152,43 @@ color #1 & nucleic #62466B
                 print(f"    This is the EXACT center of the purple box")
                 print(f"    We will extract a {box_size}x{box_size} box centered at this location")
                 
-                # CRITICAL: Apply enhancements to the FULL micrograph using CURRENT GUI settings
-                # This ensures the extracted region has the exact same enhancements as what's shown in the purple box
-                # Use the CURRENT low-pass filter setting (not forced to 5 Å) - user wants to see exactly what's in the purple box
-                # IMPORTANT: Use the same pixel_size as the main display uses (from GUI entry, not from particle data)
-                # The main display uses: display_image = self.apply_enhancements(self.original_micrograph)
-                # which gets pixel_size from self.pixel_size_entry or defaults
-                # So we should do the same - don't pass pixel_size, let apply_enhancements get it from GUI
+                # SIMPLEST APPROACH: Extract directly from what's displayed
+                # The purple box is drawn at (x_pixel, y_pixel) in display coordinates
+                # We need to extract the exact region shown in the purple box
+                # Apply enhancements to the FULL micrograph using CURRENT GUI settings (same as main display)
                 enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
                 
                 # Calculate vmin/vmax from the FULL enhanced micrograph (same as main display)
                 vmin, vmax = np.percentile(enhanced_full_micrograph, [1, 99])
                 print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
                 print(f"  Using current GUI settings: lowpass={getattr(self, 'lowpass_A', 2.0):.1f} Å, contrast={getattr(self, 'contrast', 1.0):.2f}, brightness={getattr(self, 'brightness', 0.0):.2f}")
+                
+                # CRITICAL: The purple box is at display coordinates (box_x_min, box_y_min) to (box_x_max, box_y_max)
+                # Convert these EXACT bounds to array coordinates for extraction
+                # Display: y=0 at bottom, y=height at top
+                # Array: row 0 at top, row (height-1) at bottom
+                # Conversion: array_row = mg_height - 1 - display_y
+                box_x_min_int = int(round(box_x_min))
+                box_x_max_int = int(round(box_x_max))
+                box_y_min_int = int(round(box_y_min))
+                box_y_max_int = int(round(box_y_max))
+                
+                # Convert purple box bounds to array coordinates
+                array_x_min = box_x_min_int
+                array_x_max = box_x_max_int
+                array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box -> smaller array row
+                array_y_max = mg_height - 1 - box_y_min_int  # Bottom of purple box -> larger array row
+                
+                print(f"  DIRECT EXTRACTION from purple box bounds:")
+                print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
+                print(f"    Array bounds: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
+                print(f"    Array bounds -> display: x=[{array_x_min}, {array_x_max}], y=[{mg_height - 1 - array_y_max}, {mg_height - 1 - array_y_min}]")
+                
+                # Extract directly using purple box bounds
+                x_start = max(0, array_x_min)
+                x_end = min(mg_width, array_x_max)
+                y_start = max(0, array_y_min)
+                y_end = min(mg_height, array_y_max)
                 
                 # SIMPLE EXTRACTION: Extract a square box_size x box_size region centered on the particle
                 # Extract from the ENHANCED micrograph so it matches exactly what's shown in the purple box
@@ -5234,17 +5258,6 @@ color #1 & nucleic #62466B
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
                 print(f"  Extraction bounds: x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
                 print(f"  Extracted value range: [{mg_extracted.min():.3f}, {mg_extracted.max():.3f}], mean={mg_extracted.mean():.3f}")
-                
-                # Verify the particle center is actually in the extracted region
-                if not (x_start <= array_x_center < x_end and y_start <= array_y_center < y_end):
-                    print(f"  ERROR: Particle center ({array_x_center}, {array_y_center}) is NOT in extraction bounds!")
-                else:
-                    local_x = array_x_center - x_start
-                    local_y = array_y_center - y_start
-                    if 0 <= local_y < extracted_h and 0 <= local_x < extracted_w:
-                        local_center_value = mg_extracted[local_y, local_x]
-                        print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={local_center_value:.3f}")
-                        print(f"    Expected center: ~({box_size//2}, {box_size//2}), actual: ({local_x}, {local_y})")
                 
                 # Create output array - pad or crop to exactly box_size x box_size
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
