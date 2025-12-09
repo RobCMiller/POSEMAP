@@ -4921,11 +4921,15 @@ color #1 & nucleic #62466B
                 
                 # Calculate particle center in pixel coordinates
                 # Use EXACT same calculation as main display to ensure consistency
-                mg_height, mg_width = micrograph_shape[0], micrograph_shape[1]
-                x_pixel = center_x_frac * mg_width
-                y_pixel = center_y_frac * mg_height
+                # Main display uses: x_pixel = x_frac * mg_shape[1], y_pixel = y_frac * mg_shape[0]
+                mg_shape = micrograph_shape  # Use same variable name as main display
+                mg_height, mg_width = mg_shape[0], mg_shape[1]
                 
-                # Apply shifts (same as main display)
+                # Use EXACT same calculation as main display (line 2480-2481)
+                x_pixel = center_x_frac * mg_shape[1]  # mg_shape[1] is width
+                y_pixel = center_y_frac * mg_shape[0]  # mg_shape[0] is height
+                
+                # Apply shifts (same as main display, line 2499-2500)
                 x_pixel += shift[0] / pixel_size
                 y_pixel += shift[1] / pixel_size
                 
