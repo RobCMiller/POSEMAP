@@ -5162,11 +5162,15 @@ color #1 & nucleic #62466B
                     print(f"  ERROR: No micrograph loaded!")
                     return
                 
-                # Apply enhancements to the FULL micrograph using CURRENT GUI settings
-                # This MUST be the exact same process as update_display() uses
-                # In update_display(), we do: display_image = self.apply_enhancements(self.original_micrograph)
-                # So we do the same here
-                enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
+                # Use the EXACT same displayed image that's shown in the main GUI
+                # This is stored in update_display() as self.current_display_image
+                if hasattr(self, 'current_display_image') and self.current_display_image is not None:
+                    enhanced_full_micrograph = self.current_display_image
+                    print(f"  Using stored display_image from main GUI (exact match!)")
+                else:
+                    # Fallback: regenerate it the same way
+                    enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
+                    print(f"  WARNING: No stored display_image, regenerating (may not match exactly)")
                 
                 # Verify we have the right micrograph
                 print(f"  Using micrograph: {self.current_micrograph_path}")
