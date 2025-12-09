@@ -5306,26 +5306,21 @@ color #1 & nucleic #62466B
                 print(f"    Mean: {mg_extracted_norm.mean():.3f}, Std: {mg_extracted_norm.std():.3f}")
                 print(f"    Min: {mg_extracted_norm.min():.3f}, Max: {mg_extracted_norm.max():.3f}")
                 
-                # CRITICAL: DO NOT FLIP - the extraction is already correct
+                # CRITICAL: Fix orientation for display with origin='lower'
                 # The extracted array mg_extracted has:
                 #   - Row 0 = array row y_start (which is the TOP of the purple box in display coordinates)
                 #   - Row 575 = array row y_end-1 (which is the BOTTOM of the purple box in display coordinates)
                 # When displayed with origin='lower' in the comparison window:
                 #   - Array row 0 is displayed at y=0 (BOTTOM of display)
                 #   - Array row 575 is displayed at y=575 (TOP of display)
-                # So we need to flip so that:
+                # So the extracted array is UPSIDE DOWN! We need to flip it so:
                 #   - Row 0 = bottom of purple box (will be displayed at bottom) ✓
                 #   - Row 575 = top of purple box (will be displayed at top) ✓
-                # BUT WAIT - let's test WITHOUT the flip first since the user says it's wrong
-                # Actually, let me think about this more carefully...
-                # The purple box shows the correct region. The extraction gets the correct region.
-                # But the display is wrong. Maybe the flip is the problem?
-                # Let's try WITHOUT flipud and see if that fixes it
-                # mg_extracted_norm = np.flipud(mg_extracted_norm)  # REMOVED - testing without flip
+                mg_extracted_norm = np.flipud(mg_extracted_norm)
                 
-                print(f"  DEBUG: NOT flipping (testing if flipud was the problem):")
-                print(f"    Array row 0 (top of purple box) will be displayed at bottom")
-                print(f"    Array row {box_size-1} (bottom of purple box) will be displayed at top")
+                print(f"  DEBUG: After flipud (to fix orientation for origin='lower' display):")
+                print(f"    Array row 0 (was bottom of purple box) will be displayed at bottom ✓")
+                print(f"    Array row {box_size-1} (was top of purple box) will be displayed at top ✓")
                 
                 # Update status
                 self.root.after(0, lambda: self.status_var.set(f"Generating density map for particle {particle_idx+1}..."))
