@@ -5331,6 +5331,20 @@ color #1 & nucleic #62466B
                 print(f"    Array row 0 (was bottom of purple box) will be displayed at bottom ✓")
                 print(f"    Array row {box_size-1} (was top of purple box) will be displayed at top ✓")
                 
+                # Save debug image AFTER all processing (normalization + flip) to match what's displayed
+                try:
+                    from PIL import Image
+                    mg_uint8 = (mg_extracted_norm * 255).astype(np.uint8)
+                    img = Image.fromarray(mg_uint8)
+                    debug_dir = Path(__file__).parent / "debug_extractions"
+                    debug_dir.mkdir(exist_ok=True)
+                    debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}_final.png"
+                    img.save(debug_path)
+                    print(f"  SAVED final extracted region (after normalization + flip) to: {debug_path}")
+                    print(f"    This should match what's displayed in the left panel of the comparison window!")
+                except Exception as e:
+                    print(f"  Could not save debug image: {e}")
+                
                 # Update status
                 self.root.after(0, lambda: self.status_var.set(f"Generating density map for particle {particle_idx+1}..."))
                 
