@@ -5148,15 +5148,15 @@ color #1 & nucleic #62466B
                 # Apply image enhancements with better contrast for comparison
                 # Use a default 5 Å low-pass filter for better visibility
                 # Save current low-pass filter setting
-                original_lowpass = getattr(self, 'lowpass_scale', 2.0)
+                original_lowpass = getattr(self, 'lowpass_A', 2.0)
                 # Temporarily set to 5 Å for comparison
-                self.lowpass_scale = 5.0
+                self.lowpass_A = 5.0
                 
                 # Apply enhancements with the 5 Å filter
                 mg_enhanced = self.apply_enhancements(mg_output, pixel_size=pixel_size)
                 
                 # Restore original low-pass filter setting
-                self.lowpass_scale = original_lowpass
+                self.lowpass_A = original_lowpass
                 
                 # Apply additional contrast enhancement for better visibility
                 # Use percentile-based normalization for better contrast
