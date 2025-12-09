@@ -2384,6 +2384,13 @@ class ParticleMapperGUI:
                 cached_height, cached_width = cached_shape[0], cached_shape[1]
                 
                 self.ax.clear()
+                # Clear extraction box
+                if hasattr(self, 'extraction_box_rect') and self.extraction_box_rect is not None:
+                    try:
+                        self.extraction_box_rect.remove()
+                    except:
+                        pass
+                    self.extraction_box_rect = None
                 # Use extent to map cached image pixels to original image coordinate space
                 self.ax.imshow(self.cached_blank_image, origin='lower', aspect='equal',
                               extent=[-0.5, img_width - 0.5, -0.5, img_height - 0.5])
@@ -2418,6 +2425,14 @@ class ParticleMapperGUI:
             saved_ylim = None
         
         self.ax.clear()
+        
+        # Clear extraction box when redrawing (will be redrawn if comparison is active)
+        if hasattr(self, 'extraction_box_rect') and self.extraction_box_rect is not None:
+            try:
+                self.extraction_box_rect.remove()
+            except:
+                pass
+            self.extraction_box_rect = None
         
         # Apply enhancements
         display_image = self.apply_enhancements(self.original_micrograph)
