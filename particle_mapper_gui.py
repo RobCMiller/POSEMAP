@@ -5120,22 +5120,15 @@ color #1 & nucleic #62466B
                     raise ValueError("original_micrograph is None - micrograph not loaded")
                 print(f"  Original micrograph shape: {self.original_micrograph.shape}")
                 
-                # CRITICAL: Apply enhancements to the FULL micrograph first (same as main display)
+                # CRITICAL: Apply enhancements to the FULL micrograph using CURRENT GUI settings
                 # This ensures the extracted region has the exact same enhancements as what's shown in the purple box
-                # Save current low-pass filter setting
-                original_lowpass = getattr(self, 'lowpass_A', 2.0)
-                # Temporarily set to 5 Å for comparison (as requested by user)
-                self.lowpass_A = 5.0
-                
-                # Apply enhancements to full micrograph (same as main display)
+                # Use the CURRENT low-pass filter setting (not forced to 5 Å) - user wants to see exactly what's in the purple box
                 enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph, pixel_size=pixel_size)
-                
-                # Restore original low-pass filter setting
-                self.lowpass_A = original_lowpass
                 
                 # Calculate vmin/vmax from the FULL enhanced micrograph (same as main display)
                 vmin, vmax = np.percentile(enhanced_full_micrograph, [1, 99])
                 print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
+                print(f"  Using current GUI settings: lowpass={getattr(self, 'lowpass_A', 2.0):.1f} Å, contrast={getattr(self, 'contrast', 1.0):.2f}, brightness={getattr(self, 'brightness', 0.0):.2f}")
                 
                 # SIMPLE EXTRACTION: Extract a square box_size x box_size region centered on the particle
                 # Extract from the ENHANCED micrograph so it matches exactly what's shown in the purple box
