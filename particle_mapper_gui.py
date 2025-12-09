@@ -5277,19 +5277,21 @@ color #1 & nucleic #62466B
                 print(f"    Mean: {mg_extracted_norm.mean():.3f}, Std: {mg_extracted_norm.std():.3f}")
                 print(f"    Min: {mg_extracted_norm.min():.3f}, Max: {mg_extracted_norm.max():.3f}")
                 
-                # CRITICAL: The extracted region should match the purple box exactly
-                # Purple box: display y=[box_y_min, box_y_max] where box_y_min < box_y_max
-                # Extraction: array rows [y_start, y_end] where y_start < y_end
-                # Conversion: array_y = mg_height - 1 - display_y
-                # So: y_start = mg_height - 1 - box_y_max, y_end = mg_height - 1 - box_y_min
+                # CRITICAL: Fix orientation for display with origin='lower'
+                # The extracted array has:
+                #   - Row 0 = array row y_start = top of purple box (display y = box_y_max)
+                #   - Row 575 = array row y_end = bottom of purple box (display y = box_y_min)
                 # When displayed with origin='lower':
-                #   - Array row y_start displays at y = mg_height - 1 - y_start = box_y_max (top of purple box) ✓
-                #   - Array row y_end displays at y = mg_height - 1 - y_end = box_y_min (bottom of purple box) ✓
-                # So the extracted region already has the correct orientation - NO FLIP needed!
+                #   - Array row 0 is displayed at y=0 (BOTTOM of display)
+                #   - Array row 575 is displayed at y=575 (TOP of display)
+                # So the extracted array is UPSIDE DOWN! We need to flip it so:
+                #   - Row 0 = bottom of purple box (will be displayed at bottom) ✓
+                #   - Row 575 = top of purple box (will be displayed at top) ✓
+                mg_extracted_norm = np.flipud(mg_extracted_norm)
                 
-                print(f"  DEBUG: Extracted region ready (no flip needed):")
-                print(f"    Array row 0 (top of extraction) = display y = {mg_height - 1 - y_start:.2f} (top of purple box)")
-                print(f"    Array row {box_size-1} (bottom of extraction) = display y = {mg_height - 1 - y_end:.2f} (bottom of purple box)")
+                print(f"  DEBUG: After flipud (to fix orientation for origin='lower' display):")
+                print(f"    Array row 0 (was bottom of purple box) will be displayed at bottom ✓")
+                print(f"    Array row {box_size-1} (was top of purple box) will be displayed at top ✓")
                 
                 # Update status
                 self.root.after(0, lambda: self.status_var.set(f"Generating density map for particle {particle_idx+1}..."))
