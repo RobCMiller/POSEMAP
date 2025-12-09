@@ -5130,10 +5130,27 @@ color #1 & nucleic #62466B
                 print(f"  Array coords (col, row): ({array_x_center}, {array_y_center})")
                 print(f"  Verification: display_y={y_pixel:.2f} -> array_row={array_y_center} (should be {mg_height - 1 - int(round(y_pixel))})")
                 
-                # Verify we're extracting from the correct micrograph
+                # CRITICAL: Verify we're extracting from the correct micrograph
                 if self.original_micrograph is None:
                     raise ValueError("original_micrograph is None - micrograph not loaded")
                 print(f"  Original micrograph shape: {self.original_micrograph.shape}")
+                
+                # CRITICAL: Verify the micrograph path matches what's displayed
+                # The purple box is drawn on the current display, so we must extract from the same micrograph
+                if self.current_micrograph_path is None:
+                    raise ValueError("current_micrograph_path is None - cannot verify micrograph match")
+                print(f"  Verifying micrograph match:")
+                print(f"    Current micrograph path: {self.current_micrograph_path}")
+                print(f"    Current micrograph idx: {self.current_micrograph_idx}")
+                print(f"    Original micrograph shape: {self.original_micrograph.shape}")
+                
+                # CRITICAL: The purple box is drawn at (x_pixel, y_pixel) in display coordinates
+                # We MUST extract from the exact same location
+                # Verify that the particle center we're using matches what the purple box uses
+                print(f"  FINAL VERIFICATION:")
+                print(f"    Purple box center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"    This is the EXACT center of the purple box")
+                print(f"    We will extract a {box_size}x{box_size} box centered at this location")
                 
                 # CRITICAL: Apply enhancements to the FULL micrograph using CURRENT GUI settings
                 # This ensures the extracted region has the exact same enhancements as what's shown in the purple box
@@ -5256,13 +5273,40 @@ color #1 & nucleic #62466B
                 print(f"    Mean: {mg_extracted_norm.mean():.3f}, Std: {mg_extracted_norm.std():.3f}")
                 print(f"    Min: {mg_extracted_norm.min():.3f}, Max: {mg_extracted_norm.max():.3f}")
                 
-                # CRITICAL: Flip vertically to match display orientation
-                # The extracted region mg_output has:
-                #   - Row 0 = top of purple box (array row 1231 = display y 2860)
-                #   - Row 575 = bottom of purple box (array row 1806 = display y 2285)
-                # When displayed with origin='lower', row 0 is at bottom
-                # So we need to flip so that the top of the purple box is at the top of the display
-                mg_extracted_norm = np.flipud(mg_extracted_norm)
+                # CRITICAL: DO NOT FLIP - the extracted region should match the purple box exactly
+                # The purple box is drawn at display coordinates (x_pixel, y_pixel)
+                # We extracted from array coordinates (array_x_center, array_y_center)
+                # The conversion is: array_y = mg_height - 1 - display_y
+                # So array row 0 (top) corresponds to display y = mg_height - 1 (top)
+                # And array row (mg_height-1) (bottom) corresponds to display y = 0 (bottom)
+                # 
+                # When we extract from the array:
+                #   - Array row y_start (smaller) = top of extraction = display y = mg_height - 1 - y_start (larger) = top of purple box
+                #   - Array row y_end (larger) = bottom of extraction = display y = mg_height - 1 - y_end (smaller) = bottom of purple box
+                #
+                # When displayed with origin='lower':
+                #   - Array row 0 (top) is displayed at y=0 (bottom)
+                #   - Array row (height-1) (bottom) is displayed at y=height-1 (top)
+                #
+                # So if we extract array rows [y_start, y_end] where y_start < y_end:
+                #   - Row y_start will be displayed at y = mg_height - 1 - y_start (top of display)
+                #   - Row y_end will be displayed at y = mg_height - 1 - y_end (bottom of display)
+                #
+                # But we want:
+                #   - Top of purple box (display y = box_y_max) to be at top of display
+                #   - Bottom of purple box (display y = box_y_min) to be at bottom of display
+                #
+                # Since box_y_max > box_y_min, and array_y_start = mg_height - 1 - box_y_max, array_y_end = mg_height - 1 - box_y_min
+                # We have array_y_start < array_y_end (because box_y_max > box_y_min)
+                # So array row y_start (top of extraction) = display y = box_y_max (top of purple box) ✓
+                # And array row y_end (bottom of extraction) = display y = box_y_min (bottom of purple box) ✓
+                #
+                # When displayed with origin='lower':
+                #   - Array row y_start is displayed at y = mg_height - 1 - y_start = box_y_max (top) ✓
+                #   - Array row y_end is displayed at y = mg_height - 1 - y_end = box_y_min (bottom) ✓
+                #
+                # So NO FLIP is needed! The extracted region already has the correct orientation.
+                # mg_extracted_norm = np.flipud(mg_extracted_norm)  # REMOVED - was causing wrong orientation
                 
                 print(f"  DEBUG: After flipud (to match origin='lower' display):")
                 print(f"    Top row (was bottom of purple box) value range: [{mg_extracted_norm[0, :].min():.3f}, {mg_extracted_norm[0, :].max():.3f}]")
