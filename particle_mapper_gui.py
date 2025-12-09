@@ -5025,6 +5025,11 @@ color #1 & nucleic #62466B
                     check_region = self.original_micrograph[check_y_min:check_y_max, check_x_min:check_x_max]
                     print(f"  Verification: Small region around particle center in original micrograph:")
                     print(f"    Region shape: {check_region.shape}, range=[{check_region.min():.3f}, {check_region.max():.3f}], mean={check_region.mean():.3f}, std={check_region.std():.3f}")
+                    
+                    # Also check what's at the micrograph center for comparison
+                    mg_center_check = self.original_micrograph[mg_center_y-check_radius:mg_center_y+check_radius, mg_center_x-check_radius:mg_center_x+check_radius]
+                    print(f"  For comparison, micrograph center region:")
+                    print(f"    Region shape: {mg_center_check.shape}, range=[{mg_center_check.min():.3f}, {mg_center_check.max():.3f}], mean={mg_center_check.mean():.3f}, std={mg_center_check.std():.3f}")
                 
                 print(f"  Display coords (x_pixel, y_pixel): ({x_pixel:.2f}, {y_pixel:.2f})")
                 print(f"  Array coords (col, row): ({array_x_center}, {array_y_center})")
