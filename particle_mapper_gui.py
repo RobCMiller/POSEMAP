@@ -5197,26 +5197,48 @@ color #1 & nucleic #62466B
                 print(f"    Array bounds: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
                 print(f"    Array bounds -> display: x=[{array_x_min}, {array_x_max}], y=[{mg_height - 1 - array_y_max}, {mg_height - 1 - array_y_min}]")
                 
+                # CRITICAL: Verify the coordinate conversion is correct
+                # The purple box is drawn at display coordinates (box_x_min, box_y_min) to (box_x_max, box_y_max)
+                # We need to extract the EXACT region shown in the purple box
+                # Display: y=0 at bottom, y=height-1 at top
+                # Array: row 0 at top, row (height-1) at bottom
+                # Conversion: array_row = mg_height - 1 - display_y
+                
+                # Particle center in array coordinates (for verification)
+                array_x_center = int(round(x_pixel))
+                array_y_center = mg_height - 1 - int(round(y_pixel))
+                
+                print(f"  CRITICAL VERIFICATION:")
+                print(f"    Purple box center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"    Purple box bounds (display): x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
+                print(f"    Particle center (array): ({array_x_center}, {array_y_center})")
+                print(f"    Array bounds calculated: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
+                
                 # Extract directly using purple box bounds (clamped to micrograph bounds)
                 x_start = max(0, array_x_min)
                 x_end = min(mg_width, array_x_max)
                 y_start = max(0, array_y_min)
                 y_end = min(mg_height, array_y_max)
                 
-                # CRITICAL VERIFICATION: Check that the particle center is in the extraction region
-                # Particle center in array coordinates
-                array_x_center = int(round(x_pixel))
-                array_y_center = mg_height - 1 - int(round(y_pixel))
-                
-                print(f"  VERIFICATION:")
-                print(f"    Particle center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"    Particle center (array): ({array_x_center}, {array_y_center})")
-                print(f"    Extraction bounds (array): x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
+                print(f"    Final extraction bounds (array): x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
                 print(f"    Particle in extraction region: {x_start <= array_x_center < x_end and y_start <= array_y_center < y_end}")
                 
                 # Verify we're extracting from the correct micrograph
                 print(f"    Enhanced micrograph shape: {enhanced_full_micrograph.shape}")
                 print(f"    Enhanced micrograph value range: [{enhanced_full_micrograph.min():.3f}, {enhanced_full_micrograph.max():.3f}]")
+                
+                # CRITICAL: Check what's actually at the particle center location in the enhanced micrograph
+                if 0 <= array_x_center < mg_width and 0 <= array_y_center < mg_height:
+                    center_value = enhanced_full_micrograph[array_y_center, array_x_center]
+                    print(f"    Value at particle center in enhanced micrograph: {center_value:.3f}")
+                    # Check a small region around the particle center
+                    check_size = 10
+                    y_check_start = max(0, array_y_center - check_size//2)
+                    y_check_end = min(mg_height, array_y_center + check_size//2)
+                    x_check_start = max(0, array_x_center - check_size//2)
+                    x_check_end = min(mg_width, array_x_center + check_size//2)
+                    check_region = enhanced_full_micrograph[y_check_start:y_check_end, x_check_start:x_check_end]
+                    print(f"    Small region around particle center: shape={check_region.shape}, range=[{check_region.min():.3f}, {check_region.max():.3f}], mean={check_region.mean():.3f}")
                 
                 # Extract the region from the ENHANCED micrograph using purple box bounds
                 mg_extracted = enhanced_full_micrograph[y_start:y_end, x_start:x_end]
