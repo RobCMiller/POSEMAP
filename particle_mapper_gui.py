@@ -5273,44 +5273,19 @@ color #1 & nucleic #62466B
                 print(f"    Mean: {mg_extracted_norm.mean():.3f}, Std: {mg_extracted_norm.std():.3f}")
                 print(f"    Min: {mg_extracted_norm.min():.3f}, Max: {mg_extracted_norm.max():.3f}")
                 
-                # CRITICAL: DO NOT FLIP - the extracted region should match the purple box exactly
-                # The purple box is drawn at display coordinates (x_pixel, y_pixel)
-                # We extracted from array coordinates (array_x_center, array_y_center)
-                # The conversion is: array_y = mg_height - 1 - display_y
-                # So array row 0 (top) corresponds to display y = mg_height - 1 (top)
-                # And array row (mg_height-1) (bottom) corresponds to display y = 0 (bottom)
-                # 
-                # When we extract from the array:
-                #   - Array row y_start (smaller) = top of extraction = display y = mg_height - 1 - y_start (larger) = top of purple box
-                #   - Array row y_end (larger) = bottom of extraction = display y = mg_height - 1 - y_end (smaller) = bottom of purple box
-                #
+                # CRITICAL: The extracted region should match the purple box exactly
+                # Purple box: display y=[box_y_min, box_y_max] where box_y_min < box_y_max
+                # Extraction: array rows [y_start, y_end] where y_start < y_end
+                # Conversion: array_y = mg_height - 1 - display_y
+                # So: y_start = mg_height - 1 - box_y_max, y_end = mg_height - 1 - box_y_min
                 # When displayed with origin='lower':
-                #   - Array row 0 (top) is displayed at y=0 (bottom)
-                #   - Array row (height-1) (bottom) is displayed at y=height-1 (top)
-                #
-                # So if we extract array rows [y_start, y_end] where y_start < y_end:
-                #   - Row y_start will be displayed at y = mg_height - 1 - y_start (top of display)
-                #   - Row y_end will be displayed at y = mg_height - 1 - y_end (bottom of display)
-                #
-                # But we want:
-                #   - Top of purple box (display y = box_y_max) to be at top of display
-                #   - Bottom of purple box (display y = box_y_min) to be at bottom of display
-                #
-                # Since box_y_max > box_y_min, and array_y_start = mg_height - 1 - box_y_max, array_y_end = mg_height - 1 - box_y_min
-                # We have array_y_start < array_y_end (because box_y_max > box_y_min)
-                # So array row y_start (top of extraction) = display y = box_y_max (top of purple box) ✓
-                # And array row y_end (bottom of extraction) = display y = box_y_min (bottom of purple box) ✓
-                #
-                # When displayed with origin='lower':
-                #   - Array row y_start is displayed at y = mg_height - 1 - y_start = box_y_max (top) ✓
-                #   - Array row y_end is displayed at y = mg_height - 1 - y_end = box_y_min (bottom) ✓
-                #
-                # So NO FLIP is needed! The extracted region already has the correct orientation.
-                # mg_extracted_norm = np.flipud(mg_extracted_norm)  # REMOVED - was causing wrong orientation
+                #   - Array row y_start displays at y = mg_height - 1 - y_start = box_y_max (top of purple box) ✓
+                #   - Array row y_end displays at y = mg_height - 1 - y_end = box_y_min (bottom of purple box) ✓
+                # So the extracted region already has the correct orientation - NO FLIP needed!
                 
-                print(f"  DEBUG: After flipud (to match origin='lower' display):")
-                print(f"    Top row (was bottom of purple box) value range: [{mg_extracted_norm[0, :].min():.3f}, {mg_extracted_norm[0, :].max():.3f}]")
-                print(f"    Bottom row (was top of purple box) value range: [{mg_extracted_norm[-1, :].min():.3f}, {mg_extracted_norm[-1, :].max():.3f}]")
+                print(f"  DEBUG: Extracted region ready (no flip needed):")
+                print(f"    Array row 0 (top of extraction) = display y = {mg_height - 1 - y_start:.2f} (top of purple box)")
+                print(f"    Array row {box_size-1} (bottom of extraction) = display y = {mg_height - 1 - y_end:.2f} (bottom of purple box)")
                 
                 # Update status
                 self.root.after(0, lambda: self.status_var.set(f"Generating density map for particle {particle_idx+1}..."))
