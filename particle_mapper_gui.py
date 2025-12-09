@@ -5190,58 +5190,7 @@ color #1 & nucleic #62466B
                 y_start = max(0, array_y_min)
                 y_end = min(mg_height, array_y_max)
                 
-                print(f"  DEBUG: Extraction bounds calculation:")
-                print(f"    Purple box display: x=[{box_x_min:.2f}, {box_x_max:.2f}], y=[{box_y_min:.2f}, {box_y_max:.2f}]")
-                print(f"    Purple box center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"    Array center: ({array_x_center}, {array_y_center})")
-                print(f"    Array bounds (before clamping): x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
-                # Convert array bounds back to display to verify they match purple box
-                display_x_min_from_array = x_start
-                display_x_max_from_array = x_end
-                display_y_min_from_array = mg_height - 1 - y_end  # Flip Y back
-                display_y_max_from_array = mg_height - 1 - y_start
-                print(f"    Array bounds -> Display: x=[{display_x_min_from_array}, {display_x_max_from_array}], y=[{display_y_min_from_array:.2f}, {display_y_max_from_array:.2f}]")
-                print(f"    Match: X={abs(display_x_min_from_array - box_x_min) < 1 and abs(display_x_max_from_array - box_x_max) < 1}, Y={abs(display_y_min_from_array - box_y_min) < 1 and abs(display_y_max_from_array - box_y_max) < 1}")
-                print(f"    X difference: min={abs(display_x_min_from_array - box_x_min):.2f}, max={abs(display_x_max_from_array - box_x_max):.2f}")
-                print(f"    Y difference: min={abs(display_y_min_from_array - box_y_min):.2f}, max={abs(display_y_max_from_array - box_y_max):.2f}")
-                
-                # CRITICAL: Verify the conversion is correct
-                # Purple box is at display coordinates (x_pixel, y_pixel)
-                # We need to extract from array at (array_x_center, array_y_center)
-                # Verify: array_x_center should equal x_pixel (rounded)
-                # Verify: array_y_center should equal mg_height - 1 - y_pixel (rounded)
-                expected_array_x = int(round(x_pixel))
-                expected_array_y = mg_height - 1 - int(round(y_pixel))
-                print(f"    Verification: Expected array center: ({expected_array_x}, {expected_array_y}), Actual: ({array_x_center}, {array_y_center})")
-                if expected_array_x != array_x_center or expected_array_y != array_y_center:
-                    print(f"    WARNING: Array center mismatch! This could cause wrong extraction area.")
-                
-                # Handle edge cases by adjusting if we go out of bounds
-                if x_start < 0:
-                    x_end += abs(x_start)
-                    x_start = 0
-                if x_end > mg_width:
-                    x_start -= (x_end - mg_width)
-                    x_end = mg_width
-                if y_start < 0:
-                    y_end += abs(y_start)
-                    y_start = 0
-                if y_end > mg_height:
-                    y_start -= (y_end - mg_height)
-                    y_end = mg_height
-                
-                # Ensure we still have box_size x box_size (or as close as possible)
-                actual_w = x_end - x_start
-                actual_h = y_end - y_start
-                
-                # Extract the region from the ENHANCED micrograph
-                # CRITICAL: Verify we're not extracting from micrograph center
-                mg_center_x = mg_width // 2
-                mg_center_y = mg_height // 2
-                if abs(x_start - (mg_center_x - box_size//2)) < 10 and abs(y_start - (mg_center_y - box_size//2)) < 10:
-                    print(f"  WARNING: Extraction bounds are suspiciously close to micrograph center!")
-                    print(f"    Micrograph center extraction would be: x=[{mg_center_x - box_size//2}, {mg_center_x + box_size//2}], y=[{mg_center_y - box_size//2}, {mg_center_y + box_size//2}]")
-                
+                # Extract the region from the ENHANCED micrograph using purple box bounds
                 mg_extracted = enhanced_full_micrograph[y_start:y_end, x_start:x_end]
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
