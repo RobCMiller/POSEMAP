@@ -5120,8 +5120,25 @@ color #1 & nucleic #62466B
                     raise ValueError("original_micrograph is None - micrograph not loaded")
                 print(f"  Original micrograph shape: {self.original_micrograph.shape}")
                 
+                # CRITICAL: Apply enhancements to the FULL micrograph first (same as main display)
+                # This ensures the extracted region has the exact same enhancements as what's shown in the purple box
+                # Save current low-pass filter setting
+                original_lowpass = getattr(self, 'lowpass_A', 2.0)
+                # Temporarily set to 5 Å for comparison (as requested by user)
+                self.lowpass_A = 5.0
+                
+                # Apply enhancements to full micrograph (same as main display)
+                enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph, pixel_size=pixel_size)
+                
+                # Restore original low-pass filter setting
+                self.lowpass_A = original_lowpass
+                
+                # Calculate vmin/vmax from the FULL enhanced micrograph (same as main display)
+                vmin, vmax = np.percentile(enhanced_full_micrograph, [1, 99])
+                print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
+                
                 # SIMPLE EXTRACTION: Extract a square box_size x box_size region centered on the particle
-                # This is like a "hole punch" - extract exactly box_size x box_size pixels
+                # Extract from the ENHANCED micrograph so it matches exactly what's shown in the purple box
                 # Calculate the exact bounds for a box_size x box_size square centered at (array_x_center, array_y_center)
                 half_box = box_size // 2
                 
@@ -5161,7 +5178,7 @@ color #1 & nucleic #62466B
                 actual_w = x_end - x_start
                 actual_h = y_end - y_start
                 
-                # Extract the region
+                # Extract the region from the ENHANCED micrograph
                 # CRITICAL: Verify we're not extracting from micrograph center
                 mg_center_x = mg_width // 2
                 mg_center_y = mg_height // 2
@@ -5169,7 +5186,7 @@ color #1 & nucleic #62466B
                     print(f"  WARNING: Extraction bounds are suspiciously close to micrograph center!")
                     print(f"    Micrograph center extraction would be: x=[{mg_center_x - box_size//2}, {mg_center_x + box_size//2}], y=[{mg_center_y - box_size//2}, {mg_center_y + box_size//2}]")
                 
-                mg_extracted = self.original_micrograph[y_start:y_end, x_start:x_end]
+                mg_extracted = enhanced_full_micrograph[y_start:y_end, x_start:x_end]
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
                 print(f"  Extraction bounds: x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
@@ -5199,11 +5216,6 @@ color #1 & nucleic #62466B
                 
                 print(f"  Output shape: {mg_output.shape}, padding: x={pad_x}, y={pad_y}")
                 
-                # IMPORTANT: DO NOT flip here - let origin='lower' handle the orientation
-                # The main display uses origin='lower', which means array row 0 (top) is displayed at bottom
-                # The comparison window also uses origin='lower', so we should keep the same orientation
-                # mg_output already has the correct orientation (row 0 = top of array = bottom of display)
-                
                 # Debug: Check what's actually in the extracted region
                 print(f"  DEBUG: Extracted region statistics:")
                 print(f"    Center pixel value: {mg_output[box_size//2, box_size//2]:.3f}")
@@ -5211,34 +5223,16 @@ color #1 & nucleic #62466B
                 print(f"    Min: {mg_output.min():.3f}, Max: {mg_output.max():.3f}")
                 print(f"    Value at particle center (288, 288): {mg_output[288, 288]:.3f}")
                 
-                # Apply image enhancements with better contrast for comparison
-                # Use a default 5 Å low-pass filter for better visibility
-                # Save current low-pass filter setting
-                original_lowpass = getattr(self, 'lowpass_A', 2.0)
-                # Temporarily set to 5 Å for comparison
-                self.lowpass_A = 5.0
-                
-                # Apply enhancements with the 5 Å filter
-                mg_enhanced = self.apply_enhancements(mg_output, pixel_size=pixel_size)
-                
-                # Restore original low-pass filter setting
-                self.lowpass_A = original_lowpass
-                
-                # Apply additional contrast enhancement for better visibility
-                # Use percentile-based normalization for better contrast
-                p1, p99 = np.percentile(mg_enhanced, [1, 99])
-                if p99 > p1:
-                    mg_enhanced = np.clip((mg_enhanced - p1) / (p99 - p1), 0, 1)
+                # Normalize using the SAME vmin/vmax as the main display
+                # This ensures the extracted region looks exactly like what's shown in the purple box
+                if vmax > vmin:
+                    mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
                 else:
-                    mg_enhanced = (mg_enhanced - mg_enhanced.min()) / (mg_enhanced.max() - mg_enhanced.min() + 1e-10)
+                    mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
                 
-                print(f"  DEBUG: After enhancement:")
-                print(f"    Mean: {mg_enhanced.mean():.3f}, Std: {mg_enhanced.std():.3f}")
-                print(f"    Min: {mg_enhanced.min():.3f}, Max: {mg_enhanced.max():.3f}")
-                
-                # Normalize micrograph region to [0, 1] for display (same as main GUI)
-                # mg_enhanced is already normalized from percentile-based enhancement above
-                mg_extracted_norm = mg_enhanced.astype(np.float32)
+                print(f"  DEBUG: After normalization with full micrograph vmin/vmax:")
+                print(f"    Mean: {mg_extracted_norm.mean():.3f}, Std: {mg_extracted_norm.std():.3f}")
+                print(f"    Min: {mg_extracted_norm.min():.3f}, Max: {mg_extracted_norm.max():.3f}")
                 
                 # CRITICAL: Flip vertically to match display orientation
                 # The extracted region mg_output has:
