@@ -2437,6 +2437,9 @@ class ParticleMapperGUI:
         # Apply enhancements
         display_image = self.apply_enhancements(self.original_micrograph)
         
+        # Store the displayed image so we can extract from it directly
+        self.current_display_image = display_image
+        
         # Get image dimensions
         img_height, img_width = display_image.shape[:2]
         
@@ -5152,36 +5155,22 @@ color #1 & nucleic #62466B
                 print(f"    This is the EXACT center of the purple box")
                 print(f"    We will extract a {box_size}x{box_size} box centered at this location")
                 
-                # CRITICAL: Verify we're using the correct micrograph
+                # CRITICAL: Extract directly from the SAME image that's displayed
                 # The purple box is drawn on the CURRENT displayed micrograph
-                # We must extract from the SAME micrograph that's currently displayed
-                # Check that we're using the correct micrograph index
+                # We must extract from the EXACT SAME image array that's shown
                 if self.original_micrograph is None:
                     print(f"  ERROR: No micrograph loaded!")
                     return
                 
-                # CRITICAL: Verify we're using the correct micrograph file
-                # Reload the micrograph to ensure we have the latest version
-                if self.current_micrograph_path and Path(self.current_micrograph_path).exists():
-                    try:
-                        with mrcfile.open(self.current_micrograph_path) as mrc:
-                            current_mg = mrc.data.astype(np.float32)
-                        if current_mg.shape != self.original_micrograph.shape:
-                            print(f"  WARNING: Micrograph shape mismatch! Reloading...")
-                            print(f"    Stored: {self.original_micrograph.shape}, File: {current_mg.shape}")
-                            self.original_micrograph = current_mg
-                        else:
-                            # Verify it's the same micrograph by checking a few pixels
-                            if not np.allclose(current_mg[0, 0], self.original_micrograph[0, 0], rtol=1e-5):
-                                print(f"  WARNING: Micrograph content mismatch! Reloading...")
-                                self.original_micrograph = current_mg
-                    except Exception as e:
-                        print(f"  WARNING: Could not verify micrograph file: {e}")
-                
-                # Apply enhancements to the FULL micrograph using CURRENT GUI settings (same as main display)
-                # This MUST be the same micrograph that's currently displayed in the main GUI
-                # Use the EXACT same process as update_display() uses
+                # Apply enhancements to the FULL micrograph using CURRENT GUI settings
+                # This MUST be the exact same process as update_display() uses
+                # In update_display(), we do: display_image = self.apply_enhancements(self.original_micrograph)
+                # So we do the same here
                 enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
+                
+                # Verify we have the right micrograph
+                print(f"  Using micrograph: {self.current_micrograph_path}")
+                print(f"  Enhanced micrograph shape: {enhanced_full_micrograph.shape}")
                 
                 # Verify dimensions match
                 if enhanced_full_micrograph.shape != self.original_micrograph.shape:
