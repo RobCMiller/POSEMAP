@@ -5237,10 +5237,20 @@ color #1 & nucleic #62466B
                 print(f"    Min: {mg_enhanced.min():.3f}, Max: {mg_enhanced.max():.3f}")
                 
                 # Normalize micrograph region to [0, 1] for display (same as main GUI)
-                if mg_enhanced.max() > mg_enhanced.min():
-                    mg_extracted_norm = (mg_enhanced - mg_enhanced.min()) / (mg_enhanced.max() - mg_enhanced.min())
-                else:
-                    mg_extracted_norm = mg_enhanced.copy().astype(np.float32)
+                # mg_enhanced is already normalized from percentile-based enhancement above
+                mg_extracted_norm = mg_enhanced.astype(np.float32)
+                
+                # CRITICAL: Flip vertically to match display orientation
+                # The extracted region mg_output has:
+                #   - Row 0 = top of purple box (array row 1231 = display y 2860)
+                #   - Row 575 = bottom of purple box (array row 1806 = display y 2285)
+                # When displayed with origin='lower', row 0 is at bottom
+                # So we need to flip so that the top of the purple box is at the top of the display
+                mg_extracted_norm = np.flipud(mg_extracted_norm)
+                
+                print(f"  DEBUG: After flipud (to match origin='lower' display):")
+                print(f"    Top row (was bottom of purple box) value range: [{mg_extracted_norm[0, :].min():.3f}, {mg_extracted_norm[0, :].max():.3f}]")
+                print(f"    Bottom row (was top of purple box) value range: [{mg_extracted_norm[-1, :].min():.3f}, {mg_extracted_norm[-1, :].max():.3f}]")
                 
                 # Update status
                 self.root.after(0, lambda: self.status_var.set(f"Generating density map for particle {particle_idx+1}..."))
@@ -5280,22 +5290,18 @@ color #1 & nucleic #62466B
                 # Create side-by-side image
                 # IMPORTANT: comparison array is indexed as [row, col, channel] where row 0 is at top
                 # When displayed with origin='lower', row 0 of comparison array is at bottom
-                # mg_extracted_norm has row 0 = top of array (not flipped), which matches main display
-                # em_proj_norm has row 0 = bottom (flipped in project_volume), which also matches main display
-                # But wait - if mg_extracted_norm has row 0 = top, and we put it in comparison[:, :box_size] (row 0 = top),
-                # then when displayed with origin='lower', row 0 of comparison is at bottom, which is correct!
-                # And if em_proj_norm has row 0 = bottom, and we put it in comparison[:, box_size:] (row 0 = top),
-                # then when displayed with origin='lower', row 0 of comparison is at bottom, which means em_proj_norm row 0 is at bottom, which is correct!
-                # So both should work correctly as-is
+                # mg_extracted_norm is now flipped (flipud) so:
+                #   - Row 0 = bottom of purple box (will be displayed at bottom with origin='lower') ✓
+                #   - Row 575 = top of purple box (will be displayed at top with origin='lower') ✓
+                # em_proj_norm has row 0 = bottom (flipped in project_volume), which matches
                 comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
                 # Left side: actual micrograph (grayscale -> RGB)
-                # mg_extracted_norm has row 0 = top of array, which will be displayed at bottom with origin='lower'
+                # mg_extracted_norm is flipped so it matches the purple box orientation
                 comparison[:, :box_size, 0] = mg_extracted_norm
                 comparison[:, :box_size, 1] = mg_extracted_norm
                 comparison[:, :box_size, 2] = mg_extracted_norm
                 # Right side: simulated EM projection (grayscale -> RGB)
-                # em_proj_norm has row 0 = bottom (flipped in project_volume), which will be displayed at bottom with origin='lower'
-                # But wait, if we put it in comparison[:, box_size:] (row 0 = top), then with origin='lower', it will be at bottom, which is correct!
+                # em_proj_norm has row 0 = bottom (flipped in project_volume)
                 comparison[:, box_size:, 0] = em_proj_norm
                 comparison[:, box_size:, 1] = em_proj_norm
                 comparison[:, box_size:, 2] = em_proj_norm
