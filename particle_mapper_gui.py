@@ -5155,7 +5155,11 @@ color #1 & nucleic #62466B
                 # CRITICAL: Apply enhancements to the FULL micrograph using CURRENT GUI settings
                 # This ensures the extracted region has the exact same enhancements as what's shown in the purple box
                 # Use the CURRENT low-pass filter setting (not forced to 5 Å) - user wants to see exactly what's in the purple box
-                enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph, pixel_size=pixel_size)
+                # IMPORTANT: Use the same pixel_size as the main display uses (from GUI entry, not from particle data)
+                # The main display uses: display_image = self.apply_enhancements(self.original_micrograph)
+                # which gets pixel_size from self.pixel_size_entry or defaults
+                # So we should do the same - don't pass pixel_size, let apply_enhancements get it from GUI
+                enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
                 
                 # Calculate vmin/vmax from the FULL enhanced micrograph (same as main display)
                 vmin, vmax = np.percentile(enhanced_full_micrograph, [1, 99])
