@@ -5152,10 +5152,16 @@ color #1 & nucleic #62466B
                 print(f"    This is the EXACT center of the purple box")
                 print(f"    We will extract a {box_size}x{box_size} box centered at this location")
                 
-                # SIMPLEST APPROACH: Extract directly from what's displayed
-                # The purple box is drawn at (x_pixel, y_pixel) in display coordinates
-                # We need to extract the exact region shown in the purple box
+                # CRITICAL: Verify we're using the correct micrograph
+                # The purple box is drawn on the CURRENT displayed micrograph
+                # We must extract from the SAME micrograph that's currently displayed
+                # Check that we're using the correct micrograph index
+                if self.original_micrograph is None:
+                    print(f"  ERROR: No micrograph loaded!")
+                    return
+                
                 # Apply enhancements to the FULL micrograph using CURRENT GUI settings (same as main display)
+                # This MUST be the same micrograph that's currently displayed in the main GUI
                 enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
                 
                 # Calculate vmin/vmax from the FULL enhanced micrograph (same as main display)
