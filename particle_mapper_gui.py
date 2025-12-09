@@ -5162,7 +5162,14 @@ color #1 & nucleic #62466B
                 
                 # Apply enhancements to the FULL micrograph using CURRENT GUI settings (same as main display)
                 # This MUST be the same micrograph that's currently displayed in the main GUI
+                # Use the EXACT same process as update_display() uses
                 enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
+                
+                # Verify dimensions match
+                if enhanced_full_micrograph.shape != self.original_micrograph.shape:
+                    print(f"  ERROR: Enhanced micrograph shape mismatch!")
+                    print(f"    Original: {self.original_micrograph.shape}, Enhanced: {enhanced_full_micrograph.shape}")
+                    return
                 
                 # Calculate vmin/vmax from the FULL enhanced micrograph (same as main display)
                 vmin, vmax = np.percentile(enhanced_full_micrograph, [1, 99])
