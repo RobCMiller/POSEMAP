@@ -5038,11 +5038,22 @@ color #1 & nucleic #62466B
                 print(f"Particle {particle_idx+1} extraction:")
                 print(f"  Current micrograph idx: {self.current_micrograph_idx}")
                 print(f"  Current micrograph path: {self.current_micrograph_path}")
+                print(f"  Original micrograph shape: {self.original_micrograph.shape if self.original_micrograph is not None else 'None'}")
                 print(f"  Fractional coords: ({center_x_frac:.4f}, {center_y_frac:.4f})")
                 print(f"  Particle center (after shifts): ({x_pixel:.2f}, {y_pixel:.2f})")
                 print(f"  Projection center (with offsets): ({center_x:.2f}, {center_y:.2f})")
-                print(f"  Micrograph shape: {mg_height} x {mg_width}")
+                print(f"  Micrograph shape (from particles data): {mg_height} x {mg_width}")
                 print(f"  Box size: {box_size}")
+                
+                # CRITICAL: Verify micrograph shape matches
+                if self.original_micrograph is not None:
+                    actual_shape = self.original_micrograph.shape
+                    if actual_shape[0] != mg_height or actual_shape[1] != mg_width:
+                        print(f"  WARNING: Micrograph shape mismatch!")
+                        print(f"    Particles data says: {mg_height} x {mg_width}")
+                        print(f"    Actual micrograph is: {actual_shape[0]} x {actual_shape[1]}")
+                        print(f"    Using actual micrograph shape for extraction.")
+                        mg_height, mg_width = actual_shape[0], actual_shape[1]
                 
                 # Convert display coordinates to array coordinates
                 # Use x_pixel, y_pixel (actual particle center) for extraction
