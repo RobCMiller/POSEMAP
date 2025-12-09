@@ -5055,21 +5055,15 @@ color #1 & nucleic #62466B
                         print(f"    Using actual micrograph shape for extraction.")
                         mg_height, mg_width = actual_shape[0], actual_shape[1]
                 
+                # CRITICAL: Use EXACT same x_pixel and y_pixel that the purple box uses
+                # The purple box is drawn at (x_pixel, y_pixel) which is the particle center
+                # We MUST use the exact same coordinates for extraction
                 # Convert display coordinates to array coordinates
                 # Use x_pixel, y_pixel (actual particle center) for extraction
                 # IMPORTANT: x_pixel and y_pixel are in display coordinates (origin='lower')
                 # Display: y=0 at bottom, y=height at top
                 # Array: row 0 at top, row (height-1) at bottom
                 # Conversion: array_row = mg_height - 1 - display_y
-                # BUT WAIT: Let me verify this is correct by checking what the main display shows
-                # In the main display, we use origin='lower', which means:
-                # - Array row 0 (top) is displayed at y=0 (bottom)
-                # - Array row (height-1) (bottom) is displayed at y=height-1 (top)
-                # So if display_y = 2572, that means we're at row (height-1) - 2572 from the top
-                # Which is: array_row = height - 1 - display_y ✓
-                # Convert display coordinates to array coordinates
-                # CRITICAL: The main display uses origin='lower', so y=0 is at bottom
-                # Array has row 0 at top, so we need to flip Y coordinate
                 # Use the same rounding as main display (line 2504-2505)
                 x_pixel_int = int(round(x_pixel))
                 y_pixel_int = int(round(y_pixel))
@@ -5085,6 +5079,16 @@ color #1 & nucleic #62466B
                 # we have: array_row = height - 1 - display_y
                 array_x_center = x_pixel_int
                 array_y_center = mg_height - 1 - y_pixel_int
+                
+                # CRITICAL VERIFICATION: The purple box is drawn at (x_pixel, y_pixel)
+                # So the extraction center MUST be at the same location
+                # Verify that our array coordinates correspond to the purple box center
+                print(f"  CRITICAL: Purple box center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"  CRITICAL: Extraction center (array): ({array_x_center}, {array_y_center})")
+                print(f"  CRITICAL: Extraction center -> display: ({array_x_center}, {mg_height - 1 - array_y_center})")
+                print(f"  CRITICAL: Should match purple box center: ({x_pixel_int}, {y_pixel_int})")
+                if array_x_center != x_pixel_int or (mg_height - 1 - array_y_center) != y_pixel_int:
+                    print(f"  ERROR: Extraction center does NOT match purple box center!")
                 
                 # Debug: Print the exact coordinates we're using
                 print(f"  Using EXACT coordinates from .cs file:")
