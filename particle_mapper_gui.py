@@ -5259,6 +5259,12 @@ color #1 & nucleic #62466B
                     print(f"    Small region around particle center: shape={check_region.shape}, range=[{check_region.min():.3f}, {check_region.max():.3f}], mean={check_region.mean():.3f}")
                 
                 # Extract the region from the ENHANCED micrograph using purple box bounds
+                print(f"  EXTRACTING from enhanced micrograph:")
+                print(f"    Enhanced micrograph shape: {enhanced_full_micrograph.shape}")
+                print(f"    Extraction bounds (array): x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
+                print(f"    Extraction bounds -> display: x=[{x_start}, {x_end}], y=[{mg_height - 1 - y_end}, {mg_height - 1 - y_start}]")
+                print(f"    Should match purple box: x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
+                
                 mg_extracted = enhanced_full_micrograph[y_start:y_end, x_start:x_end]
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
@@ -5271,6 +5277,27 @@ color #1 & nucleic #62466B
                     local_y = array_y_center - y_start
                     center_value = mg_extracted[local_y, local_x]
                     print(f"  Particle center in extracted region: local=({local_x}, {local_y}), value={center_value:.3f}")
+                    print(f"    Expected local center: ~({box_size//2}, {box_size//2}) = (288, 288)")
+                    
+                    # Save extracted region to file for visual verification
+                    try:
+                        from PIL import Image
+                        import os
+                        # Normalize for saving
+                        if mg_extracted.max() > mg_extracted.min():
+                            mg_normalized = (mg_extracted - mg_extracted.min()) / (mg_extracted.max() - mg_extracted.min())
+                        else:
+                            mg_normalized = mg_extracted.copy()
+                        mg_uint8 = (mg_normalized * 255).astype(np.uint8)
+                        img = Image.fromarray(mg_uint8, mode='L')
+                        debug_dir = Path(__file__).parent / "debug_extractions"
+                        debug_dir.mkdir(exist_ok=True)
+                        debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}.png"
+                        img.save(debug_path)
+                        print(f"  SAVED extracted region to: {debug_path}")
+                        print(f"    This should match what's in the purple box!")
+                    except Exception as e:
+                        print(f"  Could not save debug image: {e}")
                 else:
                     print(f"  ERROR: Particle center is NOT in extraction region!")
                     print(f"    This means we're extracting the wrong region!")
