@@ -5003,10 +5003,17 @@ color #1 & nucleic #62466B
                 # So if display_y = 2572, that means we're at row (height-1) - 2572 from the top
                 # Which is: array_row = height - 1 - display_y ✓
                 # Convert display coordinates to array coordinates
-                # CRITICAL: Display uses origin='lower', so y=0 is at bottom
+                # CRITICAL: The main display uses origin='lower', so y=0 is at bottom
                 # Array has row 0 at top, so we need to flip Y coordinate
-                array_x_center = int(round(x_pixel))
-                array_y_center = mg_height - 1 - int(round(y_pixel))
+                # Use the same rounding as main display (line 2504-2505)
+                x_pixel_int = int(round(x_pixel))
+                y_pixel_int = int(round(y_pixel))
+                
+                # Convert to array coordinates (for extraction from numpy array)
+                # Display: y=0 at bottom, y=height at top
+                # Array: row 0 at top, row (height-1) at bottom
+                array_x_center = x_pixel_int
+                array_y_center = mg_height - 1 - y_pixel_int
                 
                 # Debug: Check if we're accidentally using micrograph center
                 mg_center_x = mg_width // 2
