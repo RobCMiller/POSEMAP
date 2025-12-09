@@ -5160,6 +5160,24 @@ color #1 & nucleic #62466B
                     print(f"  ERROR: No micrograph loaded!")
                     return
                 
+                # CRITICAL: Verify we're using the correct micrograph file
+                # Reload the micrograph to ensure we have the latest version
+                if self.current_micrograph_path and Path(self.current_micrograph_path).exists():
+                    try:
+                        with mrcfile.open(self.current_micrograph_path) as mrc:
+                            current_mg = mrc.data.astype(np.float32)
+                        if current_mg.shape != self.original_micrograph.shape:
+                            print(f"  WARNING: Micrograph shape mismatch! Reloading...")
+                            print(f"    Stored: {self.original_micrograph.shape}, File: {current_mg.shape}")
+                            self.original_micrograph = current_mg
+                        else:
+                            # Verify it's the same micrograph by checking a few pixels
+                            if not np.allclose(current_mg[0, 0], self.original_micrograph[0, 0], rtol=1e-5):
+                                print(f"  WARNING: Micrograph content mismatch! Reloading...")
+                                self.original_micrograph = current_mg
+                    except Exception as e:
+                        print(f"  WARNING: Could not verify micrograph file: {e}")
+                
                 # Apply enhancements to the FULL micrograph using CURRENT GUI settings (same as main display)
                 # This MUST be the same micrograph that's currently displayed in the main GUI
                 # Use the EXACT same process as update_display() uses
