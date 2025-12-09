@@ -5138,10 +5138,37 @@ color #1 & nucleic #62466B
                 # The comparison window also uses origin='lower', so we should keep the same orientation
                 # mg_output already has the correct orientation (row 0 = top of array = bottom of display)
                 
-                # Apply same image enhancements as main GUI
-                # Use the same low-pass filter, brightness, and contrast settings
-                # Pass pixel_size to ensure correct scaling
+                # Debug: Check what's actually in the extracted region
+                print(f"  DEBUG: Extracted region statistics:")
+                print(f"    Center pixel value: {mg_output[box_size//2, box_size//2]:.3f}")
+                print(f"    Mean value: {mg_output.mean():.3f}, Std: {mg_output.std():.3f}")
+                print(f"    Min: {mg_output.min():.3f}, Max: {mg_output.max():.3f}")
+                print(f"    Value at particle center (288, 288): {mg_output[288, 288]:.3f}")
+                
+                # Apply image enhancements with better contrast for comparison
+                # Use a default 5 Å low-pass filter for better visibility
+                # Save current low-pass filter setting
+                original_lowpass = getattr(self, 'lowpass_scale', 2.0)
+                # Temporarily set to 5 Å for comparison
+                self.lowpass_scale = 5.0
+                
+                # Apply enhancements with the 5 Å filter
                 mg_enhanced = self.apply_enhancements(mg_output, pixel_size=pixel_size)
+                
+                # Restore original low-pass filter setting
+                self.lowpass_scale = original_lowpass
+                
+                # Apply additional contrast enhancement for better visibility
+                # Use percentile-based normalization for better contrast
+                p1, p99 = np.percentile(mg_enhanced, [1, 99])
+                if p99 > p1:
+                    mg_enhanced = np.clip((mg_enhanced - p1) / (p99 - p1), 0, 1)
+                else:
+                    mg_enhanced = (mg_enhanced - mg_enhanced.min()) / (mg_enhanced.max() - mg_enhanced.min() + 1e-10)
+                
+                print(f"  DEBUG: After enhancement:")
+                print(f"    Mean: {mg_enhanced.mean():.3f}, Std: {mg_enhanced.std():.3f}")
+                print(f"    Min: {mg_enhanced.min():.3f}, Max: {mg_enhanced.max():.3f}")
                 
                 # Normalize micrograph region to [0, 1] for display (same as main GUI)
                 if mg_enhanced.max() > mg_enhanced.min():
