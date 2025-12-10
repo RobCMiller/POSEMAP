@@ -5126,9 +5126,13 @@ color #1 & nucleic #62466B
                     mg_normalized = np.clip((mg_extracted_for_display - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
                 else:
                     mg_normalized = np.zeros_like(mg_extracted_for_display, dtype=np.float32)
-                comparison[:, :box_size, 0] = mg_normalized
-                comparison[:, :box_size, 1] = mg_normalized
-                comparison[:, :box_size, 2] = mg_normalized
+                
+                # Invert contrast (multiply by -1, then shift to [0, 1] range)
+                mg_inverted = 1.0 - mg_normalized
+                
+                comparison[:, :box_size, 0] = mg_inverted
+                comparison[:, :box_size, 1] = mg_inverted
+                comparison[:, :box_size, 2] = mg_inverted
                 # Right side: simulated EM projection (grayscale -> RGB)
                 # em_proj_norm has row 0 = bottom (flipped in project_volume)
                 comparison[:, box_size:, 0] = em_proj_norm
