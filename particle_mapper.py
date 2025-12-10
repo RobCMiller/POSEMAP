@@ -497,44 +497,39 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     em_volume.set_data_string(volume_xyz.tobytes())
     print(f"  DEBUG EMAN2: Volume data set, creating transform and projecting...")
     
-    # Apply rotation corrections if needed
-    # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
-    # We need to combine the main rotation with corrections
-    # Corrections are in XYZ convention (intrinsic rotations)
+    # Get the rotation matrix that NumPy uses (R, which rotates volume->view)
+    # NumPy then uses R.T to transform view coords to volume coords
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    
+    # Apply rotation corrections if needed (same as NumPy version)
     if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
         from scipy.spatial.transform import Rotation as Rot
-        # Get main rotation matrix from Euler angles (ZYZ)
-        R_main = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
-        # Get correction rotation matrix (XYZ)
         rot_x_rad = np.deg2rad(rotation_correction_x)
         rot_y_rad = np.deg2rad(rotation_correction_y)
         rot_z_rad = np.deg2rad(rotation_correction_z)
         rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
         R_correction = rot_correction.as_matrix()
-        # Combine rotations: R_final = R_main @ R_correction (same as PyMOL)
-        R_final = R_main @ R_correction
-        # Convert back to ZYZ Euler angles for EMAN2
-        rot_final = Rot.from_matrix(R_final)
-        euler_final = rot_final.as_euler('ZYZ', degrees=False)
-        # EMAN2 uses [az, alt, phi] = [phi, theta, psi]
-        euler_angles = np.array([euler_final[0], euler_final[1], euler_final[2]])
+        # Combine rotations: R_final = R @ R_correction (same as NumPy)
+        R = R @ R_correction
     
-    # Create transform from Euler angles
-    # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
-    # NumPy version uses R.T to transform view coords to volume coords
-    # This means: view_coords -> R.T -> volume_coords (sample volume)
-    # For EMAN2 to match, we need to rotate the volume by R (not R.T)
-    # But EMAN2's project() applies the transform to the volume, so we need the inverse
-    # to match NumPy's coordinate transformation approach
+    # NumPy uses R.T to transform view coords to volume coords
+    # For EMAN2, we need to rotate the volume by R.T to get the same result
+    # So we use R.T (transpose) as the rotation matrix
+    R_for_eman2 = R.T
+    
+    # Convert rotation matrix to EMAN2 Transform
+    # EMAN2 Transform can be created from a rotation matrix directly
+    # We'll create a transform from the rotation matrix, then convert to Euler angles
+    from scipy.spatial.transform import Rotation as Rot
+    rot_from_matrix = Rot.from_matrix(R_for_eman2)
+    euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
+    
+    # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
     transform = Transform({"type": "eman", 
-                          "az": euler_angles[0],   # phi
-                          "alt": euler_angles[1],  # theta  
-                          "phi": euler_angles[2]}) # psi
-    # Use inverse transform to match NumPy's R.T behavior
-    # NumPy: volume_coords = R.T @ view_coords
-    # EMAN2 with inverse: rotates volume by R.T, which should match
-    transform = transform.inverse()
-    print(f"  DEBUG EMAN2: Using Euler angles (inverse transform): az={euler_angles[0]:.6f}, alt={euler_angles[1]:.6f}, phi={euler_angles[2]:.6f}")
+                          "az": euler_zyz[0],   # phi
+                          "alt": euler_zyz[1],  # theta  
+                          "phi": euler_zyz[2]}) # psi
+    print(f"  DEBUG EMAN2: Using R.T from NumPy, Euler angles: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
