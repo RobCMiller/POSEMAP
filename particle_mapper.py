@@ -522,15 +522,19 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # Create transform from Euler angles
     # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
     # NumPy version uses R.T to transform view coords to volume coords
-    # This means R rotates from volume to view space
-    # For EMAN2, we need to rotate the volume to match the view
-    # Try negating the angles (common fix for orientation mismatches)
-    # EMAN2's Euler angles might have opposite sign convention
+    # This means: view_coords -> R.T -> volume_coords (sample volume)
+    # For EMAN2 to match, we need to rotate the volume by R (not R.T)
+    # But EMAN2's project() applies the transform to the volume, so we need the inverse
+    # to match NumPy's coordinate transformation approach
     transform = Transform({"type": "eman", 
-                          "az": -euler_angles[0],  # Negate first angle
-                          "alt": euler_angles[1],   # Keep second angle
-                          "phi": -euler_angles[2]}) # Negate third angle
-    print(f"  DEBUG EMAN2: Using Euler angles: az={-euler_angles[0]:.6f}, alt={euler_angles[1]:.6f}, phi={-euler_angles[2]:.6f}")
+                          "az": euler_angles[0],   # phi
+                          "alt": euler_angles[1],  # theta  
+                          "phi": euler_angles[2]}) # psi
+    # Use inverse transform to match NumPy's R.T behavior
+    # NumPy: volume_coords = R.T @ view_coords
+    # EMAN2 with inverse: rotates volume by R.T, which should match
+    transform = transform.inverse()
+    print(f"  DEBUG EMAN2: Using Euler angles (inverse transform): az={euler_angles[0]:.6f}, alt={euler_angles[1]:.6f}, phi={euler_angles[2]:.6f}")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
