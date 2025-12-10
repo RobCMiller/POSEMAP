@@ -5197,7 +5197,7 @@ color #1 & nucleic #62466B
                             initialfile=f'particle_{particle_idx+1}_comparison.png'
                         )
                         if filename:
-                            fig.savefig(filename, dpi=150, bbox_inches='tight')
+                            fig.savefig(filename, dpi=400, bbox_inches='tight')
                             messagebox.showinfo("Saved", f"Comparison saved to {filename}")
                     
                     save_button = tk.Button(comparison_window, text="Save Comparison", command=save_comparison)
