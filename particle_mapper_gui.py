@@ -5079,10 +5079,23 @@ color #1 & nucleic #62466B
                 
                 print(f"  DEBUG: Array coords: x=[{array_x_start}, {array_x_end}), y=[{array_y_start}, {array_y_end})")
                 print(f"  DEBUG: Display y [{display_y_bottom}, {display_y_top}] -> Array rows [{array_row_top}, {array_row_bottom}]")
+                print(f"  DEBUG: Verifying: display y={box_y_start} -> array row={mg_height - 1 - box_y_start}, should be in range [{array_y_start}, {array_y_end})")
                 
                 # Extract directly from displayed image
                 mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
                 print(f"  DEBUG: Extracted shape: {mg_extracted.shape}, expected: ({box_size}, {box_size})")
+                
+                # VERIFY: Check center pixel
+                center_display_x = (box_x_start + box_x_end) // 2
+                center_display_y = (box_y_start + box_y_end) // 2
+                center_array_x = center_display_x
+                center_array_y = mg_height - 1 - center_display_y
+                print(f"  DEBUG: Center of box: display=({center_display_x}, {center_display_y}) -> array=({center_array_x}, {center_array_y})")
+                if 0 <= center_array_y < mg_height and 0 <= center_array_x < mg_width:
+                    center_val = display_image[center_array_y, center_array_x]
+                    print(f"  DEBUG: Center pixel value: {center_val}")
+                else:
+                    print(f"  DEBUG: WARNING: Center pixel out of bounds!")
                 
                 # Pad to box_size if needed
                 extracted_h, extracted_w = mg_extracted.shape
