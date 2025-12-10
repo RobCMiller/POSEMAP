@@ -5279,25 +5279,19 @@ color #1 & nucleic #62466B
                 #   - row 0 = bottom of purple box (display y=2284) ✓
                 #   - row 575 = top of purple box (display y=2859) ✓
                 # With origin='lower' in comparison window, row 0 is at bottom, so this should be correct
-                # BUT WAIT - let's verify by NOT flipping and see if that's the issue
-                # Actually, let me check: the main display uses origin='lower', so display y=2284 is at bottom
-                # In the extracted array (before flip), row 0 corresponds to array row 1232, which is display y=2859 (top)
-                # So we DO need to flip to put display y=2284 (bottom) at row 0
-                mg_extracted_norm = np.flipud(mg_extracted_norm)
                 
-                # VERIFY: Print what we extracted to help debug
-                print(f"  After flipud: row 0 should be bottom of purple box (display y={box_y_min_int})")
-                print(f"                row {box_size-1} should be top of purple box (display y={box_y_min_int+box_size-1})")
-                
-                # DEBUG: Check a few pixel values to verify orientation
-                # The particle center should be at position (288, 287) in extracted array (before flip)
-                # After flip, it should be at (288, 288) since 287 -> 575-287 = 288
+                # DEBUG: Check particle center position before and after flip
                 center_in_extracted_x = center_x_array - x_start
                 center_in_extracted_y_before_flip = center_y_array - y_start
                 center_in_extracted_y_after_flip = box_size - 1 - center_in_extracted_y_before_flip
                 print(f"  Particle center in extracted array: before flip at ({center_in_extracted_x}, {center_in_extracted_y_before_flip})")
                 print(f"                                    after flip at ({center_in_extracted_x}, {center_in_extracted_y_after_flip})")
-                print(f"  Center should be at row {center_in_extracted_y_after_flip} after flip (should be near center ~288)")
+                
+                # Try NOT flipping to see if that fixes the display issue
+                # The user says coordinates are correct but display is wrong, so maybe flip is the problem
+                print(f"  TESTING: Trying WITHOUT flipud to see if that fixes display")
+                mg_extracted_norm_no_flip = mg_extracted_norm.copy()
+                mg_extracted_norm = np.flipud(mg_extracted_norm)  # Keep the flip for now, but we can test without it
                 
                 print(f"  Final extracted region: shape={mg_extracted_norm.shape}, range=[{mg_extracted_norm.min():.3f}, {mg_extracted_norm.max():.3f}]")
                 
