@@ -5031,71 +5031,81 @@ color #1 & nucleic #62466B
                 
                 self.root.after(0, draw_extraction_box)
                 
-                # Extract region from micrograph
-                # IMPORTANT: Use x_pixel, y_pixel (particle center) NOT center_x, center_y (projection center)
-                # The projection offsets are for aligning the projection, not for finding the particle
-                # Micrograph array: stored as [height, width] = [rows, cols]
-                # Array indexing: row 0 is top, row (height-1) is bottom
-                # Display coordinates (origin='lower'): y=0 is bottom, y=height is top
-                # x_pixel and y_pixel are the actual particle center in display coordinates
-                # To convert from display y (0=bottom) to array row (0=top):
-                #   array_row = mg_height - 1 - int(round(display_y))
+                # SIMPLE APPROACH: Extract the exact region shown in the purple box
+                # Get the current displayed image and extract the box region directly
+                # This matches what the user sees when they zoom around the purple box
                 
-                # Debug output
                 print(f"Particle {particle_idx+1} extraction:")
-                print(f"  Current micrograph idx: {self.current_micrograph_idx}")
-                print(f"  Current micrograph path: {self.current_micrograph_path}")
-                print(f"  Original micrograph shape: {self.original_micrograph.shape if self.original_micrograph is not None else 'None'}")
-                print(f"  Fractional coords: ({center_x_frac:.4f}, {center_y_frac:.4f})")
-                print(f"  Particle center (after shifts): ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"  Projection center (with offsets): ({center_x:.2f}, {center_y:.2f})")
-                print(f"  Micrograph shape (from particles data): {mg_height} x {mg_width}")
-                print(f"  Box size: {box_size}")
+                print(f"  Using SIMPLE approach: extract from displayed image")
                 
-                # CRITICAL: Verify micrograph shape matches
-                if self.original_micrograph is not None:
-                    actual_shape = self.original_micrograph.shape
-                    if actual_shape[0] != mg_height or actual_shape[1] != mg_width:
-                        print(f"  WARNING: Micrograph shape mismatch!")
-                        print(f"    Particles data says: {mg_height} x {mg_width}")
-                        print(f"    Actual micrograph is: {actual_shape[0]} x {actual_shape[1]}")
-                        print(f"    Using actual micrograph shape for extraction.")
-                        mg_height, mg_width = actual_shape[0], actual_shape[1]
+                # Get the currently displayed image (already enhanced and normalized)
+                if not hasattr(self, 'current_display_image') or self.current_display_image is None:
+                    print(f"  ERROR: No displayed image available!")
+                    return
                 
-                # CRITICAL: Use EXACT same x_pixel and y_pixel that the purple box uses
-                # The purple box is drawn at (x_pixel, y_pixel) which is the particle center
-                # We MUST use the exact same coordinates for extraction
+                display_image = self.current_display_image
+                img_height, img_width = display_image.shape
+                print(f"  Display image shape: {display_image.shape}")
+                
+                # Get the purple box bounds in display coordinates
+                box_x_min_int = int(round(box_x_min))
+                box_y_min_int = int(round(box_y_min))
+                box_x_max_int = box_x_min_int + box_size
+                box_y_max_int = box_y_min_int + box_size
+                
+                print(f"  Purple box bounds (display): x=[{box_x_min_int}, {box_x_max_int}), y=[{box_y_min_int}, {box_y_max_int})")
+                
                 # Convert display coordinates to array coordinates
-                # Use x_pixel, y_pixel (actual particle center) for extraction
-                # IMPORTANT: x_pixel and y_pixel are in display coordinates (origin='lower')
-                # Display: y=0 at bottom, y=height at top
+                # Display uses origin='lower': y=0 at bottom, y=height at top
                 # Array: row 0 at top, row (height-1) at bottom
-                # Conversion: array_row = mg_height - 1 - display_y
-                # Use the same rounding as main display (line 2504-2505)
-                x_pixel_int = int(round(x_pixel))
-                y_pixel_int = int(round(y_pixel))
+                # Conversion: array_row = height - 1 - display_y
+                array_x_start = max(0, box_x_min_int)
+                array_x_end = min(img_width, box_x_max_int)
+                # For y: display y=0 is array row (height-1), display y=(height-1) is array row 0
+                # Display y=box_y_min is at bottom of box, display y=box_y_max is at top of box
+                # So array row for bottom of box = height - 1 - box_y_min_int
+                # And array row for top of box = height - 1 - (box_y_max_int - 1)
+                array_y_bottom_display = box_y_min_int
+                array_y_top_display = box_y_max_int - 1
+                array_y_bottom_row = img_height - 1 - array_y_bottom_display
+                array_y_top_row = img_height - 1 - array_y_top_display
+                # For slicing, we want smaller row index first (top of image)
+                array_y_start = min(array_y_top_row, array_y_bottom_row)
+                array_y_end = max(array_y_top_row, array_y_bottom_row) + 1
                 
-                # Convert to array coordinates (for extraction from numpy array)
-                # Display: y=0 at bottom, y=height at top
-                # Array: row 0 at top, row (height-1) at bottom
-                # CRITICAL: The main display draws the particle marker at (x_pixel, y_pixel) with origin='lower'
-                # So the marker appears at display coordinates (x_pixel, y_pixel)
-                # To extract from the array, we need to convert display y to array row
-                # Since origin='lower' means array row (height-1) is at display y=0,
-                # and array row 0 is at display y=(height-1),
-                # we have: array_row = height - 1 - display_y
-                array_x_center = x_pixel_int
-                array_y_center = mg_height - 1 - y_pixel_int
+                # Clamp to image bounds
+                array_x_start = max(0, array_x_start)
+                array_x_end = min(img_width, array_x_end)
+                array_y_start = max(0, array_y_start)
+                array_y_end = min(img_height, array_y_end)
                 
-                # CRITICAL VERIFICATION: The purple box is drawn at (x_pixel, y_pixel)
-                # So the extraction center MUST be at the same location
-                # Verify that our array coordinates correspond to the purple box center
-                print(f"  CRITICAL: Purple box center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"  CRITICAL: Extraction center (array): ({array_x_center}, {array_y_center})")
-                print(f"  CRITICAL: Extraction center -> display: ({array_x_center}, {mg_height - 1 - array_y_center})")
-                print(f"  CRITICAL: Should match purple box center: ({x_pixel_int}, {y_pixel_int})")
-                if array_x_center != x_pixel_int or (mg_height - 1 - array_y_center) != y_pixel_int:
-                    print(f"  ERROR: Extraction center does NOT match purple box center!")
+                print(f"  Array bounds: x=[{array_x_start}, {array_x_end}), y=[{array_y_start}, {array_y_end})")
+                
+                # Extract the region directly from the displayed image
+                mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
+                extracted_h, extracted_w = mg_extracted.shape
+                print(f"  Extracted shape: {mg_extracted.shape}")
+                
+                # Pad or crop to exactly box_size x box_size
+                mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
+                pad_x = (box_size - extracted_w) // 2
+                pad_y = (box_size - extracted_h) // 2
+                mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
+                
+                # Get vmin/vmax from the full display image (same as main display uses)
+                vmin, vmax = np.percentile(display_image, [1, 99])
+                print(f"  Display vmin/vmax: {vmin:.3f} / {vmax:.3f}")
+                
+                # Normalize the extracted region using the same vmin/vmax
+                if vmax > vmin:
+                    mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
+                else:
+                    mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
+                
+                # Flip vertically to match origin='lower' display
+                # The extracted array has row 0 = top of purple box
+                # With origin='lower', we need row 0 = bottom of purple box
+                mg_extracted_for_display = np.flipud(mg_extracted_norm)
                 
                 # Debug: Print the exact coordinates we're using
                 print(f"  Using EXACT coordinates from .cs file:")
