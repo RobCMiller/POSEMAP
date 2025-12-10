@@ -5174,6 +5174,7 @@ color #1 & nucleic #62466B
                     # comparison is RGB (3 channels), already normalized to [0, 1]
                     # mg_extracted_for_display is flipped so row 0 = bottom of purple box
                     # With origin='lower', this will display correctly
+                    # Use origin='lower' to match main display - extracted region is already in correct orientation
                     ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
                     ax.axvline(x=box_size, color='red', linewidth=2, linestyle='--', label='Divider')
                     ax.set_xlabel('Left: Actual Micrograph | Right: Simulated Projection')
