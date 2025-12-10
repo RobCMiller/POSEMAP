@@ -5043,30 +5043,31 @@ color #1 & nucleic #62466B
                 # Get vmin/vmax from ENTIRE displayed image (same as main GUI)
                 vmin, vmax = np.percentile(display_image, [1, 99])
                 
-                # SIMPLE: Just crop the image around the purple box coordinates
-                # Purple box: x=[box_x_min, box_x_min+box_size), y=[box_y_min, box_y_min+box_size) in display coords
+                # USE THE SAME APPROACH AS ZOOM FUNCTION
+                # Zoom function sets axis limits and matplotlib handles the display
+                # We'll extract the region that would be visible with those limits
                 box_x_start = int(round(box_x_min))
                 box_x_end = box_x_start + box_size
                 box_y_start = int(round(box_y_min))
                 box_y_end = box_y_start + box_size
                 
-                # Convert display coordinates to array coordinates
-                # With origin='lower': display y=0 is at bottom (array row height-1), display y=height-1 is at top (array row 0)
-                # Formula: array_row = height - 1 - display_y
+                # The zoom function just sets xlim and ylim, and matplotlib displays what's in that range
+                # With origin='lower', the image is displayed with row 0 at bottom
+                # So we need to extract the array region that corresponds to display coordinates [box_x_start:box_x_end, box_y_start:box_y_end]
+                
+                # X is straightforward (no flip)
                 array_x_start = max(0, box_x_start)
                 array_x_end = min(mg_width, box_x_end)
                 
-                # Purple box covers display y from box_y_start (bottom) to box_y_start + box_size - 1 (top)
-                # Convert to array rows:
-                array_row_bottom = mg_height - 1 - box_y_start  # Bottom of box -> larger array row (near bottom of array)
-                array_row_top = mg_height - 1 - (box_y_start + box_size - 1)  # Top of box -> smaller array row (near top of array)
+                # Y: with origin='lower', display y=0 is array row (height-1), display y increases upward
+                # So display y = box_y_start (bottom) maps to array row = height - 1 - box_y_start
+                # And display y = box_y_end - 1 (top) maps to array row = height - 1 - (box_y_end - 1)
+                # Extract from smaller row (top) to larger row (bottom) in array
+                array_y_top = mg_height - 1 - (box_y_end - 1)  # Top of box in display -> smaller array row
+                array_y_bottom = mg_height - 1 - box_y_start  # Bottom of box in display -> larger array row
                 
-                # Extract from top to bottom in array: [row_top:row_bottom+1]
-                array_y_start = max(0, array_row_top)
-                array_y_end = min(mg_height, array_row_bottom + 1)
-                
-                # Extract: [row_start:row_end, col_start:col_end]
-                mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
+                # Extract the region
+                mg_extracted = display_image[array_y_top:array_y_bottom+1, array_x_start:array_x_end]
                 
                 # Pad to box_size if needed
                 extracted_h, extracted_w = mg_extracted.shape
@@ -5078,7 +5079,8 @@ color #1 & nucleic #62466B
                 else:
                     mg_output = mg_extracted
                 
-                # Flip for origin='lower' display (array row 0 is top, display y=0 is bottom)
+                # The extracted array has: row 0 = top of box (display y = box_y_end-1), row (h-1) = bottom of box (display y = box_y_start)
+                # With origin='lower', row 0 is displayed at bottom, so we need to flip
                 mg_extracted_for_display = np.flipud(mg_output)
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
