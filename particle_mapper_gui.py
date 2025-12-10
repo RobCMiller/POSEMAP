@@ -5118,6 +5118,15 @@ color #1 & nucleic #62466B
                     em_proj_norm = em_projection.copy().astype(np.float32)
                 
                 # Create side-by-side comparison image (left: actual micrograph, right: simulated projection)
+                # Right panel is higher resolution (2x), so we'll resize it to match left panel size
+                from scipy.ndimage import zoom as scipy_zoom
+                if em_proj_norm.shape[0] != box_size:
+                    # Resize high-res projection to match micrograph size
+                    zoom_factor = box_size / em_proj_norm.shape[0]
+                    em_proj_resized = scipy_zoom(em_proj_norm, zoom_factor, order=1)
+                else:
+                    em_proj_resized = em_proj_norm
+                
                 # Both images are normalized to [0, 1] and displayed with origin='lower'
                 comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
                 # Left side: actual micrograph (grayscale -> RGB)
@@ -5126,18 +5135,13 @@ color #1 & nucleic #62466B
                     mg_normalized = np.clip((mg_extracted_for_display - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
                 else:
                     mg_normalized = np.zeros_like(mg_extracted_for_display, dtype=np.float32)
-                
-                # Invert contrast (multiply by -1, then shift to [0, 1] range)
-                mg_inverted = 1.0 - mg_normalized
-                
-                comparison[:, :box_size, 0] = mg_inverted
-                comparison[:, :box_size, 1] = mg_inverted
-                comparison[:, :box_size, 2] = mg_inverted
-                # Right side: simulated EM projection (grayscale -> RGB)
-                # em_proj_norm has row 0 = bottom (flipped in project_volume)
-                comparison[:, box_size:, 0] = em_proj_norm
-                comparison[:, box_size:, 1] = em_proj_norm
-                comparison[:, box_size:, 2] = em_proj_norm
+                comparison[:, :box_size, 0] = mg_normalized
+                comparison[:, :box_size, 1] = mg_normalized
+                comparison[:, :box_size, 2] = mg_normalized
+                # Right side: simulated EM projection (grayscale -> RGB, resized to match left panel)
+                comparison[:, box_size:, 0] = em_proj_resized
+                comparison[:, box_size:, 1] = em_proj_resized
+                comparison[:, box_size:, 2] = em_proj_resized
                 
                 # Create window in main thread
                 def create_window():
