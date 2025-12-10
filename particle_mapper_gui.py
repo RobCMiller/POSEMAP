@@ -5162,15 +5162,19 @@ color #1 & nucleic #62466B
                     print(f"  ERROR: No micrograph loaded!")
                     return
                 
-                # Use the EXACT same displayed image that's shown in the main GUI
+                # CRITICAL: Use the EXACT same displayed image that's shown in the main GUI
                 # This is stored in update_display() as self.current_display_image
+                # We MUST use this exact array to ensure we extract from what's actually displayed
                 if hasattr(self, 'current_display_image') and self.current_display_image is not None:
-                    enhanced_full_micrograph = self.current_display_image
+                    enhanced_full_micrograph = self.current_display_image.copy()  # Make a copy to be safe
                     print(f"  Using stored display_image from main GUI (exact match!)")
+                    print(f"  Display image shape: {enhanced_full_micrograph.shape}")
+                    print(f"  Display image dtype: {enhanced_full_micrograph.dtype}")
+                    print(f"  Display image range: [{enhanced_full_micrograph.min():.3f}, {enhanced_full_micrograph.max():.3f}]")
                 else:
                     # Fallback: regenerate it the same way
-                    enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
                     print(f"  WARNING: No stored display_image, regenerating (may not match exactly)")
+                    enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
                 
                 # Verify we have the right micrograph
                 print(f"  Using micrograph: {self.current_micrograph_path}")
