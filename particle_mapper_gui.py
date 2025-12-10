@@ -4905,8 +4905,10 @@ color #1 & nucleic #62466B
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label="Add Projection Image", 
                         command=lambda: self.add_projection_for_particle(particle_idx))
-        menu.add_command(label="Compare: Micrograph vs Projection", 
-                        command=lambda: self.compare_particle_projection(particle_idx))
+        menu.add_command(label="Compare: Micrograph vs Projection (Fast - NumPy)", 
+                        command=lambda: self.compare_particle_projection(particle_idx, use_eman2=False))
+        menu.add_command(label="Compare: Micrograph vs Projection (Slow - EMAN2)", 
+                        command=lambda: self.compare_particle_projection(particle_idx, use_eman2=True))
         menu.add_command(label="Open in ChimeraX", 
                         command=lambda: self.open_chimerax(particle_idx=particle_idx))
         
@@ -4921,13 +4923,21 @@ color #1 & nucleic #62466B
         
         menu.tk_popup(x_tk, y_tk)
     
-    def compare_particle_projection(self, particle_idx):
+    def compare_particle_projection(self, particle_idx, use_eman2=False):
         """
         Create a side-by-side comparison image showing:
         - Left: Actual micrograph particle region (extracted like a particle extractor)
-        - Right: Simulated PyMOL projection
+        - Right: Simulated EM projection (using NumPy or EMAN2)
         
         This allows verification that the projection matching is correct.
+        
+        Parameters:
+        -----------
+        particle_idx : int
+            Index of the particle to compare
+        use_eman2 : bool
+            If True, use EMAN2 for projection (slower but potentially higher quality)
+            If False, use NumPy method (faster)
         """
         if self.current_micrograph_idx is None or self.current_particles is None:
             messagebox.showwarning("No Data", "No micrograph or particle data loaded.")
@@ -5119,11 +5129,12 @@ color #1 & nucleic #62466B
                 # Now generate the EM projection for comparison
                 
                 # Update status
-                self.root.after(0, lambda: self.status_var.set(f"Generating density map for particle {particle_idx+1}..."))
+                method_name = "EMAN2" if use_eman2 else "NumPy"
+                self.root.after(0, lambda: self.status_var.set(f"Generating {method_name} projection for particle {particle_idx+1}..."))
                 
                 # Generate simulated EM projection (right side)
                 # This simulates what the EM image would look like from this view
-                print(f"Generating EM simulation for particle {particle_idx+1}...")
+                print(f"Generating EM simulation for particle {particle_idx+1} using {method_name}...")
                 print(f"  Using Euler angles: [{pose[0]:.6f}, {pose[1]:.6f}, {pose[2]:.6f}]")
                 print(f"  Output size: {box_size}x{box_size}, pixel_size: {pixel_size}")
                 # Get rotation corrections from GUI (same as used for PyMOL projections)
@@ -5145,7 +5156,7 @@ color #1 & nucleic #62466B
                     output_size=(projection_size, projection_size),
                     pixel_size=projection_pixel_size,  # Use half pixel size to maintain physical size
                     atom_radius=2.0,  # 2 Angstrom atom radius
-                    use_eman2=True,  # Try EMAN2 first
+                    use_eman2=use_eman2,  # Use specified method
                     rotation_correction_x=rotation_correction_x,
                     rotation_correction_y=rotation_correction_y,
                     rotation_correction_z=rotation_correction_z
@@ -5193,7 +5204,8 @@ color #1 & nucleic #62466B
                 # Create window in main thread
                 def create_window():
                     comparison_window = tk.Toplevel(self.root)
-                    comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection")
+                    method_name = "EMAN2" if use_eman2 else "NumPy"
+                    comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection ({method_name})")
                     comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
                     
                     # Create matplotlib figure (no title)
@@ -5239,7 +5251,8 @@ color #1 & nucleic #62466B
                     save_button = tk.Button(comparison_window, text="Save Comparison", command=save_comparison)
                     save_button.pack(pady=5)
                     
-                    self.status_var.set(f"Comparison generated for particle {particle_idx+1}")
+                    method_name = "EMAN2" if use_eman2 else "NumPy"
+                    self.status_var.set(f"{method_name} comparison generated for particle {particle_idx+1}")
                 
                 # Create window in main thread
                 self.root.after(0, create_window)
