@@ -5272,26 +5272,29 @@ color #1 & nucleic #62466B
                 # We extracted: array rows [y_start, y_end) where:
                 #   - y_start = top of purple box in array (smaller row number = 1232)
                 #   - y_end-1 = bottom of purple box in array (larger row number = 1807)
-                # So in the extracted array BEFORE flip:
+                # So in the extracted array:
                 #   - row 0 = top of purple box (display y=2859)
                 #   - row 575 = bottom of purple box (display y=2284)
-                # After flipud:
-                #   - row 0 = bottom of purple box (display y=2284) ✓
-                #   - row 575 = top of purple box (display y=2859) ✓
-                # With origin='lower' in comparison window, row 0 is at bottom, so this should be correct
+                # 
+                # The user says coordinates are correct but display looks wrong
+                # Let's try NOT flipping - maybe the issue is we're flipping when we shouldn't
+                # With origin='lower', if we DON'T flip:
+                #   - row 0 (top of purple box) will be displayed at bottom
+                #   - row 575 (bottom of purple box) will be displayed at top
+                # That would be upside down!
+                # 
+                # So we DO need to flip. But maybe the issue is something else?
+                # Let's try using origin='upper' instead, which would mean row 0 is at top
+                # Then we wouldn't need to flip!
                 
-                # DEBUG: Check particle center position before and after flip
+                # DEBUG: Check particle center position
                 center_in_extracted_x = center_x_array - x_start
-                center_in_extracted_y_before_flip = center_y_array - y_start
-                center_in_extracted_y_after_flip = box_size - 1 - center_in_extracted_y_before_flip
-                print(f"  Particle center in extracted array: before flip at ({center_in_extracted_x}, {center_in_extracted_y_before_flip})")
-                print(f"                                    after flip at ({center_in_extracted_x}, {center_in_extracted_y_after_flip})")
+                center_in_extracted_y = center_y_array - y_start
+                print(f"  Particle center in extracted array at ({center_in_extracted_x}, {center_in_extracted_y})")
                 
-                # Try NOT flipping to see if that fixes the display issue
-                # The user says coordinates are correct but display is wrong, so maybe flip is the problem
-                print(f"  TESTING: Trying WITHOUT flipud to see if that fixes display")
-                mg_extracted_norm_no_flip = mg_extracted_norm.copy()
-                mg_extracted_norm = np.flipud(mg_extracted_norm)  # Keep the flip for now, but we can test without it
+                # DON'T flip - try using origin='upper' in comparison window instead
+                print(f"  NOT flipping extracted image - will use origin='upper' in comparison window")
+                # mg_extracted_norm stays as-is (not flipped)
                 
                 print(f"  Final extracted region: shape={mg_extracted_norm.shape}, range=[{mg_extracted_norm.min():.3f}, {mg_extracted_norm.max():.3f}]")
                 
