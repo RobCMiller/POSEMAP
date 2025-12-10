@@ -5138,13 +5138,8 @@ color #1 & nucleic #62466B
                 else:
                     em_proj_norm = em_projection.copy().astype(np.float32)
                 
-                # Create side-by-side image
-                # IMPORTANT: comparison array is indexed as [row, col, channel] where row 0 is at top
-                # When displayed with origin='lower', row 0 of comparison array is at bottom
-                # mg_extracted_for_display is flipped (flipud) so:
-                #   - Row 0 = bottom of purple box (will be displayed at bottom with origin='lower') ✓
-                #   - Row (box_size-1) = top of purple box (will be displayed at top with origin='lower') ✓
-                # em_proj_norm has row 0 = bottom (flipped in project_volume), which matches
+                # Create side-by-side comparison image (left: actual micrograph, right: simulated projection)
+                # Both images are normalized to [0, 1] and displayed with origin='lower'
                 comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
                 # Left side: actual micrograph (grayscale -> RGB)
                 # Normalize using vmin/vmax from ENTIRE image (same as main GUI)
