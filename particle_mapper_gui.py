@@ -5202,10 +5202,12 @@ color #1 & nucleic #62466B
                 box_y_max_int = int(round(box_y_max))
                 
                 # Convert purple box bounds to array coordinates
+                # CRITICAL: Python slicing is [start:end) where end is EXCLUSIVE
+                # So to extract from array_x_min to array_x_max (inclusive), we need [array_x_min:array_x_max+1)
                 array_x_min = box_x_min_int
-                array_x_max = box_x_max_int
+                array_x_max = box_x_max_int + 1  # +1 because Python slice end is exclusive
                 array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box -> smaller array row
-                array_y_max = mg_height - 1 - box_y_min_int  # Bottom of purple box -> larger array row
+                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of purple box -> larger array row + 1 (for inclusive slice)
                 
                 print(f"  DIRECT EXTRACTION from purple box bounds:")
                 print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
