@@ -5327,11 +5327,13 @@ color #1 & nucleic #62466B
                 #   - Array row (box_size-1) goes to display y=(box_size-1) (TOP)
                 # So the extracted array is UPSIDE DOWN relative to the purple box!
                 # We MUST flip it to match what's shown in the purple box
-                mg_extracted_norm = np.flipud(mg_extracted_norm)
+                # BUT: User says it's still wrong, so let's try WITHOUT flip to test
+                # mg_extracted_norm = np.flipud(mg_extracted_norm)  # TESTING: Commented out
                 
-                print(f"  DEBUG: After flipud (to match purple box orientation):")
-                print(f"    Array row 0 (was bottom of purple box) will be displayed at bottom ✓")
-                print(f"    Array row {box_size-1} (was top of purple box) will be displayed at top ✓")
+                print(f"  DEBUG: Orientation (NO FLIP - testing if this matches purple box):")
+                print(f"    Array row 0 (top of purple box) will be displayed at BOTTOM")
+                print(f"    Array row {box_size-1} (bottom of purple box) will be displayed at TOP")
+                print(f"    If this is wrong, we need to flip it!")
                 
                 # Save debug image AFTER all processing (normalization + flip) to match what's displayed
                 try:
