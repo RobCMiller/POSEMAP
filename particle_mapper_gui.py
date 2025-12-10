@@ -5087,12 +5087,12 @@ color #1 & nucleic #62466B
                 pad_y = (box_size - extracted_h) // 2
                 mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
                 
-                # 4. Get vmin/vmax from FULL enhanced image (same as main GUI)
+                # 4. Get vmin/vmax from FULL enhanced image (EXACTLY like main GUI)
+                # Main GUI does: vmin, vmax = np.percentile(display_image, [1, 99])
                 vmin, vmax = np.percentile(display_image_full, [1, 99])
                 
-                # 5. Normalize using same vmin/vmax (main GUI uses this in imshow)
-                # Main GUI: imshow(display_image, cmap='gray', vmin=vmin, vmax=vmax, origin='lower')
-                # For RGB display, we need to normalize to [0, 1] using these vmin/vmax
+                # 5. Normalize the extracted region using vmin/vmax from ENTIRE image
+                # This matches how main GUI normalizes: imshow uses vmin/vmax from entire image
                 if vmax > vmin:
                     mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
                 else:
@@ -5168,7 +5168,7 @@ color #1 & nucleic #62466B
                 # em_proj_norm has row 0 = bottom (flipped in project_volume), which matches
                 comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
                 # Left side: actual micrograph (grayscale -> RGB)
-                # mg_extracted_for_display is already normalized to [0, 1], just copy to RGB channels
+                # mg_extracted_for_display is normalized using vmin/vmax from ENTIRE image (same as main GUI)
                 comparison[:, :box_size, 0] = mg_extracted_for_display
                 comparison[:, :box_size, 1] = mg_extracted_for_display
                 comparison[:, :box_size, 2] = mg_extracted_for_display
