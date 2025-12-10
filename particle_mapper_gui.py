@@ -5290,21 +5290,21 @@ color #1 & nucleic #62466B
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
                     from PIL import Image
-                    # Save raw extracted region (before normalization and flip)
-                    raw_extracted_uint8 = ((mg_extracted - mg_extracted.min()) / (mg_extracted.max() - mg_extracted.min() + 1e-10) * 255).astype(np.uint8)
+                    # Save raw extracted region (before flip, auto-scaled for visualization)
+                    raw_extracted_uint8 = ((mg_output - mg_output.min()) / (mg_output.max() - mg_output.min() + 1e-10) * 255).astype(np.uint8)
                     raw_img = Image.fromarray(raw_extracted_uint8)
                     debug_dir = Path(__file__).parent / "debug_extractions"
                     debug_dir.mkdir(exist_ok=True)
-                    raw_debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}_raw_before_norm.png"
+                    raw_debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}_before_flip.png"
                     raw_img.save(raw_debug_path)
-                    print(f"  SAVED raw extracted region (before normalization) to: {raw_debug_path}")
+                    print(f"  SAVED extracted region (before flip) to: {raw_debug_path}")
                     
-                    # Save final extracted region (after normalization and flip)
-                    final_uint8 = (mg_extracted_norm * 255).astype(np.uint8)
+                    # Save final extracted region (after flip, auto-scaled for visualization)
+                    final_uint8 = ((mg_extracted_for_display - mg_extracted_for_display.min()) / (mg_extracted_for_display.max() - mg_extracted_for_display.min() + 1e-10) * 255).astype(np.uint8)
                     final_img = Image.fromarray(final_uint8)
-                    final_debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}_final_after_norm.png"
+                    final_debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}_after_flip.png"
                     final_img.save(final_debug_path)
-                    print(f"  SAVED final extracted region (after normalization + flip) to: {final_debug_path}")
+                    print(f"  SAVED extracted region (after flip) to: {final_debug_path}")
                 except Exception as e:
                     print(f"  Could not save debug images: {e}")
                 
