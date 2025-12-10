@@ -5164,8 +5164,9 @@ color #1 & nucleic #62466B
                     print(f"  ERROR: No micrograph loaded!")
                     return
                 
-                # SIMPLE APPROACH: Extract box_size x box_size region centered on particle
-                # Use the displayed image directly - no fancy coordinate conversions
+                # CRITICAL: Extract using EXACT purple box bounds
+                # The purple box is drawn at display coordinates (box_x_min, box_y_min) to (box_x_max, box_y_max)
+                # We MUST extract the exact pixels shown in that box
                 if hasattr(self, 'current_display_image') and self.current_display_image is not None:
                     display_image = self.current_display_image.copy()
                     print(f"  Using stored display_image from main GUI")
@@ -5180,26 +5181,36 @@ color #1 & nucleic #62466B
                 vmin, vmax = np.percentile(display_image, [1, 99])
                 print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
                 
-                # SIMPLE: Extract box_size x box_size centered at particle center
-                # Particle center in display coordinates: (x_pixel, y_pixel)
-                # Convert to array coordinates: x is same, y needs flipping
-                center_x = int(round(x_pixel))
-                center_y_display = int(round(y_pixel))
-                center_y_array = mg_height - 1 - center_y_display  # Convert display y to array row
+                # Use EXACT purple box bounds (already calculated above)
+                # Purple box: display x=[box_x_min, box_x_max], y=[box_y_min, box_y_max]
+                # Convert to array coordinates:
+                # - x is the same: array_x = display_x
+                # - y is flipped: array_y = mg_height - 1 - display_y
+                box_x_min_int = int(round(box_x_min))
+                box_x_max_int = int(round(box_x_max))
+                box_y_min_int = int(round(box_y_min))
+                box_y_max_int = int(round(box_y_max))
                 
-                # Extract box_size x box_size centered at (center_x, center_y_array)
-                half_box = box_size // 2
-                x_start = max(0, center_x - half_box)
-                x_end = min(mg_width, center_x + half_box)
-                y_start = max(0, center_y_array - half_box)
-                y_end = min(mg_height, center_y_array + half_box)
+                # Convert purple box display bounds to array bounds
+                # Display y=box_y_min (bottom of box) -> array row = mg_height - 1 - box_y_min_int
+                # Display y=box_y_max (top of box) -> array row = mg_height - 1 - box_y_max_int
+                # Extract from top to bottom: [mg_height - 1 - box_y_max_int : mg_height - 1 - box_y_min_int + 1)
+                array_x_min = box_x_min_int
+                array_x_max = box_x_max_int + 1  # +1 because Python slice is exclusive
+                array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box in array
+                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of purple box + 1 (exclusive slice)
                 
-                print(f"  SIMPLE EXTRACTION:")
-                print(f"    Particle center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"    Particle center (array): ({center_x}, {center_y_array})")
-                print(f"    Extraction bounds (array): x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
+                # Clamp to image bounds
+                x_start = max(0, array_x_min)
+                x_end = min(mg_width, array_x_max)
+                y_start = max(0, array_y_min)
+                y_end = min(mg_height, array_y_max)
                 
-                # Extract the region
+                print(f"  EXTRACTING USING EXACT PURPLE BOX BOUNDS:")
+                print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
+                print(f"    Array bounds: x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
+                
+                # Extract the exact region shown in the purple box
                 mg_extracted = display_image[y_start:y_end, x_start:x_end]
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
@@ -5219,7 +5230,7 @@ color #1 & nucleic #62466B
                     mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
                 
                 # Fix orientation: array row 0 is at top, but display with origin='lower' shows it at bottom
-                # So we need to flip vertically
+                # So we need to flip vertically to match what's shown in the purple box
                 mg_extracted_norm = np.flipud(mg_extracted_norm)
                 
                 print(f"  Final extracted region: shape={mg_extracted_norm.shape}, range=[{mg_extracted_norm.min():.3f}, {mg_extracted_norm.max():.3f}]")
