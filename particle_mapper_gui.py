@@ -5104,15 +5104,14 @@ color #1 & nucleic #62466B
                 pad_y = (box_size - extracted_h) // 2
                 mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
                 
-                # Flip vertically for origin='lower' display
-                # The extracted array has row 0 = top of box (display y = box_y_start + box_size - 1)
-                # With origin='lower', we need row 0 = bottom of box (display y = box_y_start)
-                mg_extracted_flipped = np.flipud(mg_output)
-                
-                # DO NOT normalize - keep raw values, use vmin/vmax in imshow like main GUI
-                # Main GUI: imshow(display_image, vmin=vmin, vmax=vmax, origin='lower')
-                # We'll pass vmin/vmax to imshow in the comparison window
-                mg_extracted_for_display = mg_extracted_flipped
+                # TEST: Try WITHOUT flip to see if that's the issue
+                # The extracted array has:
+                #   - row 0 = array row array_y_start = display y = box_y_start + box_size - 1 (top of box)
+                #   - row (box_size-1) = array row array_y_end-1 = display y = box_y_start (bottom of box)
+                # With origin='lower', row 0 is displayed at bottom
+                # So if we DON'T flip: top of box would be at bottom - that's wrong
+                # But let's test it to see
+                mg_extracted_for_display = mg_output  # NO FLIP - TESTING
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
