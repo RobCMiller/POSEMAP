@@ -459,14 +459,18 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     
     # Convert PDB to density map first
     # For better resolution, calculate appropriate grid_size based on desired output size
-    # We want the volume to be at least as large as the output projection
+    # We want the volume to be at least as large as the output projection, but not too large for performance
     h, w = output_size
     min_grid_size = max(h, w)
-    # Round up to nearest 32 for efficiency, but ensure it's large enough
-    desired_grid_size = ((min_grid_size + 31) // 32) * 32
-    # But don't make it too large (max 1024 for performance)
-    desired_grid_size = min(desired_grid_size, 1024)
+    # Round up to nearest 32 for efficiency, but cap at reasonable size for performance
+    # Use 1.5x the output size for good quality without being too slow
+    desired_grid_size = int(min_grid_size * 1.5)
+    desired_grid_size = ((desired_grid_size + 31) // 32) * 32
+    # Cap at 768 for reasonable performance (1024^3 is very slow)
+    desired_grid_size = min(desired_grid_size, 768)
+    print(f"  DEBUG EMAN2: Creating density map with grid_size={desired_grid_size} (output size={h}x{w})...")
     volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0, grid_size=desired_grid_size)
+    print(f"  DEBUG EMAN2: Density map created, shape={volume.shape}, converting to EMData...")
     
     # Convert numpy array to EMAN2 EMData
     # EMAN2 expects [nx, ny, nz] format (x, y, z)
@@ -478,7 +482,9 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     
     em_volume = EMData()
     em_volume.set_size(volume_xyz.shape[0], volume_xyz.shape[1], volume_xyz.shape[2])  # [nx, ny, nz]
+    print(f"  DEBUG EMAN2: Setting volume data ({volume_xyz.nbytes / 1e6:.1f} MB)...")
     em_volume.set_data_string(volume_xyz.tobytes())
+    print(f"  DEBUG EMAN2: Volume data set, creating transform and projecting...")
     
     # Apply rotation corrections if needed
     # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
@@ -513,7 +519,9 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     transform = transform.inverse()
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
+    print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
     projection = em_volume.project("standard", transform)
+    print(f"  DEBUG EMAN2: Projection complete, converting to numpy array...")
     
     # Convert to numpy array
     proj_array = projection.numpy().copy()

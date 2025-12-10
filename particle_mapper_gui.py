@@ -4948,8 +4948,8 @@ color #1 & nucleic #62466B
         # Run in background thread to avoid freezing GUI
         def generate_comparison():
             try:
-                # Update status in main thread
-                self.root.after(0, lambda: self.status_var.set(f"Generating comparison for particle {particle_idx+1}..."))
+                # Update status in main thread with more detailed progress
+                self.root.after(0, lambda: self.status_var.set(f"Generating comparison for particle {particle_idx+1}... (this may take 30-60 seconds for EMAN2)"))
                 
                 # Get particle data
                 pose = self.current_particles['poses'][particle_idx]
