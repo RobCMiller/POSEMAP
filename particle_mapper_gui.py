@@ -5091,8 +5091,12 @@ color #1 & nucleic #62466B
                 else:
                     mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
                 
-                # Flip for origin='lower': array row 0 is top, display y=0 is bottom
-                mg_extracted_for_display = np.flipud(mg_extracted_norm)
+                # Try WITHOUT flip - maybe the coordinate conversion already handles orientation
+                # The extracted array: row 0 = top of purple box, row (h-1) = bottom of purple box
+                # With origin='lower', row 0 is displayed at bottom
+                # So if we DON'T flip, row 0 (top of box) will be at bottom - that's wrong
+                # But let's try it to see if coordinate conversion is the issue
+                mg_extracted_for_display = mg_extracted_norm  # NO FLIP
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
