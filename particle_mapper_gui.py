@@ -5211,9 +5211,34 @@ color #1 & nucleic #62466B
                 print(f"    Array bounds: x=[{x_start}, {x_end}), y=[{y_start}, {y_end})")
                 print(f"    Array bounds size: width={x_end-x_start}, height={y_end-y_start}")
                 
+                # VERIFY: Check pixel values at the particle center in original micrograph
+                center_x_array = int(round(x_pixel))
+                center_y_array = mg_height - 1 - int(round(y_pixel))
+                if 0 <= center_y_array < mg_height and 0 <= center_x_array < mg_width:
+                    center_val_orig = self.original_micrograph[center_y_array, center_x_array]
+                    print(f"    Particle center in original micrograph (array {center_x_array}, {center_y_array}): value={center_val_orig:.3f}")
+                
+                # VERIFY: Check if particle center is within extraction bounds
+                if x_start <= center_x_array < x_end and y_start <= center_y_array < y_end:
+                    center_in_extracted_x = center_x_array - x_start
+                    center_in_extracted_y = center_y_array - y_start
+                    print(f"    Particle center is at position ({center_in_extracted_x}, {center_in_extracted_y}) in extracted array")
+                else:
+                    print(f"    ERROR: Particle center is OUTSIDE extraction bounds!")
+                    print(f"      Center: ({center_x_array}, {center_y_array}), Bounds: x=[{x_start}, {x_end}), y=[{y_start}, {y_end})")
+                
                 # Extract from original micrograph
                 mg_extracted_raw = self.original_micrograph[y_start:y_end, x_start:x_end]
                 print(f"  Raw extracted shape: {mg_extracted_raw.shape}")
+                
+                # VERIFY: Check center value in extracted array
+                if x_start <= center_x_array < x_end and y_start <= center_y_array < y_end:
+                    center_in_extracted_x = center_x_array - x_start
+                    center_in_extracted_y = center_y_array - y_start
+                    center_val_extracted = mg_extracted_raw[center_in_extracted_y, center_in_extracted_x]
+                    print(f"    Center value in extracted array: {center_val_extracted:.3f} (should match {center_val_orig:.3f})")
+                    if abs(center_val_extracted - center_val_orig) > 0.001:
+                        print(f"    WARNING: Center values don't match! Extraction may be wrong!")
                 
                 # Apply SAME enhancements as main display
                 display_image = self.apply_enhancements(self.original_micrograph)
