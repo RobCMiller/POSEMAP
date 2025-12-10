@@ -5031,17 +5031,18 @@ color #1 & nucleic #62466B
                 
                 self.root.after(0, draw_extraction_box)
                 
-                # EXTRACT EXACTLY WHAT'S IN THE PURPLE BOX - NO TRANSFORMATIONS
-                # The purple box is drawn at (box_x_min, box_y_min) with size box_size x box_size
-                # Extract that exact region from the displayed image
+                # EXACT REPLICATION OF MAIN GUI RENDERING
+                # 1. Read original micrograph
+                # 2. Crop around box coordinates
+                # 3. Apply same enhancements
+                # 4. Use same vmin/vmax from FULL enhanced image
+                # 5. Display exactly the same way
                 
-                if not hasattr(self, 'current_display_image') or self.current_display_image is None:
-                    print(f"  ERROR: No displayed image!")
+                if self.original_micrograph is None:
+                    print(f"  ERROR: No original micrograph!")
                     return
                 
-                # Get the displayed image (already enhanced, ready to display)
-                display_image = self.current_display_image
-                img_height, img_width = display_image.shape
+                mg_height, mg_width = self.original_micrograph.shape
                 
                 # Purple box bounds in display coordinates (origin='lower')
                 box_x_start = int(round(box_x_min))
@@ -5049,46 +5050,55 @@ color #1 & nucleic #62466B
                 box_y_start = int(round(box_y_min))
                 box_y_end = box_y_start + box_size
                 
-                # Convert display coordinates to array indices
+                # Convert display coordinates to array coordinates
                 # Display: y=0 at bottom, y=height-1 at top (origin='lower')
                 # Array: row 0 at top, row height-1 at bottom
                 # Conversion: array_row = height - 1 - display_y
                 array_x_start = max(0, box_x_start)
-                array_x_end = min(img_width, box_x_end)
-                # Bottom of box in display -> top row in array
+                array_x_end = min(mg_width, box_x_end)
                 array_y_bottom_display = box_y_start
                 array_y_top_display = box_y_end - 1
-                array_y_top_row = img_height - 1 - array_y_top_display
-                array_y_bottom_row = img_height - 1 - array_y_bottom_display
-                array_y_start = array_y_top_row  # Smaller row number (top of image)
-                array_y_end = array_y_bottom_row + 1  # Larger row number + 1 (exclusive)
+                array_y_top_row = mg_height - 1 - array_y_top_display
+                array_y_bottom_row = mg_height - 1 - array_y_bottom_display
+                array_y_start = array_y_top_row
+                array_y_end = array_y_bottom_row + 1
                 
                 # Clamp
                 array_x_start = max(0, array_x_start)
-                array_x_end = min(img_width, array_x_end)
+                array_x_end = min(mg_width, array_x_end)
                 array_y_start = max(0, array_y_start)
-                array_y_end = min(img_height, array_y_end)
+                array_y_end = min(mg_height, array_y_end)
                 
-                # Extract the exact region
-                mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
+                # 1. Crop original micrograph
+                mg_cropped = self.original_micrograph[array_y_start:array_y_end, array_x_start:array_x_end]
+                
+                # 2. Apply SAME enhancements as main GUI
+                # Main GUI does: display_image = self.apply_enhancements(self.original_micrograph)
+                # We need to apply to the FULL image first to get correct vmin/vmax
+                display_image_full = self.apply_enhancements(self.original_micrograph)
+                
+                # 3. Extract the cropped region from enhanced image
+                mg_extracted = display_image_full[array_y_start:array_y_end, array_x_start:array_x_end]
+                
+                # Pad to box_size
                 extracted_h, extracted_w = mg_extracted.shape
-                
-                # Pad to exactly box_size x box_size
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
                 pad_x = (box_size - extracted_w) // 2
                 pad_y = (box_size - extracted_h) // 2
                 mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
                 
-                # Get vmin/vmax from full display image (same as main display uses)
-                vmin, vmax = np.percentile(display_image, [1, 99])
+                # 4. Get vmin/vmax from FULL enhanced image (same as main GUI)
+                vmin, vmax = np.percentile(display_image_full, [1, 99])
                 
-                # Normalize using same vmin/vmax
+                # 5. Normalize using same vmin/vmax (main GUI uses this in imshow)
+                # Main GUI: imshow(display_image, cmap='gray', vmin=vmin, vmax=vmax, origin='lower')
+                # For RGB display, we need to normalize to [0, 1] using these vmin/vmax
                 if vmax > vmin:
                     mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
                 else:
                     mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
                 
-                # Flip vertically: array row 0 is top, but with origin='lower' we need row 0 at bottom
+                # Flip for origin='lower' (array row 0 is top, display y=0 is bottom)
                 mg_extracted_for_display = np.flipud(mg_extracted_norm)
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
