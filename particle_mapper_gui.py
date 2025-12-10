@@ -5091,16 +5091,15 @@ color #1 & nucleic #62466B
                 pad_y = (box_size - extracted_h) // 2
                 mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
                 
-                # Normalize using vmin/vmax from ENTIRE image (same as main GUI)
-                if vmax > vmin:
-                    mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
-                else:
-                    mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
-                
                 # Flip vertically for origin='lower' display
                 # The extracted array has row 0 = top of box (display y = box_y_start + box_size - 1)
                 # With origin='lower', we need row 0 = bottom of box (display y = box_y_start)
-                mg_extracted_for_display = np.flipud(mg_extracted_norm)
+                mg_extracted_flipped = np.flipud(mg_output)
+                
+                # DO NOT normalize - keep raw values, use vmin/vmax in imshow like main GUI
+                # Main GUI: imshow(display_image, vmin=vmin, vmax=vmax, origin='lower')
+                # We'll pass vmin/vmax to imshow in the comparison window
+                mg_extracted_for_display = mg_extracted_flipped
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
