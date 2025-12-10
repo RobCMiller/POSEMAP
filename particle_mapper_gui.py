@@ -5208,12 +5208,39 @@ color #1 & nucleic #62466B
                 
                 print(f"  EXTRACTING USING EXACT PURPLE BOX BOUNDS:")
                 print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
+                print(f"    Purple box center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
                 print(f"    Array bounds: x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
+                print(f"    Array bounds size: width={x_end-x_start}, height={y_end-y_start}")
+                
+                # VERIFY: Check what's at the particle center in the display image
+                center_x_array = int(round(x_pixel))
+                center_y_array = mg_height - 1 - int(round(y_pixel))
+                print(f"    Particle center in array: ({center_x_array}, {center_y_array})")
+                if 0 <= center_y_array < mg_height and 0 <= center_x_array < mg_width:
+                    center_val = display_image[center_y_array, center_x_array]
+                    print(f"    Value at particle center in display_image: {center_val:.3f}")
+                
+                # VERIFY: Check what's at the corners of the purple box in display_image
+                # Top-left of purple box (display): (box_x_min, box_y_max)
+                # Bottom-right of purple box (display): (box_x_max, box_y_min)
+                tl_x_array = box_x_min_int
+                tl_y_array = mg_height - 1 - box_y_max_int
+                br_x_array = box_x_max_int
+                br_y_array = mg_height - 1 - box_y_min_int
+                print(f"    Purple box top-left (display) -> array: ({tl_x_array}, {tl_y_array})")
+                print(f"    Purple box bottom-right (display) -> array: ({br_x_array}, {br_y_array})")
+                if 0 <= tl_y_array < mg_height and 0 <= tl_x_array < mg_width:
+                    tl_val = display_image[tl_y_array, tl_x_array]
+                    print(f"    Value at top-left corner: {tl_val:.3f}")
+                if 0 <= br_y_array < mg_height and 0 <= br_x_array < mg_width:
+                    br_val = display_image[br_y_array, br_x_array]
+                    print(f"    Value at bottom-right corner: {br_val:.3f}")
                 
                 # Extract the exact region shown in the purple box
                 mg_extracted = display_image[y_start:y_end, x_start:x_end]
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
+                print(f"  Extracted region stats: min={mg_extracted.min():.3f}, max={mg_extracted.max():.3f}, mean={mg_extracted.mean():.3f}")
                 
                 # Create output array - pad or crop to exactly box_size x box_size
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
@@ -5234,6 +5261,27 @@ color #1 & nucleic #62466B
                 mg_extracted_norm = np.flipud(mg_extracted_norm)
                 
                 print(f"  Final extracted region: shape={mg_extracted_norm.shape}, range=[{mg_extracted_norm.min():.3f}, {mg_extracted_norm.max():.3f}]")
+                
+                # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
+                try:
+                    from PIL import Image
+                    # Save raw extracted region (before normalization and flip)
+                    raw_extracted_uint8 = ((mg_extracted - mg_extracted.min()) / (mg_extracted.max() - mg_extracted.min() + 1e-10) * 255).astype(np.uint8)
+                    raw_img = Image.fromarray(raw_extracted_uint8)
+                    debug_dir = Path(__file__).parent / "debug_extractions"
+                    debug_dir.mkdir(exist_ok=True)
+                    raw_debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}_raw_before_norm.png"
+                    raw_img.save(raw_debug_path)
+                    print(f"  SAVED raw extracted region (before normalization) to: {raw_debug_path}")
+                    
+                    # Save final extracted region (after normalization and flip)
+                    final_uint8 = (mg_extracted_norm * 255).astype(np.uint8)
+                    final_img = Image.fromarray(final_uint8)
+                    final_debug_path = debug_dir / f"extracted_particle_{particle_idx+1}_mg{self.current_micrograph_idx}_final_after_norm.png"
+                    final_img.save(final_debug_path)
+                    print(f"  SAVED final extracted region (after normalization + flip) to: {final_debug_path}")
+                except Exception as e:
+                    print(f"  Could not save debug images: {e}")
                 
                 # Now generate the EM projection for comparison
                 
