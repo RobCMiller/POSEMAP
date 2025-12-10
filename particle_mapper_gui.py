@@ -5098,10 +5098,12 @@ color #1 & nucleic #62466B
                 
                 print(f"  DEBUG: Using rotation corrections: X={rotation_correction_x:.2f}°, Y={rotation_correction_y:.2f}°, Z={rotation_correction_z:.2f}°")
                 
+                # Generate higher resolution projection for right panel (2x resolution)
+                projection_size = box_size * 2
                 em_projection = simulate_em_projection_from_pdb(
                     self.pdb_data,
                     pose,  # Euler angles [phi, theta, psi] in radians
-                    output_size=(box_size, box_size),
+                    output_size=(projection_size, projection_size),
                     pixel_size=pixel_size,
                     atom_radius=2.0,  # 2 Angstrom atom radius
                     use_eman2=True,  # Try EMAN2 first
@@ -5138,7 +5140,7 @@ color #1 & nucleic #62466B
                 comparison[:, :box_size, 0] = mg_normalized
                 comparison[:, :box_size, 1] = mg_normalized
                 comparison[:, :box_size, 2] = mg_normalized
-                # Right side: simulated EM projection (grayscale -> RGB, resized to match left panel)
+                # Right side: simulated EM projection (grayscale -> RGB, resized from high-res to match left panel)
                 comparison[:, box_size:, 0] = em_proj_resized
                 comparison[:, box_size:, 1] = em_proj_resized
                 comparison[:, box_size:, 2] = em_proj_resized
