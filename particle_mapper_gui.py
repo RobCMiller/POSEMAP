@@ -5308,19 +5308,24 @@ color #1 & nucleic #62466B
                 print(f"    Mean: {mg_extracted_norm.mean():.3f}, Std: {mg_extracted_norm.std():.3f}")
                 print(f"    Min: {mg_extracted_norm.min():.3f}, Max: {mg_extracted_norm.max():.3f}")
                 
-                # CRITICAL: Fix orientation for display with origin='lower'
-                # The extracted array mg_extracted has:
-                #   - Row 0 = array row y_start (which is the TOP of the purple box in display coordinates)
-                #   - Row 575 = array row y_end-1 (which is the BOTTOM of the purple box in display coordinates)
-                # When displayed with origin='lower' in the comparison window:
-                #   - Array row 0 is displayed at y=0 (BOTTOM of display)
-                #   - Array row 575 is displayed at y=575 (TOP of display)
-                # So the extracted array is UPSIDE DOWN! We need to flip it so:
-                #   - Row 0 = bottom of purple box (will be displayed at bottom) ✓
-                #   - Row 575 = top of purple box (will be displayed at top) ✓
+                # CRITICAL: Orientation handling
+                # The main GUI displays with origin='lower', so:
+                #   - Array row 0 is at display y=(height-1) (top)
+                #   - Array row (height-1) is at display y=0 (bottom)
+                # When we extract:
+                #   - y_start (array) = height - 1 - box_y_max (display) = TOP of purple box
+                #   - y_end-1 (array) = height - 1 - box_y_min (display) = BOTTOM of purple box
+                # So in mg_extracted:
+                #   - Row 0 = TOP of purple box (display y=box_y_max)
+                #   - Row (box_size-1) = BOTTOM of purple box (display y=box_y_min)
+                # When displayed with origin='lower':
+                #   - Array row 0 goes to display y=0 (BOTTOM)
+                #   - Array row (box_size-1) goes to display y=(box_size-1) (TOP)
+                # So the extracted array is UPSIDE DOWN relative to the purple box!
+                # We MUST flip it to match what's shown in the purple box
                 mg_extracted_norm = np.flipud(mg_extracted_norm)
                 
-                print(f"  DEBUG: After flipud (to fix orientation for origin='lower' display):")
+                print(f"  DEBUG: After flipud (to match purple box orientation):")
                 print(f"    Array row 0 (was bottom of purple box) will be displayed at bottom ✓")
                 print(f"    Array row {box_size-1} (was top of purple box) will be displayed at top ✓")
                 
