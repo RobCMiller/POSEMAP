@@ -1064,7 +1064,26 @@ class ParticleMapperGUI:
         self.ax.set_title("Micrograph")
         # Set aspect ratio to equal to prevent distortion
         self.ax.set_aspect('equal', adjustable='box')
-        self.ax.axis('off')
+        
+        # Style axes: twice as thick, color #4d4d4f
+        axis_color = '#4d4d4f'
+        for spine in self.ax.spines.values():
+            spine.set_linewidth(2.0)  # Default is 1.0, so 2x = 2.0
+            spine.set_color(axis_color)
+        
+        # Style tick markers: twice as thick, color #4d4d4f
+        self.ax.tick_params(axis='both', which='major', width=2.0, length=6.0, color=axis_color)
+        self.ax.tick_params(axis='both', which='minor', width=2.0, length=4.0, color=axis_color)
+        
+        # Style tick labels: 1.3x larger and bolded
+        # Get current font size and multiply by 1.3
+        current_fontsize = plt.rcParams['font.size']
+        new_fontsize = current_fontsize * 1.3
+        self.ax.tick_params(axis='both', which='major', labelsize=new_fontsize)
+        for label in self.ax.get_xticklabels() + self.ax.get_yticklabels():
+            label.set_fontweight('bold')
+        
+        # Keep axes visible (don't turn off) - axes are now styled and visible
         
         # Embed in tkinter - create a container frame to lock size
         canvas_container = ttk.Frame(parent)
@@ -2457,6 +2476,23 @@ class ParticleMapperGUI:
         self.ax.set_ylim(-0.5, img_height - 0.5)
         self.ax.set_aspect('equal', adjustable='box')
         
+        # Reapply axes styling (in case it was reset)
+        axis_color = '#4d4d4f'
+        for spine in self.ax.spines.values():
+            spine.set_linewidth(2.0)  # Twice as thick
+            spine.set_color(axis_color)
+        
+        # Reapply tick marker styling
+        self.ax.tick_params(axis='both', which='major', width=2.0, length=6.0, color=axis_color)
+        self.ax.tick_params(axis='both', which='minor', width=2.0, length=4.0, color=axis_color)
+        
+        # Reapply tick label styling: 1.3x larger and bolded
+        current_fontsize = plt.rcParams['font.size']
+        new_fontsize = current_fontsize * 1.3
+        self.ax.tick_params(axis='both', which='major', labelsize=new_fontsize)
+        for label in self.ax.get_xticklabels() + self.ax.get_yticklabels():
+            label.set_fontweight('bold')
+        
         # Disable auto-scaling to prevent matplotlib from adjusting limits when projections are drawn
         self.ax.set_autoscale_on(False)
         
@@ -2531,10 +2567,11 @@ class ParticleMapperGUI:
             
             # ALWAYS draw particle marker (star) FIRST - this is essential for identifying particles
             # Draw a star marker at the particle center with fill color #F42C04 and outline #4d4d4f
+            # Marker edge width is doubled (was 1.5, now 3.0)
             marker_size = 12  # Size of star marker in pixels
             self.ax.plot(x_pixel, y_pixel, marker='*', markersize=marker_size, 
                         markerfacecolor='#F42C04', markeredgecolor='#4d4d4f', 
-                        markeredgewidth=1.5, alpha=1.0, zorder=15, linestyle='None')
+                        markeredgewidth=3.0, alpha=1.0, zorder=15, linestyle='None')
             
             # Load projection data if needed (for either projection display or outline)
             # We need the projection data even if only drawing outline
