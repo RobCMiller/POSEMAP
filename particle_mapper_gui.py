@@ -5031,41 +5031,32 @@ color #1 & nucleic #62466B
                 
                 self.root.after(0, draw_extraction_box)
                 
-                # EXACT REPLICATION: Use the SAME image array that main GUI displays
-                # Main GUI: display_image = apply_enhancements(original_micrograph)
-                #          vmin, vmax = percentile(display_image, [1, 99])
-                #          imshow(display_image, vmin=vmin, vmax=vmax, origin='lower')
-                
-                if self.original_micrograph is None:
-                    print(f"  ERROR: No original micrograph!")
+                # EXTRACT DIRECTLY FROM DISPLAYED IMAGE - NO COORDINATE CONVERSION
+                # Use the exact same image array that's currently displayed
+                if not hasattr(self, 'current_display_image') or self.current_display_image is None:
+                    print(f"  ERROR: No displayed image!")
                     return
                 
-                # Apply enhancements to full image (same as main GUI)
-                display_image_full = self.apply_enhancements(self.original_micrograph)
-                mg_height, mg_width = display_image_full.shape
+                display_image = self.current_display_image
+                mg_height, mg_width = display_image.shape
                 
-                # Get vmin/vmax from ENTIRE enhanced image (same as main GUI)
-                vmin, vmax = np.percentile(display_image_full, [1, 99])
+                # Get vmin/vmax from ENTIRE displayed image (same as main GUI)
+                vmin, vmax = np.percentile(display_image, [1, 99])
                 
-                # Purple box bounds in display coordinates (origin='lower')
+                # Purple box bounds in display coordinates
                 box_x_start = int(round(box_x_min))
                 box_x_end = box_x_start + box_size
                 box_y_start = int(round(box_y_min))
                 box_y_end = box_y_start + box_size
                 
                 # Convert display coordinates to array coordinates
-                # Display: y=0 at bottom, y=height-1 at top (origin='lower')
-                # Array: row 0 at top, row height-1 at bottom
-                # Rectangle covers: x=[box_x_start, box_x_start+box_size), y=[box_y_start, box_y_start+box_size)
+                # With origin='lower': display y=0 is array row (height-1), display y=(height-1) is array row 0
                 array_x_start = max(0, box_x_start)
-                array_x_end = min(mg_width, box_x_start + box_size)
-                # Display y increases upward, array row increases downward
-                # display_y = box_y_start (bottom) -> array_row = height - 1 - box_y_start
-                # display_y = box_y_start + box_size - 1 (top) -> array_row = height - 1 - (box_y_start + box_size - 1)
-                array_y_bottom_display = box_y_start
-                array_y_top_display = box_y_start + box_size - 1
-                array_y_bottom_row = mg_height - 1 - array_y_bottom_display  # Larger row number
-                array_y_top_row = mg_height - 1 - array_y_top_display  # Smaller row number
+                array_x_end = min(mg_width, box_x_end)
+                # Bottom of box: display_y = box_y_start -> array_row = height - 1 - box_y_start
+                # Top of box: display_y = box_y_start + box_size - 1 -> array_row = height - 1 - (box_y_start + box_size - 1)
+                array_y_bottom_row = mg_height - 1 - box_y_start
+                array_y_top_row = mg_height - 1 - (box_y_start + box_size - 1)
                 array_y_start = array_y_top_row
                 array_y_end = array_y_bottom_row + 1
                 
@@ -5075,8 +5066,8 @@ color #1 & nucleic #62466B
                 array_y_start = max(0, array_y_start)
                 array_y_end = min(mg_height, array_y_end)
                 
-                # Extract from enhanced image
-                mg_extracted = display_image_full[array_y_start:array_y_end, array_x_start:array_x_end]
+                # Extract directly from displayed image
+                mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
                 
                 # Pad to box_size
                 extracted_h, extracted_w = mg_extracted.shape
@@ -5085,18 +5076,14 @@ color #1 & nucleic #62466B
                 pad_y = (box_size - extracted_h) // 2
                 mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
                 
-                # Normalize using vmin/vmax from ENTIRE image (same as main GUI imshow)
+                # Normalize using vmin/vmax from ENTIRE image
                 if vmax > vmin:
                     mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
                 else:
                     mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
                 
-                # Try WITHOUT flip - maybe the coordinate conversion already handles orientation
-                # The extracted array: row 0 = top of purple box, row (h-1) = bottom of purple box
-                # With origin='lower', row 0 is displayed at bottom
-                # So if we DON'T flip, row 0 (top of box) will be at bottom - that's wrong
-                # But let's try it to see if coordinate conversion is the issue
-                mg_extracted_for_display = mg_extracted_norm  # NO FLIP
+                # Flip for origin='lower'
+                mg_extracted_for_display = np.flipud(mg_extracted_norm)
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
