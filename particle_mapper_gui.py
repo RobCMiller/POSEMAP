@@ -5001,9 +5001,6 @@ color #1 & nucleic #62466B
                 box_x_max = box_x_min + box_size - 1  # Last pixel (exclusive in Rectangle, but we need inclusive for extraction)
                 box_y_max = box_y_min + box_size - 1  # Last pixel
                 
-                print(f"  DEBUG: Purple box coordinates (display):")
-                print(f"    Box center: ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"    Box bounds: x=[{box_x_min:.2f}, {box_x_max:.2f}], y=[{box_y_min:.2f}, {box_y_max:.2f}]")
                 
                 # Draw the box in the main thread
                 def draw_extraction_box():
@@ -5043,25 +5040,33 @@ color #1 & nucleic #62466B
                 # Get vmin/vmax from ENTIRE displayed image (same as main GUI)
                 vmin, vmax = np.percentile(display_image, [1, 99])
                 
-                # DO EXACTLY WHAT ZOOM FUNCTION DOES
-                # Zoom function: sets xlim and ylim, matplotlib displays the image with those limits
-                # We'll extract the exact same region that zoom would show
+                # Extract the micrograph region corresponding to the purple bounding box
+                # 
+                # KEY INSIGHT: With matplotlib's origin='lower', display coordinates map directly to array indices:
+                #   - Display x coordinate = array column index (no conversion)
+                #   - Display y coordinate = array row index (no conversion)
+                #   - Array row 0 is displayed at the bottom (display y=0)
+                #   - Array row (height-1) is displayed at the top (display y=height-1)
+                #
+                # This matches how the zoom function works: it sets axis limits and matplotlib displays
+                # the corresponding array region. We extract the same region here.
+                
+                # Get integer pixel coordinates for the purple box bounds
                 box_x_start = int(round(box_x_min))
                 box_x_end = box_x_start + box_size
                 box_y_start = int(round(box_y_min))
                 box_y_end = box_y_start + box_size
                 
-                # With origin='lower': display y = array row DIRECTLY (row 0 at bottom, row H-1 at top)
-                # So NO conversion needed - just use display coordinates as array indices!
+                # Clamp coordinates to image bounds
                 array_x_start = max(0, box_x_start)
                 array_x_end = min(mg_width, box_x_end)
                 array_y_start = max(0, box_y_start)
                 array_y_end = min(mg_height, box_y_end)
                 
-                # Extract directly - display y maps directly to array row with origin='lower'
+                # Extract the region directly - no coordinate conversion needed with origin='lower'
                 mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
                 
-                # Pad to box_size if needed
+                # Pad to box_size if the extracted region is smaller (e.g., near image edges)
                 extracted_h, extracted_w = mg_extracted.shape
                 if extracted_h != box_size or extracted_w != box_size:
                     mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
@@ -5071,7 +5076,8 @@ color #1 & nucleic #62466B
                 else:
                     mg_output = mg_extracted
                 
-                # With origin='lower', row 0 is at bottom, so extracted array is already correct orientation
+                # The extracted array is already in the correct orientation for display with origin='lower'
+                # (row 0 = bottom of box, row (h-1) = top of box)
                 mg_extracted_for_display = mg_output
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
