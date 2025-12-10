@@ -5212,6 +5212,11 @@ color #1 & nucleic #62466B
                 # So: array_x_max should be box_x_min + box_size (not box_x_max + 1)
                 array_x_min = box_x_min_int
                 array_x_max = box_x_min_int + box_size  # Extract exactly box_size pixels
+                # For y: Purple box is from display y=[box_y_min, box_y_max] where box_y_max = box_y_min + box_size - 1
+                # Display y=box_y_max (top) -> array row = mg_height - 1 - box_y_max = mg_height - 1 - (box_y_min + box_size - 1) = mg_height - box_y_min - box_size
+                # Display y=box_y_min (bottom) -> array row = mg_height - 1 - box_y_min
+                # So we extract array rows from (mg_height - box_y_min - box_size) to (mg_height - 1 - box_y_min) inclusive
+                # That's [mg_height - box_y_min - box_size:mg_height - box_y_min) = box_size rows ✓
                 array_y_min = mg_height - box_y_min_int - box_size  # Top of purple box in array
                 array_y_max = mg_height - box_y_min_int  # Bottom of purple box in array (exclusive, gives box_size rows)
                 # But wait, box_y_max = box_y_min + box_size - 1, so:
@@ -5234,7 +5239,10 @@ color #1 & nucleic #62466B
                 print(f"  DIRECT EXTRACTION from purple box bounds:")
                 print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
                 print(f"    Array bounds: x=[{array_x_min}, {array_x_max}], y=[{array_y_min}, {array_y_max}]")
-                print(f"    Array bounds -> display: x=[{array_x_min}, {array_x_max}], y=[{mg_height - 1 - array_y_max}, {mg_height - 1 - array_y_min}]")
+                # Convert back to display to verify: array_row -> display_y = mg_height - 1 - array_row
+                # array_y_max is exclusive, so last row is array_y_max - 1
+                print(f"    Array bounds -> display: x=[{array_x_min}, {array_x_max-1}], y=[{mg_height - 1 - (array_y_max-1)}, {mg_height - 1 - array_y_min}]")
+                print(f"    Should match purple box: x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
                 
                 # CRITICAL: Verify the coordinate conversion is correct
                 # The purple box is drawn at display coordinates (box_x_min, box_y_min) to (box_x_max, box_y_max)
