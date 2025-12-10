@@ -5052,18 +5052,18 @@ color #1 & nucleic #62466B
                 
                 # Convert display coordinates to array coordinates
                 # With origin='lower': display y=0 is at bottom (array row height-1), display y=height-1 is at top (array row 0)
-                # So: array_row = height - 1 - display_y
+                # Formula: array_row = height - 1 - display_y
                 array_x_start = max(0, box_x_start)
                 array_x_end = min(mg_width, box_x_end)
                 
-                # For y: box covers display y from box_y_start (bottom) to box_y_end-1 (top)
-                # Convert to array rows (inverted)
-                array_row_for_display_y_bottom = mg_height - 1 - box_y_start  # Bottom of box in display -> larger array row
-                array_row_for_display_y_top = mg_height - 1 - (box_y_end - 1)  # Top of box in display -> smaller array row
+                # Purple box covers display y from box_y_start (bottom) to box_y_start + box_size - 1 (top)
+                # Convert to array rows:
+                array_row_bottom = mg_height - 1 - box_y_start  # Bottom of box -> larger array row (near bottom of array)
+                array_row_top = mg_height - 1 - (box_y_start + box_size - 1)  # Top of box -> smaller array row (near top of array)
                 
-                # Extract from smaller row to larger row (top to bottom in array)
-                array_y_start = max(0, array_row_for_display_y_top)
-                array_y_end = min(mg_height, array_row_for_display_y_bottom + 1)
+                # Extract from top to bottom in array: [row_top:row_bottom+1]
+                array_y_start = max(0, array_row_top)
+                array_y_end = min(mg_height, array_row_bottom + 1)
                 
                 # Extract: [row_start:row_end, col_start:col_end]
                 mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
