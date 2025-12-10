@@ -5164,46 +5164,67 @@ color #1 & nucleic #62466B
                     print(f"  ERROR: No micrograph loaded!")
                     return
                 
-                # CRITICAL: Use the EXACT same displayed image that's shown in the main GUI
-                # This is stored in update_display() as self.current_display_image
-                # We MUST use this exact array to ensure we extract from what's actually displayed
+                # SIMPLE APPROACH: Extract box_size x box_size region centered on particle
+                # Use the displayed image directly - no fancy coordinate conversions
                 if hasattr(self, 'current_display_image') and self.current_display_image is not None:
-                    enhanced_full_micrograph = self.current_display_image.copy()  # Make a copy to be safe
-                    print(f"  Using stored display_image from main GUI (exact match!)")
-                    print(f"  Display image shape: {enhanced_full_micrograph.shape}")
-                    print(f"  Display image dtype: {enhanced_full_micrograph.dtype}")
-                    print(f"  Display image range: [{enhanced_full_micrograph.min():.3f}, {enhanced_full_micrograph.max():.3f}]")
+                    display_image = self.current_display_image.copy()
+                    print(f"  Using stored display_image from main GUI")
                 else:
-                    # Fallback: regenerate it the same way
-                    print(f"  WARNING: No stored display_image, regenerating (may not match exactly)")
-                    enhanced_full_micrograph = self.apply_enhancements(self.original_micrograph)
+                    display_image = self.apply_enhancements(self.original_micrograph)
+                    print(f"  WARNING: No stored display_image, regenerating")
                 
-                # Verify we have the right micrograph
-                print(f"  Using micrograph: {self.current_micrograph_path}")
-                print(f"  Enhanced micrograph shape: {enhanced_full_micrograph.shape}")
+                mg_height, mg_width = display_image.shape
+                print(f"  Display image shape: {display_image.shape}")
                 
-                # Verify dimensions match
-                if enhanced_full_micrograph.shape != self.original_micrograph.shape:
-                    print(f"  ERROR: Enhanced micrograph shape mismatch!")
-                    print(f"    Original: {self.original_micrograph.shape}, Enhanced: {enhanced_full_micrograph.shape}")
-                    return
-                
-                # Calculate vmin/vmax from the FULL enhanced micrograph (same as main display)
-                vmin, vmax = np.percentile(enhanced_full_micrograph, [1, 99])
+                # Calculate vmin/vmax from the FULL image (same as main display)
+                vmin, vmax = np.percentile(display_image, [1, 99])
                 print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
-                print(f"  Using current GUI settings: lowpass={getattr(self, 'lowpass_A', 2.0):.1f} Å, contrast={getattr(self, 'contrast', 1.0):.2f}, brightness={getattr(self, 'brightness', 0.0):.2f}")
                 
-                # CRITICAL: The purple box is at display coordinates (box_x_min, box_y_min) to (box_x_max, box_y_max)
-                # Convert these EXACT bounds to array coordinates for extraction
-                # Display: y=0 at bottom, y=height at top
-                # Array: row 0 at top, row (height-1) at bottom
-                # Conversion: array_row = mg_height - 1 - display_y
-                box_x_min_int = int(round(box_x_min))
-                box_x_max_int = int(round(box_x_max))
-                box_y_min_int = int(round(box_y_min))
-                box_y_max_int = int(round(box_y_max))
+                # SIMPLE: Extract box_size x box_size centered at particle center
+                # Particle center in display coordinates: (x_pixel, y_pixel)
+                # Convert to array coordinates: x is same, y needs flipping
+                center_x = int(round(x_pixel))
+                center_y_display = int(round(y_pixel))
+                center_y_array = mg_height - 1 - center_y_display  # Convert display y to array row
                 
-                # Convert purple box bounds to array coordinates
+                # Extract box_size x box_size centered at (center_x, center_y_array)
+                half_box = box_size // 2
+                x_start = max(0, center_x - half_box)
+                x_end = min(mg_width, center_x + half_box)
+                y_start = max(0, center_y_array - half_box)
+                y_end = min(mg_height, center_y_array + half_box)
+                
+                print(f"  SIMPLE EXTRACTION:")
+                print(f"    Particle center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
+                print(f"    Particle center (array): ({center_x}, {center_y_array})")
+                print(f"    Extraction bounds (array): x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
+                
+                # Extract the region
+                mg_extracted = display_image[y_start:y_end, x_start:x_end]
+                extracted_h, extracted_w = mg_extracted.shape
+                print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
+                
+                # Create output array - pad or crop to exactly box_size x box_size
+                mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
+                pad_x = (box_size - extracted_w) // 2
+                pad_y = (box_size - extracted_h) // 2
+                mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
+                
+                print(f"  Output shape: {mg_output.shape}, padding: x={pad_x}, y={pad_y}")
+                
+                # Normalize using the SAME vmin/vmax as the main display
+                if vmax > vmin:
+                    mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
+                else:
+                    mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
+                
+                # Fix orientation: array row 0 is at top, but display with origin='lower' shows it at bottom
+                # So we need to flip vertically
+                mg_extracted_norm = np.flipud(mg_extracted_norm)
+                
+                print(f"  Final extracted region: shape={mg_extracted_norm.shape}, range=[{mg_extracted_norm.min():.3f}, {mg_extracted_norm.max():.3f}]")
+                
+                # Now generate the EM projection for comparison
                 # CRITICAL: The purple box is 576x576 pixels (from box_x_min to box_x_max inclusive)
                 # Python slicing is [start:end) where end is EXCLUSIVE
                 # So to extract 576 pixels, we need [box_x_min:box_x_max+1) which gives us 576 pixels
