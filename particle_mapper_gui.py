@@ -5099,12 +5099,15 @@ color #1 & nucleic #62466B
                 print(f"  DEBUG: Using rotation corrections: X={rotation_correction_x:.2f}°, Y={rotation_correction_y:.2f}°, Z={rotation_correction_z:.2f}°")
                 
                 # Generate higher resolution projection for right panel (2x resolution)
+                # To maintain the same physical size, use half the pixel_size when generating at 2x resolution
+                # This ensures: box_size pixels × pixel_size = (box_size*2) pixels × (pixel_size/2)
                 projection_size = box_size * 2
+                projection_pixel_size = pixel_size / 2.0  # Half pixel size for 2x resolution
                 em_projection = simulate_em_projection_from_pdb(
                     self.pdb_data,
                     pose,  # Euler angles [phi, theta, psi] in radians
                     output_size=(projection_size, projection_size),
-                    pixel_size=pixel_size,
+                    pixel_size=projection_pixel_size,  # Use half pixel size to maintain physical size
                     atom_radius=2.0,  # 2 Angstrom atom radius
                     use_eman2=True,  # Try EMAN2 first
                     rotation_correction_x=rotation_correction_x,
