@@ -81,6 +81,33 @@ else
     echo "  2. Or specify PyMOL path in the GUI"
 fi
 
+# Install EMAN2 (optional, for higher quality projections)
+echo ""
+echo "Installing EMAN2 (optional, for higher quality projections)..."
+read -p "Do you want to install EMAN2? This will improve projection quality. (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    if conda install -c cryoem -c conda-forge eman-dev -y; then
+        echo "✓ EMAN2 installed successfully."
+        echo "  POSEMAP will use EMAN2 for projections when available."
+    else
+        echo "⚠ WARNING: Failed to install EMAN2 via conda."
+        echo "  POSEMAP will fall back to NumPy-based projections."
+        echo "  To install EMAN2 manually:"
+        echo "    conda install -c cryoem -c conda-forge eman-dev"
+    fi
+else
+    echo "⚠ Skipping EMAN2 installation."
+    echo "  POSEMAP will use NumPy-based projections (slower but functional)."
+    echo "  To install EMAN2 later:"
+    echo "    conda install -c cryoem -c conda-forge eman-dev"
+fi
+
+# Verify EMAN2 installation
+echo ""
+echo "Verifying EMAN2 installation..."
+python -c "from EMAN2 import EMData; print('✓ EMAN2 is available')" 2>/dev/null && echo "  POSEMAP will use EMAN2 for projections." || echo "  ⚠ EMAN2 not available - will use NumPy fallback."
+
 # Check for ChimeraX (optional)
 echo ""
 echo "Checking for ChimeraX (optional)..."

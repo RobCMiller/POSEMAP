@@ -25,6 +25,10 @@ scikit-image>=0.18.0
 # Note: PyMOL must be installed separately via conda:
 # conda install -c conda-forge pymol-open-source
 #
+# Note: EMAN2 (optional, recommended for higher quality projections) via conda:
+# conda install -c cryoem -c conda-forge eman-dev
+# POSEMAP will automatically use EMAN2 if available, otherwise falls back to NumPy-based projections
+#
 # Note: ChimeraX must be installed separately:
 # Download from https://www.rbvi.ucsf.edu/chimerax/
 

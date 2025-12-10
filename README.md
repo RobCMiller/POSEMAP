@@ -8,7 +8,7 @@ POSEMAP is a Python toolkit for mapping cryo-EM reconstructions and correspondin
 
 - **Pose-Consistent Projections**: Generate 2D projections of 3D structures (volumes or atomic models) at each particle's specific 3D orientation
 - **Interactive Visualization**: Tkinter-based GUI with micrograph display, particle overlays, and real-time projection preview
-- **Multiple Rendering Backends**: PyMOL for high-quality structure rendering, with ChimeraX integration for interactive viewing
+- **Multiple Rendering Backends**: PyMOL for high-quality structure rendering, EMAN2 for accurate EM projections, with ChimeraX integration for interactive viewing
 - **Flexible Coloring**: Chain-based coloring with custom color support for protein and nucleic acid chains
 - **Background Processing**: Automatic preloading of projections with thread-safe caching
 - **Coordinate System Accuracy**: Rigorous handling of ZYZ Euler angle conventions and coordinate transformations
@@ -47,7 +47,15 @@ pip install -r requirements.txt
 conda install -c conda-forge pymol-open-source -y
 ```
 
-#### 4. (Optional) Install ChimeraX
+#### 4. (Optional) Install EMAN2 (Recommended for Higher Quality Projections)
+
+```bash
+conda install -c cryoem -c conda-forge eman-dev -y
+```
+
+POSEMAP will automatically use EMAN2 for projections when available, providing higher quality results. If EMAN2 is not installed, POSEMAP will fall back to a NumPy-based projection method.
+
+#### 5. (Optional) Install ChimeraX
 
 Download from [UCSF ChimeraX](https://www.rbvi.ucsf.edu/chimerax/) and add to PATH.
 
