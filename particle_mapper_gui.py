@@ -5386,7 +5386,10 @@ color #1 & nucleic #62466B
                     ax = fig.add_subplot(111)
                     # Use same normalization as main display (vmin=0, vmax=1 since already normalized)
                     # comparison is RGB (3 channels), so don't use cmap
-                    ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
+                    # Try origin='upper' since we're NOT flipping the extracted image
+                    # With origin='upper': row 0 is at top, which matches our extracted array
+                    # (row 0 = top of purple box, row 575 = bottom of purple box)
+                    ax.imshow(comparison, origin='upper', aspect='auto', vmin=0, vmax=1)
                     ax.axvline(x=box_size, color='red', linewidth=2, linestyle='--', label='Divider')
                     ax.set_xlabel('Left: Actual Micrograph | Right: Simulated Projection')
                     ax.set_title(f'Particle {particle_idx+1} Comparison\n(Should match if projection mapping is correct)')
