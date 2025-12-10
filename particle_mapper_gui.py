@@ -5096,7 +5096,7 @@ color #1 & nucleic #62466B
                 vmin, vmax = np.percentile(display_image, [1, 99])
                 print(f"  Display vmin/vmax: {vmin:.3f} / {vmax:.3f}")
                 
-                # Normalize the extracted region using the same vmin/vmax
+                # Normalize the extracted region using the same vmin/vmax as main display
                 if vmax > vmin:
                     mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
                 else:
@@ -5364,12 +5364,10 @@ color #1 & nucleic #62466B
                 # em_proj_norm has row 0 = bottom (flipped in project_volume), which matches
                 comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
                 # Left side: actual micrograph (grayscale -> RGB)
-                # Convert to RGB by replicating the grayscale channel
-                # Use the SAME vmin/vmax as main display for consistent appearance
-                mg_normalized = np.clip((mg_extracted_for_display - vmin) / (vmax - vmin + 1e-10), 0, 1)
-                comparison[:, :box_size, 0] = mg_normalized
-                comparison[:, :box_size, 1] = mg_normalized
-                comparison[:, :box_size, 2] = mg_normalized
+                # mg_extracted_for_display is already normalized to [0, 1], just copy to RGB channels
+                comparison[:, :box_size, 0] = mg_extracted_for_display
+                comparison[:, :box_size, 1] = mg_extracted_for_display
+                comparison[:, :box_size, 2] = mg_extracted_for_display
                 # Right side: simulated EM projection (grayscale -> RGB)
                 # em_proj_norm has row 0 = bottom (flipped in project_volume)
                 comparison[:, box_size:, 0] = em_proj_norm
