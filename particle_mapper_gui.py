@@ -5107,26 +5107,7 @@ color #1 & nucleic #62466B
                 # With origin='lower', we need row 0 = bottom of purple box
                 mg_extracted_for_display = np.flipud(mg_extracted_norm)
                 
-                # Debug: Print the exact coordinates we're using
-                print(f"  Using EXACT coordinates from .cs file:")
-                print(f"    Fractional: ({center_x_frac:.6f}, {center_y_frac:.6f})")
-                print(f"    Pixel (before shifts): ({center_x_frac * mg_shape[1]:.2f}, {center_y_frac * mg_shape[0]:.2f})")
-                print(f"    Shift (Angstroms): ({shift[0]:.3f}, {shift[1]:.3f})")
-                print(f"    Pixel (after shifts): ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"    Pixel (rounded): ({x_pixel_int}, {y_pixel_int})")
-                print(f"    Array coords: ({array_x_center}, {array_y_center})")
-                
-                # Debug: Check if we're accidentally using micrograph center
-                mg_center_x = mg_width // 2
-                mg_center_y = mg_height // 2
-                print(f"  Micrograph center (array coords): ({mg_center_x}, {mg_center_y})")
-                print(f"  Particle center (array coords): ({array_x_center}, {array_y_center})")
-                dist_x = abs(int(array_x_center) - int(mg_center_x))
-                dist_y = abs(int(array_y_center) - int(mg_center_y))
-                print(f"  Distance from micrograph center: X={dist_x}, Y={dist_y}")
-                
-                # Double-check: verify by looking at what's at this location in the original micrograph
-                # and comparing with what should be visible in the main display
+                print(f"  Final extracted region: shape={mg_extracted_for_display.shape}, range=[{mg_extracted_for_display.min():.3f}, {mg_extracted_for_display.max():.3f}]")
                 if 0 <= array_y_center < mg_height and 0 <= array_x_center < mg_width:
                     # Check a small region around the center to see if there's signal
                     check_radius = 5
