@@ -5051,17 +5051,23 @@ color #1 & nucleic #62466B
                 box_y_end = box_y_start + box_size
                 
                 # Convert display coordinates to array coordinates
-                # Display: y=0 at bottom, y=height-1 at top (origin='lower')
+                # Display uses origin='lower': y=0 at bottom, y=height-1 at top
                 # Array: row 0 at top, row height-1 at bottom
                 # Conversion: array_row = height - 1 - display_y
+                # Purple box Rectangle covers: x=[box_x_start, box_x_start+box_size), y=[box_y_start, box_y_start+box_size)
                 array_x_start = max(0, box_x_start)
-                array_x_end = min(mg_width, box_x_end)
-                array_y_bottom_display = box_y_start
-                array_y_top_display = box_y_end - 1
+                array_x_end = min(mg_width, box_x_start + box_size)
+                # For y: Rectangle bottom is at display_y=box_y_start, top is at display_y=box_y_start+box_size-1
+                # Convert to array rows (inverted)
+                array_y_bottom_display = box_y_start  # Bottom of box in display
+                array_y_top_display = box_y_start + box_size - 1  # Top of box in display (inclusive)
+                # Array row for top of box (smaller row number)
                 array_y_top_row = mg_height - 1 - array_y_top_display
+                # Array row for bottom of box (larger row number)
                 array_y_bottom_row = mg_height - 1 - array_y_bottom_display
+                # Extract from top to bottom in array
                 array_y_start = array_y_top_row
-                array_y_end = array_y_bottom_row + 1
+                array_y_end = array_y_bottom_row + 1  # +1 for exclusive slice
                 
                 # Clamp
                 array_x_start = max(0, array_x_start)
