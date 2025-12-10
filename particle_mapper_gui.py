@@ -5202,12 +5202,34 @@ color #1 & nucleic #62466B
                 box_y_max_int = int(round(box_y_max))
                 
                 # Convert purple box bounds to array coordinates
-                # CRITICAL: Python slicing is [start:end) where end is EXCLUSIVE
-                # So to extract from array_x_min to array_x_max (inclusive), we need [array_x_min:array_x_max+1)
+                # CRITICAL: The purple box is 576x576 pixels (from box_x_min to box_x_max inclusive)
+                # Python slicing is [start:end) where end is EXCLUSIVE
+                # So to extract 576 pixels, we need [box_x_min:box_x_max+1) which gives us 576 pixels
+                # But wait - if box_x_max = box_x_min + 575, then [box_x_min:box_x_max+1) = [box_x_min:box_x_min+576) = 576 pixels ✓
+                # Actually, the purple box is drawn from (box_x_min, box_y_min) with width/height = box_size
+                # So it covers pixels from box_x_min to box_x_min + box_size - 1 (inclusive)
+                # That's box_size pixels total. To extract box_size pixels, we need [box_x_min:box_x_min + box_size)
+                # So: array_x_max should be box_x_min + box_size (not box_x_max + 1)
                 array_x_min = box_x_min_int
-                array_x_max = box_x_max_int + 1  # +1 because Python slice end is exclusive
+                array_x_max = box_x_min_int + box_size  # box_size pixels starting from box_x_min
                 array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box -> smaller array row
-                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of purple box -> larger array row + 1 (for inclusive slice)
+                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of purple box -> larger array row + 1
+                # But wait, box_y_max = box_y_min + box_size - 1, so:
+                # array_y_max = mg_height - 1 - (box_y_min + box_size - 1) + 1 = mg_height - 1 - box_y_min - box_size + 1 + 1
+                # = mg_height - box_y_min - box_size + 1
+                # Actually simpler: array_y_min = mg_height - 1 - box_y_max, array_y_max = mg_height - 1 - box_y_min + 1
+                # But box_y_max = box_y_min + box_size - 1, so:
+                # array_y_max = mg_height - 1 - box_y_min + 1 = mg_height - box_y_min
+                # And array_y_min = mg_height - 1 - (box_y_min + box_size - 1) = mg_height - box_y_min - box_size
+                # So we extract [array_y_min:array_y_max) = [mg_height - box_y_min - box_size:mg_height - box_y_min)
+                # That's box_size rows. But we need to verify this is correct.
+                # Let's recalculate more carefully:
+                # Purple box: display y from box_y_min (bottom) to box_y_min + box_size - 1 (top)
+                # Array row for display y = box_y_min: mg_height - 1 - box_y_min (bottom of box in array)
+                # Array row for display y = box_y_min + box_size - 1: mg_height - 1 - (box_y_min + box_size - 1) = mg_height - box_y_min - box_size (top of box in array)
+                # So we need array rows from (mg_height - box_y_min - box_size) to (mg_height - 1 - box_y_min) inclusive
+                # That's [mg_height - box_y_min - box_size:mg_height - box_y_min) which is box_size rows ✓
+                array_y_max = mg_height - box_y_min_int  # This gives us box_size rows
                 
                 print(f"  DIRECT EXTRACTION from purple box bounds:")
                 print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
