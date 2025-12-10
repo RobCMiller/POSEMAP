@@ -459,16 +459,26 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     
     # Convert PDB to density map first
     # For better resolution, calculate appropriate grid_size based on desired output size
-    # We want the volume to be at least as large as the output projection, but not too large for performance
+    # We want the volume to be large enough for good quality, but not so large it's too slow
     h, w = output_size
     min_grid_size = max(h, w)
-    # Use 1.2x output size for better resolution (slight oversampling helps quality)
+    
+    # For very large output sizes (e.g., 2x resolution for downsampling), 
+    # we don't need the volume to be as large - the final resize will handle quality
+    # Use a more conservative approach: use output size directly, but cap reasonably
+    if min_grid_size > 800:
+        # For large outputs (likely 2x resolution that will be downsampled),
+        # use a fixed reasonable size (640-768 range)
+        desired_grid_size = 640  # Good balance of quality and speed
+    else:
+        # For normal sizes, use output size directly (no 1.2x multiplier)
+        desired_grid_size = min_grid_size
+    
     # Round up to nearest 32 for efficiency
-    desired_grid_size = int(min_grid_size * 1.2)
     desired_grid_size = ((desired_grid_size + 31) // 32) * 32
-    # Cap at 1024 for high quality (user can wait for better results)
-    # 1024^3 is ~1B voxels, which takes time but gives excellent quality
-    desired_grid_size = min(desired_grid_size, 1024)
+    # Cap at 768 for reasonable performance (640^3 = 262M voxels, 768^3 = 453M voxels)
+    # This is much faster than 1024^3 (1B voxels) while still providing excellent quality
+    desired_grid_size = min(desired_grid_size, 768)
     print(f"  DEBUG EMAN2: Creating density map with grid_size={desired_grid_size} (output size={h}x{w})...")
     volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0, grid_size=desired_grid_size)
     print(f"  DEBUG EMAN2: Density map created, shape={volume.shape}, converting to EMData...")
