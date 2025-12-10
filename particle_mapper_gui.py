@@ -5144,9 +5144,15 @@ color #1 & nucleic #62466B
                 comparison[:, :box_size, 1] = mg_normalized
                 comparison[:, :box_size, 2] = mg_normalized
                 # Right side: simulated EM projection (grayscale -> RGB, resized from high-res to match left panel)
-                comparison[:, box_size:, 0] = em_proj_resized
-                comparison[:, box_size:, 1] = em_proj_resized
-                comparison[:, box_size:, 2] = em_proj_resized
+                # Set background color to #363636 (RGB: 54/255 ≈ 0.212)
+                bg_color = 54.0 / 255.0
+                comparison[:, box_size:, 0] = bg_color
+                comparison[:, box_size:, 1] = bg_color
+                comparison[:, box_size:, 2] = bg_color
+                # Overlay projection (projection values are in [0, 1], so they'll blend with background)
+                comparison[:, box_size:, 0] = np.maximum(comparison[:, box_size:, 0], em_proj_resized)
+                comparison[:, box_size:, 1] = np.maximum(comparison[:, box_size:, 1], em_proj_resized)
+                comparison[:, box_size:, 2] = np.maximum(comparison[:, box_size:, 2], em_proj_resized)
                 
                 # Create window in main thread
                 def create_window():
