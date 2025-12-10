@@ -462,12 +462,13 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # We want the volume to be at least as large as the output projection, but not too large for performance
     h, w = output_size
     min_grid_size = max(h, w)
-    # Use output size directly (or slightly larger) - no need for 1.5x which creates huge volumes
+    # Use 1.2x output size for better resolution (slight oversampling helps quality)
     # Round up to nearest 32 for efficiency
-    desired_grid_size = ((min_grid_size + 31) // 32) * 32
-    # Cap at 640 for reasonable performance (larger volumes are very slow)
-    # 640^3 is ~262M voxels, which is reasonable for EMAN2 projection
-    desired_grid_size = min(desired_grid_size, 640)
+    desired_grid_size = int(min_grid_size * 1.2)
+    desired_grid_size = ((desired_grid_size + 31) // 32) * 32
+    # Cap at 1024 for high quality (user can wait for better results)
+    # 1024^3 is ~1B voxels, which takes time but gives excellent quality
+    desired_grid_size = min(desired_grid_size, 1024)
     print(f"  DEBUG EMAN2: Creating density map with grid_size={desired_grid_size} (output size={h}x{w})...")
     volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0, grid_size=desired_grid_size)
     print(f"  DEBUG EMAN2: Density map created, shape={volume.shape}, converting to EMData...")
@@ -510,13 +511,11 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     
     # Create transform from Euler angles
     # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
-    # IMPORTANT: EMAN2's project() rotates the volume TO the view orientation
-    # Our NumPy version rotates coordinates FROM view space TO volume space (using R.T)
-    # To match NumPy behavior, we need the inverse transform for EMAN2
+    # Try direct transform first (without inverse) - EMAN2's project() may handle it correctly
     transform = Transform({"type": "eman", "az": euler_angles[0], 
                           "alt": euler_angles[1], "phi": euler_angles[2]})
-    # Use inverse transform to match NumPy projection behavior
-    transform = transform.inverse()
+    # Note: If orientation is still wrong, we may need to adjust the Euler angle mapping
+    # or use transform.inverse() - testing direct first
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
