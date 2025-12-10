@@ -5211,9 +5211,9 @@ color #1 & nucleic #62466B
                 # That's box_size pixels total. To extract box_size pixels, we need [box_x_min:box_x_min + box_size)
                 # So: array_x_max should be box_x_min + box_size (not box_x_max + 1)
                 array_x_min = box_x_min_int
-                array_x_max = box_x_min_int + box_size  # box_size pixels starting from box_x_min
-                array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box -> smaller array row
-                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of purple box -> larger array row + 1
+                array_x_max = box_x_min_int + box_size  # Extract exactly box_size pixels
+                array_y_min = mg_height - box_y_min_int - box_size  # Top of purple box in array
+                array_y_max = mg_height - box_y_min_int  # Bottom of purple box in array (exclusive, gives box_size rows)
                 # But wait, box_y_max = box_y_min + box_size - 1, so:
                 # array_y_max = mg_height - 1 - (box_y_min + box_size - 1) + 1 = mg_height - 1 - box_y_min - box_size + 1 + 1
                 # = mg_height - box_y_min - box_size + 1
