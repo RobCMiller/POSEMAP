@@ -5031,58 +5031,76 @@ color #1 & nucleic #62466B
                 
                 self.root.after(0, draw_extraction_box)
                 
-                # ULTRA-SIMPLE: Extract exactly what's in the purple box from the displayed image
-                # No transformations, no flipping - just extract and display
-                
-                if not hasattr(self, 'current_display_image') or self.current_display_image is None:
-                    print(f"  ERROR: No displayed image available!")
+                # Extract from original micrograph, apply same enhancements, ensure particle center is at center
+                if self.original_micrograph is None:
+                    print(f"  ERROR: No original micrograph!")
                     return
                 
-                display_image = self.current_display_image
-                img_height, img_width = display_image.shape
+                # Get original micrograph dimensions
+                mg_height, mg_width = self.original_micrograph.shape
                 
-                # Purple box coordinates in display space (origin='lower')
-                box_x_start = int(round(box_x_min))
-                box_x_end = box_x_start + box_size
-                box_y_start = int(round(box_y_min))
-                box_y_end = box_y_start + box_size
+                # Particle center in display coordinates (x_pixel, y_pixel)
+                # Convert to array coordinates: x is same, y is flipped
+                particle_x_array = int(round(x_pixel))
+                particle_y_display = int(round(y_pixel))
+                particle_y_array = mg_height - 1 - particle_y_display
                 
-                # Convert to array indices (y is flipped: display y=0 is array row height-1)
-                array_x_start = max(0, box_x_start)
-                array_x_end = min(img_width, box_x_end)
-                # Display y increases upward, array row increases downward
-                # display_y = 0 -> array_row = height - 1
-                # display_y = box_y_start -> array_row = height - 1 - box_y_start
-                array_y_display_start = box_y_start
-                array_y_display_end = box_y_end
-                array_y_row_start = img_height - 1 - array_y_display_end + 1  # +1 because display_end is exclusive
-                array_y_row_end = img_height - 1 - array_y_display_start + 1
+                # Extract box_size x box_size region centered on particle
+                half_box = box_size // 2
+                x_start = max(0, particle_x_array - half_box)
+                x_end = min(mg_width, particle_x_array + half_box)
+                y_start = max(0, particle_y_array - half_box)
+                y_end = min(mg_height, particle_y_array + half_box)
                 
-                # Clamp
-                array_x_start = max(0, array_x_start)
-                array_x_end = min(img_width, array_x_end)
-                array_y_row_start = max(0, array_y_row_start)
-                array_y_row_end = min(img_height, array_y_row_end)
+                # Extract from original micrograph
+                mg_extracted_raw = self.original_micrograph[y_start:y_end, x_start:x_end]
                 
-                # Extract
-                mg_extracted = display_image[array_y_row_start:array_y_row_end, array_x_start:array_x_end]
+                # Apply SAME enhancements as main display
+                display_image_full = self.apply_enhancements(self.original_micrograph)
+                mg_extracted = display_image_full[y_start:y_end, x_start:x_end]
                 
-                # Pad to box_size
-                extracted_h, extracted_w = mg_extracted.shape
+                # Create output array with particle at center
                 mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
-                pad_x = (box_size - extracted_w) // 2
-                pad_y = (box_size - extracted_h) // 2
-                mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
+                extracted_h, extracted_w = mg_extracted.shape
                 
-                # Normalize using same vmin/vmax as main display
-                vmin, vmax = np.percentile(display_image, [1, 99])
+                # Calculate where to place extracted region so particle is at center
+                # Particle is at (particle_x_array - x_start, particle_y_array - y_start) in extracted
+                # We want it at (box_size//2, box_size//2) in output
+                particle_in_extracted_x = particle_x_array - x_start
+                particle_in_extracted_y = particle_y_array - y_start
+                output_center_x = box_size // 2
+                output_center_y = box_size // 2
+                
+                # Place extracted region so particle center aligns with output center
+                output_x_start = output_center_x - particle_in_extracted_x
+                output_y_start = output_center_y - particle_in_extracted_y
+                output_x_end = output_x_start + extracted_w
+                output_y_end = output_y_start + extracted_h
+                
+                # Clamp to output bounds
+                src_x_start = max(0, -output_x_start)
+                src_y_start = max(0, -output_y_start)
+                src_x_end = extracted_w - max(0, output_x_end - box_size)
+                src_y_end = extracted_h - max(0, output_y_end - box_size)
+                output_x_start = max(0, output_x_start)
+                output_y_start = max(0, output_y_start)
+                output_x_end = min(box_size, output_x_end)
+                output_y_end = min(box_size, output_y_end)
+                
+                mg_output[output_y_start:output_y_end, output_x_start:output_x_end] = \
+                    mg_extracted[src_y_start:src_y_end, src_x_start:src_x_end]
+                
+                # Get vmin/vmax from full enhanced image (same as main display)
+                vmin, vmax = np.percentile(display_image_full, [1, 99])
+                
+                # Normalize using same vmin/vmax
                 if vmax > vmin:
                     mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
                 else:
                     mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
                 
-                # NO FLIP - just use as-is with origin='lower'
-                mg_extracted_for_display = mg_extracted_norm
+                # Flip for origin='lower' display (array row 0 is top, display y=0 is bottom)
+                mg_extracted_for_display = np.flipud(mg_extracted_norm)
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
