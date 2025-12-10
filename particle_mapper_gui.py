@@ -5285,7 +5285,7 @@ color #1 & nucleic #62466B
                 print(f"  Particle center after flipud: ({center_in_extracted_x}, {center_in_flipped_y})")
                 print(f"  Using origin='lower' in comparison window to match main display")
                 
-                print(f"  Final extracted region: shape={mg_extracted_norm.shape}, range=[{mg_extracted_norm.min():.3f}, {mg_extracted_norm.max():.3f}]")
+                print(f"  Final extracted region: shape={mg_extracted_for_display.shape}, range=[{mg_extracted_for_display.min():.3f}, {mg_extracted_for_display.max():.3f}]")
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
