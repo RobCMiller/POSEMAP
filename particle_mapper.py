@@ -498,7 +498,10 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     print(f"  DEBUG EMAN2: Volume data set, creating transform and projecting...")
     
     # Get the rotation matrix that NumPy uses (R, which rotates volume->view)
-    # NumPy then uses R.T to transform view coords to volume coords
+    # NumPy uses R.T to transform view coords to volume coords for sampling
+    # But EMAN2 rotates the volume itself, not the coordinates
+    # If NumPy samples at R.T @ view_coords, and we rotate the volume by R,
+    # then projecting the rotated volume should give the same result
     R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
     
     # Apply rotation corrections if needed (same as NumPy version)
@@ -512,14 +515,13 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         # Combine rotations: R_final = R @ R_correction (same as NumPy)
         R = R @ R_correction
     
-    # NumPy uses R.T to transform view coords to volume coords
-    # For EMAN2, we need to rotate the volume by R.T to get the same result
-    # So we use R.T (transpose) as the rotation matrix
-    R_for_eman2 = R.T
+    # For EMAN2: rotate the volume by R (not R.T) since we're rotating the object, not coordinates
+    # NumPy: samples volume at R.T @ view_coords (transforms coordinates)
+    # EMAN2: rotates volume by R, then projects (transforms object)
+    # These should be equivalent: rotating object by R is same as transforming coords by R.T
+    R_for_eman2 = R  # Use R directly, not R.T
     
     # Convert rotation matrix to EMAN2 Transform
-    # EMAN2 Transform can be created from a rotation matrix directly
-    # We'll create a transform from the rotation matrix, then convert to Euler angles
     from scipy.spatial.transform import Rotation as Rot
     rot_from_matrix = Rot.from_matrix(R_for_eman2)
     euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
@@ -529,7 +531,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
                           "az": euler_zyz[0],   # phi
                           "alt": euler_zyz[1],  # theta  
                           "phi": euler_zyz[2]}) # psi
-    print(f"  DEBUG EMAN2: Using R.T from NumPy, Euler angles: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
+    print(f"  DEBUG EMAN2: Using R (not R.T) for volume rotation, Euler angles: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
