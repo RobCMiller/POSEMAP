@@ -5050,15 +5050,23 @@ color #1 & nucleic #62466B
                 box_y_start = int(round(box_y_min))
                 box_y_end = box_y_start + box_size
                 
-                # Convert display y to array rows (origin='lower': display y=0 is array row height-1)
-                # Display y increases upward, array rows increase downward
+                # Convert display coordinates to array coordinates
+                # With origin='lower': display y=0 is at bottom (array row height-1), display y=height-1 is at top (array row 0)
+                # So: array_row = height - 1 - display_y
                 array_x_start = max(0, box_x_start)
                 array_x_end = min(mg_width, box_x_end)
-                array_y_bottom = mg_height - 1 - box_y_start  # Bottom of box -> larger row number
-                array_y_top = mg_height - 1 - (box_y_end - 1)  # Top of box -> smaller row number
                 
-                # Extract: [row_top:row_bottom+1, col_start:col_end]
-                mg_extracted = display_image[array_y_top:array_y_bottom+1, array_x_start:array_x_end]
+                # For y: box covers display y from box_y_start (bottom) to box_y_end-1 (top)
+                # Convert to array rows (inverted)
+                array_row_for_display_y_bottom = mg_height - 1 - box_y_start  # Bottom of box in display -> larger array row
+                array_row_for_display_y_top = mg_height - 1 - (box_y_end - 1)  # Top of box in display -> smaller array row
+                
+                # Extract from smaller row to larger row (top to bottom in array)
+                array_y_start = max(0, array_row_for_display_y_top)
+                array_y_end = min(mg_height, array_row_for_display_y_bottom + 1)
+                
+                # Extract: [row_start:row_end, col_start:col_end]
+                mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
                 
                 # Pad to box_size if needed
                 extracted_h, extracted_w = mg_extracted.shape
