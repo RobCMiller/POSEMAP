@@ -5210,15 +5210,20 @@ color #1 & nucleic #62466B
                 # So it covers pixels from box_x_min to box_x_min + box_size - 1 (inclusive)
                 # That's box_size pixels total. To extract box_size pixels, we need [box_x_min:box_x_min + box_size)
                 # So: array_x_max should be box_x_min + box_size (not box_x_max + 1)
+                # CRITICAL: Purple box is drawn from (box_x_min, box_y_min) to (box_x_max, box_y_max)
+                # where box_x_max = box_x_min + box_size - 1 (approximately, after rounding)
+                # and box_y_max = box_y_min + box_size - 1 (approximately, after rounding)
+                # But actually: box_x_max = x_pixel + half_box, box_y_max = y_pixel + half_box
+                # So the box covers display pixels x=[box_x_min_int, box_x_max_int] and y=[box_y_min_int, box_y_max_int]
+                # To extract exactly these pixels:
                 array_x_min = box_x_min_int
-                array_x_max = box_x_min_int + box_size  # Extract exactly box_size pixels
-                # For y: Purple box is from display y=[box_y_min, box_y_max] where box_y_max = box_y_min + box_size - 1
-                # Display y=box_y_max (top) -> array row = mg_height - 1 - box_y_max = mg_height - 1 - (box_y_min + box_size - 1) = mg_height - box_y_min - box_size
-                # Display y=box_y_min (bottom) -> array row = mg_height - 1 - box_y_min
-                # So we extract array rows from (mg_height - box_y_min - box_size) to (mg_height - 1 - box_y_min) inclusive
-                # That's [mg_height - box_y_min - box_size:mg_height - box_y_min) = box_size rows ✓
-                array_y_min = mg_height - box_y_min_int - box_size  # Top of purple box in array
-                array_y_max = mg_height - box_y_min_int  # Bottom of purple box in array (exclusive, gives box_size rows)
+                array_x_max = box_x_max_int + 1  # +1 because Python slice is exclusive on end
+                # For y: Convert display y to array row: array_row = mg_height - 1 - display_y
+                # Display y=box_y_max_int (top) -> array row = mg_height - 1 - box_y_max_int
+                # Display y=box_y_min_int (bottom) -> array row = mg_height - 1 - box_y_min_int
+                # Extract from top to bottom: [mg_height - 1 - box_y_max_int:mg_height - 1 - box_y_min_int + 1)
+                array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box in array
+                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of purple box in array + 1 (for exclusive slice)
                 # But wait, box_y_max = box_y_min + box_size - 1, so:
                 # array_y_max = mg_height - 1 - (box_y_min + box_size - 1) + 1 = mg_height - 1 - box_y_min - box_size + 1 + 1
                 # = mg_height - box_y_min - box_size + 1
