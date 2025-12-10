@@ -531,7 +531,11 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
                           "az": euler_zyz[0],   # phi
                           "alt": euler_zyz[1],  # theta  
                           "phi": euler_zyz[2]}) # psi
-    print(f"  DEBUG EMAN2: Using R (not R.T) for volume rotation, Euler angles: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
+    
+    # Try using inverse transform - EMAN2's project() might apply transform differently
+    # If direct doesn't work, inverse might be needed
+    transform = transform.inverse()
+    print(f"  DEBUG EMAN2: Using R with inverse transform, Euler angles: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
