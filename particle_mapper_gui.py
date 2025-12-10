@@ -4991,13 +4991,15 @@ color #1 & nucleic #62466B
                 
                 # Draw purple extraction box on main display
                 # Calculate box bounds in display coordinates (same as particle center)
-                # CRITICAL: Make sure the box is exactly box_size x box_size pixels
-                # If box_size=576, we want pixels from x_pixel-288 to x_pixel+287 (576 pixels total)
+                # CRITICAL: Rectangle((x, y), width, height) covers [x, x+width) and [y, y+height)
+                # We want a box_size x box_size box centered at (x_pixel, y_pixel)
                 half_box = box_size // 2
                 box_x_min = x_pixel - half_box
                 box_y_min = y_pixel - half_box
-                box_x_max = x_pixel + half_box - 1  # -1 to make it exactly box_size pixels wide
-                box_y_max = y_pixel + half_box - 1  # -1 to make it exactly box_size pixels tall
+                # Rectangle extends from (box_x_min, box_y_min) by (box_size, box_size)
+                # So it covers x=[box_x_min, box_x_min+box_size) and y=[box_y_min, box_y_min+box_size)
+                box_x_max = box_x_min + box_size - 1  # Last pixel (exclusive in Rectangle, but we need inclusive for extraction)
+                box_y_max = box_y_min + box_size - 1  # Last pixel
                 
                 print(f"  DEBUG: Purple box coordinates (display):")
                 print(f"    Box center: ({x_pixel:.2f}, {y_pixel:.2f})")
@@ -5165,7 +5167,8 @@ color #1 & nucleic #62466B
                     return
                 
                 # CRITICAL: Extract using EXACT purple box bounds
-                # The purple box is drawn at display coordinates (box_x_min, box_y_min) to (box_x_max, box_y_max)
+                # The purple box Rectangle is drawn at (box_x_min, box_y_min) with size (box_size, box_size)
+                # Rectangle covers: x=[box_x_min, box_x_min+box_size), y=[box_y_min, box_y_min+box_size)
                 # We MUST extract the exact pixels shown in that box
                 if hasattr(self, 'current_display_image') and self.current_display_image is not None:
                     display_image = self.current_display_image.copy()
@@ -5181,23 +5184,21 @@ color #1 & nucleic #62466B
                 vmin, vmax = np.percentile(display_image, [1, 99])
                 print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
                 
-                # Use EXACT purple box bounds (already calculated above)
-                # Purple box: display x=[box_x_min, box_x_max], y=[box_y_min, box_y_max]
-                # Convert to array coordinates:
-                # - x is the same: array_x = display_x
-                # - y is flipped: array_y = mg_height - 1 - display_y
+                # Rectangle covers: x=[box_x_min, box_x_min+box_size), y=[box_y_min, box_y_min+box_size)
+                # Convert to integer pixel bounds for extraction
                 box_x_min_int = int(round(box_x_min))
-                box_x_max_int = int(round(box_x_max))
                 box_y_min_int = int(round(box_y_min))
-                box_y_max_int = int(round(box_y_max))
+                box_x_max_int = box_x_min_int + box_size - 1  # Last pixel (inclusive)
+                box_y_max_int = box_y_min_int + box_size - 1  # Last pixel (inclusive)
                 
                 # Convert purple box display bounds to array bounds
+                # With origin='lower': display y=0 is array row (height-1), display y=(height-1) is array row 0
                 # Display y=box_y_min (bottom of box) -> array row = mg_height - 1 - box_y_min_int
                 # Display y=box_y_max (top of box) -> array row = mg_height - 1 - box_y_max_int
-                # Extract from top to bottom: [mg_height - 1 - box_y_max_int : mg_height - 1 - box_y_min_int + 1)
+                # Extract from top to bottom in array: [mg_height - 1 - box_y_max_int : mg_height - 1 - box_y_min_int + 1)
                 array_x_min = box_x_min_int
-                array_x_max = box_x_max_int + 1  # +1 because Python slice is exclusive
-                array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box in array
+                array_x_max = box_x_min_int + box_size  # Exclusive end (Python slice)
+                array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box in array (smaller row number)
                 array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of purple box + 1 (exclusive slice)
                 
                 # Clamp to image bounds
