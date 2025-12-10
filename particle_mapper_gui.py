@@ -4991,11 +4991,13 @@ color #1 & nucleic #62466B
                 
                 # Draw purple extraction box on main display
                 # Calculate box bounds in display coordinates (same as particle center)
+                # CRITICAL: Make sure the box is exactly box_size x box_size pixels
+                # If box_size=576, we want pixels from x_pixel-288 to x_pixel+287 (576 pixels total)
                 half_box = box_size // 2
                 box_x_min = x_pixel - half_box
                 box_y_min = y_pixel - half_box
-                box_x_max = x_pixel + half_box
-                box_y_max = y_pixel + half_box
+                box_x_max = x_pixel + half_box - 1  # -1 to make it exactly box_size pixels wide
+                box_y_max = y_pixel + half_box - 1  # -1 to make it exactly box_size pixels tall
                 
                 print(f"  DEBUG: Purple box coordinates (display):")
                 print(f"    Box center: ({x_pixel:.2f}, {y_pixel:.2f})")
