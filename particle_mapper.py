@@ -425,11 +425,31 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
 
 def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarray,
                                           output_size: Tuple[int, int],
-                                          pixel_size: float = 1.0) -> np.ndarray:
+                                          pixel_size: float = 1.0,
+                                          rotation_correction_x: float = 0.0,
+                                          rotation_correction_y: float = 0.0,
+                                          rotation_correction_z: float = 0.0) -> np.ndarray:
     """
     Simulate an EM projection using EMAN2.
     
     This function uses EMAN2's projection capabilities for more accurate EM simulation.
+    
+    Parameters:
+    -----------
+    pdb_data : dict
+        PDB structure data from load_pdb_structure()
+    euler_angles : np.ndarray
+        Euler angles [phi, theta, psi] in radians (ZYZ convention)
+    output_size : tuple
+        Output projection size (height, width) in pixels
+    pixel_size : float
+        Pixel size in Angstroms
+    rotation_correction_x : float
+        Rotation correction around X axis in degrees
+    rotation_correction_y : float
+        Rotation correction around Y axis in degrees
+    rotation_correction_z : float
+        Rotation correction around Z axis in degrees
     """
     try:
         from EMAN2 import EMData, Transform
@@ -445,6 +465,28 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     em_volume = EMData()
     em_volume.set_size(volume.shape[2], volume.shape[1], volume.shape[0])  # [x, y, z]
     em_volume.set_array(volume.transpose(2, 1, 0))  # Transpose to [x, y, z]
+    
+    # Apply rotation corrections if needed
+    # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
+    # We need to combine the main rotation with corrections
+    # Corrections are in XYZ convention (intrinsic rotations)
+    if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
+        from scipy.spatial.transform import Rotation as Rot
+        # Get main rotation matrix from Euler angles (ZYZ)
+        R_main = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+        # Get correction rotation matrix (XYZ)
+        rot_x_rad = np.deg2rad(rotation_correction_x)
+        rot_y_rad = np.deg2rad(rotation_correction_y)
+        rot_z_rad = np.deg2rad(rotation_correction_z)
+        rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
+        R_correction = rot_correction.as_matrix()
+        # Combine rotations: R_final = R_main @ R_correction (same as PyMOL)
+        R_final = R_main @ R_correction
+        # Convert back to ZYZ Euler angles for EMAN2
+        rot_final = Rot.from_matrix(R_final)
+        euler_final = rot_final.as_euler('ZYZ', degrees=False)
+        # EMAN2 uses [az, alt, phi] = [phi, theta, psi]
+        euler_angles = np.array([euler_final[0], euler_final[1], euler_final[2]])
     
     # Create transform from Euler angles
     # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
@@ -498,15 +540,31 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     # Try EMAN2 first if requested and available
     if use_eman2:
         try:
-            proj = simulate_em_projection_from_pdb_eman2(
-                pdb_data, euler_angles, output_size, pixel_size
-            )
-            print(f"  DEBUG: EMAN2 projection generated, shape={proj.shape}, range=[{proj.min():.3f}, {proj.max():.3f}]")
-            return proj
-        except ImportError:
-            print("EMAN2 not available, falling back to NumPy projection method")
+            # Test if EMAN2 can be imported
+            try:
+                from EMAN2 import EMData, Transform
+            except ImportError as import_err:
+                print(f"EMAN2 not available (ImportError: {import_err}), falling back to NumPy projection method")
+                use_eman2 = False
+            except Exception as import_err:
+                print(f"EMAN2 import failed (Error: {import_err}), falling back to NumPy projection method")
+                use_eman2 = False
+            
+            if use_eman2:
+                proj = simulate_em_projection_from_pdb_eman2(
+                    pdb_data, euler_angles, output_size, pixel_size,
+                    rotation_correction_x=rotation_correction_x,
+                    rotation_correction_y=rotation_correction_y,
+                    rotation_correction_z=rotation_correction_z
+                )
+                print(f"  DEBUG: EMAN2 projection generated, shape={proj.shape}, range=[{proj.min():.3f}, {proj.max():.3f}]")
+                return proj
+        except ImportError as e:
+            print(f"EMAN2 not available (ImportError: {e}), falling back to NumPy projection method")
         except Exception as e:
             print(f"EMAN2 projection failed: {e}, falling back to NumPy method")
+            import traceback
+            traceback.print_exc()
     
     # Fallback to NumPy-based projection
     # Convert PDB to density map
