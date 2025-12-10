@@ -5170,36 +5170,27 @@ color #1 & nucleic #62466B
                 # The purple box Rectangle is drawn at (box_x_min, box_y_min) with size (box_size, box_size)
                 # Rectangle covers: x=[box_x_min, box_x_min+box_size), y=[box_y_min, box_y_min+box_size)
                 # We MUST extract the exact pixels shown in that box
-                if hasattr(self, 'current_display_image') and self.current_display_image is not None:
-                    display_image = self.current_display_image.copy()
-                    print(f"  Using stored display_image from main GUI")
-                else:
-                    display_image = self.apply_enhancements(self.original_micrograph)
-                    print(f"  WARNING: No stored display_image, regenerating")
+                # Extract from ORIGINAL micrograph first, then apply same enhancements
+                if self.original_micrograph is None:
+                    print(f"  ERROR: No original micrograph loaded!")
+                    return
                 
-                mg_height, mg_width = display_image.shape
-                print(f"  Display image shape: {display_image.shape}")
+                mg_height, mg_width = self.original_micrograph.shape
+                print(f"  Original micrograph shape: {self.original_micrograph.shape}")
                 
-                # Calculate vmin/vmax from the FULL image (same as main display)
-                vmin, vmax = np.percentile(display_image, [1, 99])
-                print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
-                
+                # Convert purple box display coordinates to array coordinates for extraction
                 # Rectangle covers: x=[box_x_min, box_x_min+box_size), y=[box_y_min, box_y_min+box_size)
-                # Convert to integer pixel bounds for extraction
                 box_x_min_int = int(round(box_x_min))
                 box_y_min_int = int(round(box_y_min))
-                box_x_max_int = box_x_min_int + box_size - 1  # Last pixel (inclusive)
-                box_y_max_int = box_y_min_int + box_size - 1  # Last pixel (inclusive)
                 
-                # Convert purple box display bounds to array bounds
-                # With origin='lower': display y=0 is array row (height-1), display y=(height-1) is array row 0
-                # Display y=box_y_min (bottom of box) -> array row = mg_height - 1 - box_y_min_int
-                # Display y=box_y_max (top of box) -> array row = mg_height - 1 - box_y_max_int
-                # Extract from top to bottom in array: [mg_height - 1 - box_y_max_int : mg_height - 1 - box_y_min_int + 1)
+                # Convert to array coordinates (x is same, y is flipped)
                 array_x_min = box_x_min_int
-                array_x_max = box_x_min_int + box_size  # Exclusive end (Python slice)
-                array_y_min = mg_height - 1 - box_y_max_int  # Top of purple box in array (smaller row number)
-                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of purple box + 1 (exclusive slice)
+                array_x_max = box_x_min_int + box_size
+                # With origin='lower': display y=0 is array row (height-1), display y=(height-1) is array row 0
+                # Display y=box_y_min (bottom) -> array row = mg_height - 1 - box_y_min_int
+                # Display y=box_y_min+box_size-1 (top) -> array row = mg_height - 1 - (box_y_min_int + box_size - 1)
+                array_y_min = mg_height - 1 - (box_y_min_int + box_size - 1)  # Top of box in array
+                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of box + 1 (exclusive)
                 
                 # Clamp to image bounds
                 x_start = max(0, array_x_min)
@@ -5207,38 +5198,22 @@ color #1 & nucleic #62466B
                 y_start = max(0, array_y_min)
                 y_end = min(mg_height, array_y_max)
                 
-                print(f"  EXTRACTING USING EXACT PURPLE BOX BOUNDS:")
-                print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
-                print(f"    Purple box center (display): ({x_pixel:.2f}, {y_pixel:.2f})")
-                print(f"    Array bounds: x=[{x_start}, {x_end}], y=[{y_start}, {y_end}]")
-                print(f"    Array bounds size: width={x_end-x_start}, height={y_end-y_start}")
+                print(f"  EXTRACTING FROM ORIGINAL MICROGRAPH:")
+                print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_min_int+box_size}), y=[{box_y_min_int}, {box_y_min_int+box_size})")
+                print(f"    Array bounds: x=[{x_start}, {x_end}), y=[{y_start}, {y_end})")
                 
-                # VERIFY: Check what's at the particle center in the display image
-                center_x_array = int(round(x_pixel))
-                center_y_array = mg_height - 1 - int(round(y_pixel))
-                print(f"    Particle center in array: ({center_x_array}, {center_y_array})")
-                if 0 <= center_y_array < mg_height and 0 <= center_x_array < mg_width:
-                    center_val = display_image[center_y_array, center_x_array]
-                    print(f"    Value at particle center in display_image: {center_val:.3f}")
+                # Extract from original micrograph
+                mg_extracted_raw = self.original_micrograph[y_start:y_end, x_start:x_end]
+                print(f"  Raw extracted shape: {mg_extracted_raw.shape}")
                 
-                # VERIFY: Check what's at the corners of the purple box in display_image
-                # Top-left of purple box (display): (box_x_min, box_y_max)
-                # Bottom-right of purple box (display): (box_x_max, box_y_min)
-                tl_x_array = box_x_min_int
-                tl_y_array = mg_height - 1 - box_y_max_int
-                br_x_array = box_x_max_int
-                br_y_array = mg_height - 1 - box_y_min_int
-                print(f"    Purple box top-left (display) -> array: ({tl_x_array}, {tl_y_array})")
-                print(f"    Purple box bottom-right (display) -> array: ({br_x_array}, {br_y_array})")
-                if 0 <= tl_y_array < mg_height and 0 <= tl_x_array < mg_width:
-                    tl_val = display_image[tl_y_array, tl_x_array]
-                    print(f"    Value at top-left corner: {tl_val:.3f}")
-                if 0 <= br_y_array < mg_height and 0 <= br_x_array < mg_width:
-                    br_val = display_image[br_y_array, br_x_array]
-                    print(f"    Value at bottom-right corner: {br_val:.3f}")
-                
-                # Extract the exact region shown in the purple box
+                # Apply SAME enhancements as main display
+                display_image = self.apply_enhancements(self.original_micrograph)
                 mg_extracted = display_image[y_start:y_end, x_start:x_end]
+                
+                # Calculate vmin/vmax from the FULL enhanced image (same as main display)
+                vmin, vmax = np.percentile(display_image, [1, 99])
+                print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
+                
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
                 print(f"  Extracted region stats: min={mg_extracted.min():.3f}, max={mg_extracted.max():.3f}, mean={mg_extracted.mean():.3f}")
