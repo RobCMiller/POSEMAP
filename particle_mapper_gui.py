@@ -5043,75 +5043,35 @@ color #1 & nucleic #62466B
                 # Get vmin/vmax from ENTIRE displayed image (same as main GUI)
                 vmin, vmax = np.percentile(display_image, [1, 99])
                 
-                # Purple box bounds in display coordinates (origin='lower')
-                # Rectangle is drawn at (box_x_min, box_y_min) with width=box_size, height=box_size
-                # This covers: x=[box_x_min, box_x_min+box_size), y=[box_y_min, box_y_min+box_size)
+                # SIMPLE: Just crop the image around the purple box coordinates
+                # Purple box: x=[box_x_min, box_x_min+box_size), y=[box_y_min, box_y_min+box_size) in display coords
                 box_x_start = int(round(box_x_min))
                 box_x_end = box_x_start + box_size
                 box_y_start = int(round(box_y_min))
                 box_y_end = box_y_start + box_size
                 
-                print(f"  DEBUG: Purple box display coords: x=[{box_x_start}, {box_x_end}), y=[{box_y_start}, {box_y_end})")
-                print(f"  DEBUG: Image shape: {display_image.shape}")
-                
-                # Convert display coordinates to array coordinates
-                # With origin='lower': 
-                #   - display y=0 corresponds to array row (height-1) [bottom]
-                #   - display y=(height-1) corresponds to array row 0 [top]
-                #   - display y = box_y_start (bottom of box) -> array_row = height - 1 - box_y_start
-                #   - display y = box_y_start + box_size - 1 (top of box) -> array_row = height - 1 - (box_y_start + box_size - 1)
-                
-                # X coordinates: same (no flip)
+                # Convert display y to array rows (origin='lower': display y=0 is array row height-1)
+                # Display y increases upward, array rows increase downward
                 array_x_start = max(0, box_x_start)
                 array_x_end = min(mg_width, box_x_end)
+                array_y_bottom = mg_height - 1 - box_y_start  # Bottom of box -> larger row number
+                array_y_top = mg_height - 1 - (box_y_end - 1)  # Top of box -> smaller row number
                 
-                # Y coordinates: need to flip
-                # Bottom of box in display (smaller y) -> larger array row
-                # Top of box in display (larger y) -> smaller array row
-                display_y_bottom = box_y_start
-                display_y_top = box_y_start + box_size - 1
-                array_row_bottom = mg_height - 1 - display_y_bottom  # Larger row number
-                array_row_top = mg_height - 1 - display_y_top  # Smaller row number
-                
-                # Extract: array[row_top:row_bottom+1, col_start:col_end]
-                array_y_start = max(0, array_row_top)
-                array_y_end = min(mg_height, array_row_bottom + 1)
-                
-                print(f"  DEBUG: Array coords: x=[{array_x_start}, {array_x_end}), y=[{array_y_start}, {array_y_end})")
-                print(f"  DEBUG: Display y [{display_y_bottom}, {display_y_top}] -> Array rows [{array_row_top}, {array_row_bottom}]")
-                print(f"  DEBUG: Verifying: display y={box_y_start} -> array row={mg_height - 1 - box_y_start}, should be in range [{array_y_start}, {array_y_end})")
-                
-                # Extract directly from displayed image
-                mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
-                print(f"  DEBUG: Extracted shape: {mg_extracted.shape}, expected: ({box_size}, {box_size})")
-                
-                # VERIFY: Check center pixel
-                center_display_x = (box_x_start + box_x_end) // 2
-                center_display_y = (box_y_start + box_y_end) // 2
-                center_array_x = center_display_x
-                center_array_y = mg_height - 1 - center_display_y
-                print(f"  DEBUG: Center of box: display=({center_display_x}, {center_display_y}) -> array=({center_array_x}, {center_array_y})")
-                if 0 <= center_array_y < mg_height and 0 <= center_array_x < mg_width:
-                    center_val = display_image[center_array_y, center_array_x]
-                    print(f"  DEBUG: Center pixel value: {center_val}")
-                else:
-                    print(f"  DEBUG: WARNING: Center pixel out of bounds!")
+                # Extract: [row_top:row_bottom+1, col_start:col_end]
+                mg_extracted = display_image[array_y_top:array_y_bottom+1, array_x_start:array_x_end]
                 
                 # Pad to box_size if needed
                 extracted_h, extracted_w = mg_extracted.shape
-                mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
-                pad_x = (box_size - extracted_w) // 2
-                pad_y = (box_size - extracted_h) // 2
-                mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
+                if extracted_h != box_size or extracted_w != box_size:
+                    mg_output = np.zeros((box_size, box_size), dtype=mg_extracted.dtype)
+                    pad_x = (box_size - extracted_w) // 2
+                    pad_y = (box_size - extracted_h) // 2
+                    mg_output[pad_y:pad_y + extracted_h, pad_x:pad_x + extracted_w] = mg_extracted
+                else:
+                    mg_output = mg_extracted
                 
-                # TEST: Try WITHOUT flip to see if that's the issue
-                # The extracted array has:
-                #   - row 0 = array row array_y_start = display y = box_y_start + box_size - 1 (top of box)
-                #   - row (box_size-1) = array row array_y_end-1 = display y = box_y_start (bottom of box)
-                # With origin='lower', row 0 is displayed at bottom
-                # So if we DON'T flip: top of box would be at bottom - that's wrong
-                # But let's test it to see
-                mg_extracted_for_display = mg_output  # NO FLIP - TESTING
+                # Flip for origin='lower' display (array row 0 is top, display y=0 is bottom)
+                mg_extracted_for_display = np.flipud(mg_output)
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
