@@ -458,7 +458,15 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         raise ImportError("EMAN2 is not available. Please install EMAN2 or use the fallback method.")
     
     # Convert PDB to density map first
-    volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0)
+    # For better resolution, calculate appropriate grid_size based on desired output size
+    # We want the volume to be at least as large as the output projection
+    h, w = output_size
+    min_grid_size = max(h, w)
+    # Round up to nearest 32 for efficiency, but ensure it's large enough
+    desired_grid_size = ((min_grid_size + 31) // 32) * 32
+    # But don't make it too large (max 1024 for performance)
+    desired_grid_size = min(desired_grid_size, 1024)
+    volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0, grid_size=desired_grid_size)
     
     # Convert numpy array to EMAN2 EMData
     # EMAN2 expects [nx, ny, nz] format (x, y, z)
@@ -496,8 +504,13 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     
     # Create transform from Euler angles
     # EMAN2 uses ZYZ convention: [az, alt, phi] = [phi, theta, psi] in radians
+    # IMPORTANT: EMAN2's project() rotates the volume TO the view orientation
+    # Our NumPy version rotates coordinates FROM view space TO volume space (using R.T)
+    # To match NumPy behavior, we need the inverse transform for EMAN2
     transform = Transform({"type": "eman", "az": euler_angles[0], 
                           "alt": euler_angles[1], "phi": euler_angles[2]})
+    # Use inverse transform to match NumPy projection behavior
+    transform = transform.inverse()
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     projection = em_volume.project("standard", transform)
