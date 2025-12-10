@@ -5184,13 +5184,19 @@ color #1 & nucleic #62466B
                 box_y_min_int = int(round(box_y_min))
                 
                 # Convert to array coordinates (x is same, y is flipped)
-                array_x_min = box_x_min_int
-                array_x_max = box_x_min_int + box_size
                 # With origin='lower': display y=0 is array row (height-1), display y=(height-1) is array row 0
-                # Display y=box_y_min (bottom) -> array row = mg_height - 1 - box_y_min_int
-                # Display y=box_y_min+box_size-1 (top) -> array row = mg_height - 1 - (box_y_min_int + box_size - 1)
-                array_y_min = mg_height - 1 - (box_y_min_int + box_size - 1)  # Top of box in array
-                array_y_max = mg_height - 1 - box_y_min_int + 1  # Bottom of box + 1 (exclusive)
+                # Rectangle covers display y=[box_y_min, box_y_min+box_size)
+                # Display y=box_y_min (bottom of box) -> array row = mg_height - 1 - box_y_min_int
+                # Display y=box_y_min+box_size-1 (top pixel of box) -> array row = mg_height - 1 - (box_y_min_int + box_size - 1)
+                # We need to extract array rows from top to bottom: [mg_height - 1 - (box_y_min_int + box_size - 1), mg_height - 1 - box_y_min_int + 1)
+                array_x_min = box_x_min_int
+                array_x_max = box_x_min_int + box_size  # Exclusive end
+                array_y_bottom_display = box_y_min_int  # Bottom of box in display coords
+                array_y_top_display = box_y_min_int + box_size - 1  # Top pixel of box in display coords
+                array_y_bottom_row = mg_height - 1 - array_y_bottom_display  # Bottom of box in array (larger row number)
+                array_y_top_row = mg_height - 1 - array_y_top_display  # Top of box in array (smaller row number)
+                array_y_min = array_y_top_row  # Start from top (smaller row number)
+                array_y_max = array_y_bottom_row + 1  # End at bottom + 1 (exclusive)
                 
                 # Clamp to image bounds
                 x_start = max(0, array_x_min)
@@ -5200,7 +5206,10 @@ color #1 & nucleic #62466B
                 
                 print(f"  EXTRACTING FROM ORIGINAL MICROGRAPH:")
                 print(f"    Purple box (display): x=[{box_x_min_int}, {box_x_min_int+box_size}), y=[{box_y_min_int}, {box_y_min_int+box_size})")
+                print(f"    Display y: bottom={array_y_bottom_display}, top={array_y_top_display}")
+                print(f"    Array rows: bottom={array_y_bottom_row}, top={array_y_top_row}")
                 print(f"    Array bounds: x=[{x_start}, {x_end}), y=[{y_start}, {y_end})")
+                print(f"    Array bounds size: width={x_end-x_start}, height={y_end-y_start}")
                 
                 # Extract from original micrograph
                 mg_extracted_raw = self.original_micrograph[y_start:y_end, x_start:x_end]
