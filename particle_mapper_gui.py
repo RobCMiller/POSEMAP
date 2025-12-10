@@ -5246,7 +5246,7 @@ color #1 & nucleic #62466B
                 
                 # Calculate vmin/vmax from the FULL enhanced image (same as main display)
                 vmin, vmax = np.percentile(display_image, [1, 99])
-                print(f"  Full micrograph vmin/vmax (for normalization): {vmin:.3f} / {vmax:.3f}")
+                print(f"  Full micrograph vmin/vmax (for display): {vmin:.3f} / {vmax:.3f}")
                 
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
@@ -5260,41 +5260,30 @@ color #1 & nucleic #62466B
                 
                 print(f"  Output shape: {mg_output.shape}, padding: x={pad_x}, y={pad_y}")
                 
-                # Normalize using the SAME vmin/vmax as the main display
-                if vmax > vmin:
-                    mg_extracted_norm = np.clip((mg_output - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
-                else:
-                    mg_extracted_norm = np.zeros_like(mg_output, dtype=np.float32)
-                
-                # CRITICAL: The comparison window displays with origin='lower'
-                # With origin='lower', array row 0 is displayed at the bottom
-                # The purple box shows: display y=box_y_min (bottom) to y=box_y_min+box_size-1 (top)
+                # CRITICAL: The main display uses origin='lower' and displays with vmin/vmax (not normalized)
+                # The purple box is drawn on the main display with origin='lower'
+                # In the main display: array row 0 is at bottom, array row (height-1) is at top
+                # The purple box covers: display y=[box_y_min, box_y_min+box_size) where y=0 is at bottom
+                # 
                 # We extracted: array rows [y_start, y_end) where:
-                #   - y_start = top of purple box in array (smaller row number = 1232)
-                #   - y_end-1 = bottom of purple box in array (larger row number = 1807)
-                # So in the extracted array:
-                #   - row 0 = top of purple box (display y=2859)
-                #   - row 575 = bottom of purple box (display y=2284)
-                # 
-                # The user says coordinates are correct but display looks wrong
-                # Let's try NOT flipping - maybe the issue is we're flipping when we shouldn't
-                # With origin='lower', if we DON'T flip:
-                #   - row 0 (top of purple box) will be displayed at bottom
-                #   - row 575 (bottom of purple box) will be displayed at top
-                # That would be upside down!
-                # 
-                # So we DO need to flip. But maybe the issue is something else?
-                # Let's try using origin='upper' instead, which would mean row 0 is at top
-                # Then we wouldn't need to flip!
+                #   - y_start = array row for TOP of purple box (smaller row number)
+                #   - y_end-1 = array row for BOTTOM of purple box (larger row number)
+                # In the extracted array:
+                #   - row 0 = array row y_start = TOP of purple box in main display
+                #   - row (extracted_h-1) = array row (y_end-1) = BOTTOM of purple box in main display
+                #
+                # To match the main display orientation (origin='lower'):
+                #   - We need to flip the extracted array vertically so row 0 becomes the bottom
+                #   - Then with origin='lower', row 0 (bottom of purple box) will be at bottom ✓
+                mg_extracted_for_display = np.flipud(mg_output)
                 
                 # DEBUG: Check particle center position
                 center_in_extracted_x = center_x_array - x_start
                 center_in_extracted_y = center_y_array - y_start
-                print(f"  Particle center in extracted array at ({center_in_extracted_x}, {center_in_extracted_y})")
-                
-                # DON'T flip - try using origin='upper' in comparison window instead
-                print(f"  NOT flipping extracted image - will use origin='upper' in comparison window")
-                # mg_extracted_norm stays as-is (not flipped)
+                center_in_flipped_y = extracted_h - 1 - center_in_extracted_y
+                print(f"  Particle center in extracted array: ({center_in_extracted_x}, {center_in_extracted_y})")
+                print(f"  Particle center after flipud: ({center_in_extracted_x}, {center_in_flipped_y})")
+                print(f"  Using origin='lower' in comparison window to match main display")
                 
                 print(f"  Final extracted region: shape={mg_extracted_norm.shape}, range=[{mg_extracted_norm.min():.3f}, {mg_extracted_norm.max():.3f}]")
                 
@@ -5359,16 +5348,18 @@ color #1 & nucleic #62466B
                 # Create side-by-side image
                 # IMPORTANT: comparison array is indexed as [row, col, channel] where row 0 is at top
                 # When displayed with origin='lower', row 0 of comparison array is at bottom
-                # mg_extracted_norm is now flipped (flipud) so:
+                # mg_extracted_for_display is flipped (flipud) so:
                 #   - Row 0 = bottom of purple box (will be displayed at bottom with origin='lower') ✓
-                #   - Row 575 = top of purple box (will be displayed at top with origin='lower') ✓
+                #   - Row (box_size-1) = top of purple box (will be displayed at top with origin='lower') ✓
                 # em_proj_norm has row 0 = bottom (flipped in project_volume), which matches
                 comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
                 # Left side: actual micrograph (grayscale -> RGB)
-                # mg_extracted_norm is flipped so it matches the purple box orientation
-                comparison[:, :box_size, 0] = mg_extracted_norm
-                comparison[:, :box_size, 1] = mg_extracted_norm
-                comparison[:, :box_size, 2] = mg_extracted_norm
+                # Convert to RGB by replicating the grayscale channel
+                # Use the SAME vmin/vmax as main display for consistent appearance
+                mg_normalized = np.clip((mg_extracted_for_display - vmin) / (vmax - vmin + 1e-10), 0, 1)
+                comparison[:, :box_size, 0] = mg_normalized
+                comparison[:, :box_size, 1] = mg_normalized
+                comparison[:, :box_size, 2] = mg_normalized
                 # Right side: simulated EM projection (grayscale -> RGB)
                 # em_proj_norm has row 0 = bottom (flipped in project_volume)
                 comparison[:, box_size:, 0] = em_proj_norm
@@ -5384,12 +5375,11 @@ color #1 & nucleic #62466B
                     # Create matplotlib figure
                     fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
                     ax = fig.add_subplot(111)
-                    # Use same normalization as main display (vmin=0, vmax=1 since already normalized)
-                    # comparison is RGB (3 channels), so don't use cmap
-                    # Try origin='upper' since we're NOT flipping the extracted image
-                    # With origin='upper': row 0 is at top, which matches our extracted array
-                    # (row 0 = top of purple box, row 575 = bottom of purple box)
-                    ax.imshow(comparison, origin='upper', aspect='auto', vmin=0, vmax=1)
+                    # Use origin='lower' to match the main display orientation
+                    # comparison is RGB (3 channels), already normalized to [0, 1]
+                    # mg_extracted_for_display is flipped so row 0 = bottom of purple box
+                    # With origin='lower', this will display correctly
+                    ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
                     ax.axvline(x=box_size, color='red', linewidth=2, linestyle='--', label='Divider')
                     ax.set_xlabel('Left: Actual Micrograph | Right: Simulated Projection')
                     ax.set_title(f'Particle {particle_idx+1} Comparison\n(Should match if projection mapping is correct)')
