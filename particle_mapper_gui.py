@@ -5051,21 +5051,15 @@ color #1 & nucleic #62466B
                 box_y_start = int(round(box_y_min))
                 box_y_end = box_y_start + box_size
                 
-                # Zoom function sets: ax.set_xlim(x_min, x_max) and ax.set_ylim(y_min, y_max)
-                # With origin='lower' and aspect='equal', matplotlib displays:
-                #   - x coordinates map directly to array columns
-                #   - y coordinates map to array rows with: array_row = height - 1 - display_y
-                # So for limits [box_x_start, box_x_end] and [box_y_start, box_y_end]:
+                # With origin='lower': display y = array row DIRECTLY (row 0 at bottom, row H-1 at top)
+                # So NO conversion needed - just use display coordinates as array indices!
                 array_x_start = max(0, box_x_start)
                 array_x_end = min(mg_width, box_x_end)
-                # For y: display y increases upward, array rows increase downward
-                # display y = box_y_start (bottom) -> array row = height - 1 - box_y_start (larger row, near bottom)
-                # display y = box_y_end - 1 (top) -> array row = height - 1 - (box_y_end - 1) (smaller row, near top)
-                array_row_bottom = mg_height - 1 - box_y_start
-                array_row_top = mg_height - 1 - (box_y_end - 1)
+                array_y_start = max(0, box_y_start)
+                array_y_end = min(mg_height, box_y_end)
                 
-                # Extract: array[smaller_row:larger_row+1, start_col:end_col]
-                mg_extracted = display_image[array_row_top:array_row_bottom+1, array_x_start:array_x_end]
+                # Extract directly - display y maps directly to array row with origin='lower'
+                mg_extracted = display_image[array_y_start:array_y_end, array_x_start:array_x_end]
                 
                 # Pad to box_size if needed
                 extracted_h, extracted_w = mg_extracted.shape
@@ -5077,9 +5071,8 @@ color #1 & nucleic #62466B
                 else:
                     mg_output = mg_extracted
                 
-                # The extracted array: row 0 = top of box (display y = box_y_end-1), row (h-1) = bottom (display y = box_y_start)
-                # With origin='lower', row 0 is displayed at bottom, so flip to match
-                mg_extracted_for_display = np.flipud(mg_output)
+                # With origin='lower', row 0 is at bottom, so extracted array is already correct orientation
+                mg_extracted_for_display = mg_output
                 
                 # SAVE DEBUG IMAGE: Save the extracted region BEFORE normalization to verify we got the right pixels
                 try:
