@@ -499,12 +499,20 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     transform = Transform({"type": "eman", "az": euler_angles[0], 
                           "alt": euler_angles[1], "phi": euler_angles[2]})
     
-    # Project the volume
-    h, w = output_size
-    projection = em_volume.project("standard", transform, {"size": (w, h)})
+    # Project the volume (projection will be same size as volume's x,y dimensions)
+    projection = em_volume.project("standard", transform)
     
-    # Convert back to numpy array
+    # Convert to numpy array
     proj_array = projection.numpy().copy()
+    
+    # Resize to desired output size if needed using scipy
+    h, w = output_size
+    proj_h, proj_w = proj_array.shape
+    if proj_h != h or proj_w != w:
+        from scipy.ndimage import zoom
+        zoom_factor_h = h / proj_h
+        zoom_factor_w = w / proj_w
+        proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
     return proj_array
 
