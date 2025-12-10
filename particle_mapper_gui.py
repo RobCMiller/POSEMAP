@@ -5402,7 +5402,8 @@ color #1 & nucleic #62466B
                     fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
                     ax = fig.add_subplot(111)
                     # Use same normalization as main display (vmin=0, vmax=1 since already normalized)
-                    ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1, cmap='gray')
+                    # comparison is RGB (3 channels), so don't use cmap
+                    ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
                     ax.axvline(x=box_size, color='red', linewidth=2, linestyle='--', label='Divider')
                     ax.set_xlabel('Left: Actual Micrograph | Right: Simulated Projection')
                     ax.set_title(f'Particle {particle_idx+1} Comparison\n(Should match if projection mapping is correct)')
