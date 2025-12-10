@@ -5262,6 +5262,30 @@ color #1 & nucleic #62466B
                 print(f"    Extraction bounds -> display: x=[{x_start}, {x_end}], y=[{mg_height - 1 - y_end}, {mg_height - 1 - y_start}]")
                 print(f"    Should match purple box: x=[{box_x_min_int}, {box_x_max_int}], y=[{box_y_min_int}, {box_y_max_int}]")
                 
+                # CRITICAL: Verify the extraction bounds are correct
+                # The purple box shows display coordinates (box_y_min to box_y_max)
+                # We need to extract the EXACT pixels that are shown in that box
+                # Display y=box_y_min is at the BOTTOM of the purple box
+                # Display y=box_y_max is at the TOP of the purple box
+                # Array row = mg_height - 1 - display_y
+                # So: array_row for box_y_min = mg_height - 1 - box_y_min (BOTTOM of box)
+                #     array_row for box_y_max = mg_height - 1 - box_y_max (TOP of box)
+                # When we extract array[y_start:y_end], we get rows from y_start to y_end-1
+                # We want: y_start = mg_height - 1 - box_y_max (TOP of box)
+                #          y_end = mg_height - 1 - box_y_min + 1 (BOTTOM of box + 1)
+                # But we calculated: y_start = array_y_min = mg_height - 1 - box_y_max ✓
+                #                    y_end = array_y_max = mg_height - 1 - box_y_min + 1? No, we have array_y_max = mg_height - 1 - box_y_min
+                # So y_end should be array_y_max + 1 to include the bottom row!
+                # Actually wait - Python slicing is [start:end) so end is exclusive
+                # So if we want rows from array_y_min to array_y_max (inclusive), we need [array_y_min:array_y_max+1]
+                # But we're using y_start and y_end which are already clamped, so let's check:
+                print(f"  VERIFICATION: Purple box display y range: [{box_y_min_int}, {box_y_max_int}]")
+                print(f"    This should show rows from display y={box_y_min_int} (bottom) to y={box_y_max_int} (top)")
+                print(f"    Array rows: [{mg_height - 1 - box_y_max_int}, {mg_height - 1 - box_y_min_int}]")
+                print(f"    Our extraction: y=[{y_start}, {y_end}) (Python slice, end is exclusive)")
+                print(f"    So we extract array rows: [{y_start}, {y_end-1}]")
+                print(f"    Converted back to display: y=[{mg_height - 1 - (y_end-1)}, {mg_height - 1 - y_start}]")
+                
                 mg_extracted = enhanced_full_micrograph[y_start:y_end, x_start:x_end]
                 extracted_h, extracted_w = mg_extracted.shape
                 print(f"  Extracted shape: {mg_extracted.shape} (requested {box_size}x{box_size})")
