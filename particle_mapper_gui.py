@@ -5149,27 +5149,28 @@ color #1 & nucleic #62466B
                     comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection")
                     comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
                     
-                    # Create matplotlib figure
+                    # Create matplotlib figure (no title)
                     fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
                     ax = fig.add_subplot(111)
                     # Use origin='lower' to match the main display orientation
-                    # comparison is RGB (3 channels), already normalized to [0, 1]
-                    # mg_extracted_for_display is flipped so row 0 = bottom of purple box
-                    # With origin='lower', this will display correctly
-                    # Use origin='lower' to match main display - extracted region is already in correct orientation
                     ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
-                    ax.axvline(x=box_size, color='red', linewidth=2, linestyle='--', label='Divider')
-                    ax.set_xlabel('Left: Actual Micrograph | Right: Simulated Projection')
-                    ax.set_title(f'Particle {particle_idx+1} Comparison\n(Should match if projection mapping is correct)')
-                    ax.axis('off')
                     
-                    # Add labels
-                    ax.text(box_size / 2, box_size - 20, 'Actual Micrograph', 
-                           ha='center', va='top', color='white', fontsize=12, 
-                           bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
-                    ax.text(box_size * 1.5, box_size - 20, 'Simulated Projection', 
-                           ha='center', va='top', color='white', fontsize=12,
-                           bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+                    # Add borders around both panels (color #4d4d4f)
+                    from matplotlib.patches import Rectangle
+                    border_color = '#4d4d4f'
+                    border_width = 2
+                    # Left panel border
+                    rect_left = Rectangle((-0.5, -0.5), box_size, box_size, 
+                                         linewidth=border_width, edgecolor=border_color, 
+                                         facecolor='none', transform=ax.transData)
+                    ax.add_patch(rect_left)
+                    # Right panel border
+                    rect_right = Rectangle((box_size - 0.5, -0.5), box_size, box_size,
+                                          linewidth=border_width, edgecolor=border_color,
+                                          facecolor='none', transform=ax.transData)
+                    ax.add_patch(rect_right)
+                    
+                    ax.axis('off')
                     
                     # Embed in tkinter
                     canvas = FigureCanvasTkAgg(fig, comparison_window)
