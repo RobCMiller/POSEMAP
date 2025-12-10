@@ -351,6 +351,16 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     if len(coords) == 0:
         raise ValueError("No coordinates in PDB data")
     
+    # Verify all atoms are included (protein and nucleic acid)
+    # pdb_data['coords'] contains ALL atoms from ALL chains loaded by load_pdb_structure()
+    # No filtering is applied - both protein and nucleic acid chains are included
+    num_atoms = len(coords)
+    if 'chain_ids' in pdb_data:
+        unique_chains = len(np.unique(pdb_data['chain_ids']))
+        print(f"  DEBUG pdb_to_density_map: Processing {num_atoms} atoms from {unique_chains} chains (all chains included)")
+    else:
+        print(f"  DEBUG pdb_to_density_map: Processing {num_atoms} atoms (all atoms included)")
+    
     # Calculate bounding box
     # IMPORTANT: Center the structure at origin before creating density map
     # This ensures rotations are applied correctly

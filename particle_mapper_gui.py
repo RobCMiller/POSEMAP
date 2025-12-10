@@ -2566,12 +2566,11 @@ class ParticleMapperGUI:
             pose = self.current_particles['poses'][i]
             
             # ALWAYS draw particle marker (star) FIRST - this is essential for identifying particles
-            # Draw a star marker at the particle center with fill color #F42C04 and outline #4d4d4f
-            # Marker edge width is doubled (was 1.5, now 3.0)
+            # Draw a star marker at the particle center with fill color #F42C04, no outline
             marker_size = 12  # Size of star marker in pixels
             self.ax.plot(x_pixel, y_pixel, marker='*', markersize=marker_size, 
-                        markerfacecolor='#F42C04', markeredgecolor='#4d4d4f', 
-                        markeredgewidth=3.0, alpha=1.0, zorder=15, linestyle='None')
+                        markerfacecolor='#F42C04', markeredgewidth=0, 
+                        alpha=1.0, zorder=15, linestyle='None')
             
             # Load projection data if needed (for either projection display or outline)
             # We need the projection data even if only drawing outline
