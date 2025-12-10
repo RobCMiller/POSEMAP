@@ -5270,17 +5270,34 @@ color #1 & nucleic #62466B
                 # With origin='lower', array row 0 is displayed at the bottom
                 # The purple box shows: display y=box_y_min (bottom) to y=box_y_min+box_size-1 (top)
                 # We extracted: array rows [y_start, y_end) where:
-                #   - y_start = top of purple box in array (smaller row number)
-                #   - y_end-1 = bottom of purple box in array (larger row number)
-                # So in the extracted array: row 0 = top of purple box, row (height-1) = bottom of purple box
-                # To match the purple box display (bottom at bottom, top at top), we need to flip
-                # After flipud: row 0 = bottom of purple box, row (height-1) = top of purple box
-                # With origin='lower', this will display correctly (bottom at bottom, top at top)
+                #   - y_start = top of purple box in array (smaller row number = 1232)
+                #   - y_end-1 = bottom of purple box in array (larger row number = 1807)
+                # So in the extracted array BEFORE flip:
+                #   - row 0 = top of purple box (display y=2859)
+                #   - row 575 = bottom of purple box (display y=2284)
+                # After flipud:
+                #   - row 0 = bottom of purple box (display y=2284) ✓
+                #   - row 575 = top of purple box (display y=2859) ✓
+                # With origin='lower' in comparison window, row 0 is at bottom, so this should be correct
+                # BUT WAIT - let's verify by NOT flipping and see if that's the issue
+                # Actually, let me check: the main display uses origin='lower', so display y=2284 is at bottom
+                # In the extracted array (before flip), row 0 corresponds to array row 1232, which is display y=2859 (top)
+                # So we DO need to flip to put display y=2284 (bottom) at row 0
                 mg_extracted_norm = np.flipud(mg_extracted_norm)
                 
                 # VERIFY: Print what we extracted to help debug
                 print(f"  After flipud: row 0 should be bottom of purple box (display y={box_y_min_int})")
                 print(f"                row {box_size-1} should be top of purple box (display y={box_y_min_int+box_size-1})")
+                
+                # DEBUG: Check a few pixel values to verify orientation
+                # The particle center should be at position (288, 287) in extracted array (before flip)
+                # After flip, it should be at (288, 288) since 287 -> 575-287 = 288
+                center_in_extracted_x = center_x_array - x_start
+                center_in_extracted_y_before_flip = center_y_array - y_start
+                center_in_extracted_y_after_flip = box_size - 1 - center_in_extracted_y_before_flip
+                print(f"  Particle center in extracted array: before flip at ({center_in_extracted_x}, {center_in_extracted_y_before_flip})")
+                print(f"                                    after flip at ({center_in_extracted_x}, {center_in_extracted_y_after_flip})")
+                print(f"  Center should be at row {center_in_extracted_y_after_flip} after flip (should be near center ~288)")
                 
                 print(f"  Final extracted region: shape={mg_extracted_norm.shape}, range=[{mg_extracted_norm.min():.3f}, {mg_extracted_norm.max():.3f}]")
                 
