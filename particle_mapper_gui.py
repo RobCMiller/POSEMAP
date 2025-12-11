@@ -5301,28 +5301,28 @@ color #1 & nucleic #62466B
                         ax = fig.add_subplot(111)
                         # Use origin='lower' to match the main display orientation
                         ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
-                    
-                    # Add borders around both panels (color #4d4d4f)
-                    from matplotlib.patches import Rectangle
-                    border_color = '#4d4d4f'
-                    border_width = 2
-                    # Left panel border
-                    rect_left = Rectangle((-0.5, -0.5), box_size, box_size, 
-                                         linewidth=border_width, edgecolor=border_color, 
-                                         facecolor='none', transform=ax.transData)
-                    ax.add_patch(rect_left)
-                    # Right panel border
-                    rect_right = Rectangle((box_size - 0.5, -0.5), box_size, box_size,
-                                          linewidth=border_width, edgecolor=border_color,
-                                          facecolor='none', transform=ax.transData)
-                    ax.add_patch(rect_right)
-                    
-                    ax.axis('off')
-                    
-                    # Embed in tkinter
-                    canvas = FigureCanvasTkAgg(fig, comparison_window)
-                    canvas.draw()
-                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                        
+                        # Add borders around both panels (color #4d4d4f)
+                        from matplotlib.patches import Rectangle
+                        border_color = '#4d4d4f'
+                        border_width = 2
+                        # Left panel border
+                        rect_left = Rectangle((-0.5, -0.5), box_size, box_size, 
+                                             linewidth=border_width, edgecolor=border_color, 
+                                             facecolor='none', transform=ax.transData)
+                        ax.add_patch(rect_left)
+                        # Right panel border
+                        rect_right = Rectangle((box_size - 0.5, -0.5), box_size, box_size,
+                                              linewidth=border_width, edgecolor=border_color,
+                                              facecolor='none', transform=ax.transData)
+                        ax.add_patch(rect_right)
+                        
+                        ax.axis('off')
+                        
+                        # Embed in tkinter
+                        canvas = FigureCanvasTkAgg(fig, comparison_window)
+                        canvas.draw()
+                        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
                     
                     # Add save button
                     def save_comparison():
