@@ -518,29 +518,27 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         R = R @ R_correction
     
     # NumPy uses R.T to transform view coords to volume coords
-    # For EMAN2 to match: we need to rotate the volume by R.T
-    # This is because: rotating volume by R.T and projecting = sampling at R.T @ view_coords
-    R_for_eman2 = R.T
+    # But EMAN2 rotates the volume object itself, not coordinates
+    # If NumPy samples at R.T @ view_coords, and we rotate volume by R,
+    # then projecting should give the same result (rotating object by R = transforming coords by R.T)
+    # So use R directly (not R.T) for EMAN2
+    R_for_eman2 = R  # Use R directly since we're rotating the object
     
-    # Convert R.T to Euler angles for EMAN2
+    # Convert R to Euler angles for EMAN2
     from scipy.spatial.transform import Rotation as Rot
     rot_from_matrix = Rot.from_matrix(R_for_eman2)
     euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
     
     # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
-    # Try using inverse transform with R.T - this might be needed if EMAN2's
-    # projection direction or coordinate system is different
+    # Use direct transform (no inverse) since we're using R directly
     transform = Transform({"type": "eman", 
                           "az": euler_zyz[0],   # phi
                           "alt": euler_zyz[1],  # theta  
                           "phi": euler_zyz[2]}) # psi
     
-    # Use inverse transform - EMAN2 might apply transforms differently
-    transform = transform.inverse()
-    
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
-    print(f"  DEBUG EMAN2: R.T Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using inverse transform (R.T) with: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
+    print(f"  DEBUG EMAN2: R Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
+    print(f"  DEBUG EMAN2: Using direct transform (R) with: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
@@ -559,11 +557,10 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
-    # Try different flip combinations to match NumPy orientation
-    # First try: flip both vertically and horizontally
-    # If this doesn't work, we'll need to try other combinations
-    proj_array = np.flipud(proj_array)  # Flip vertically
-    proj_array = np.fliplr(proj_array)  # Flip horizontally
+    # Try no flips first - maybe using R directly fixes the orientation
+    # If this doesn't work, we'll try different flip combinations
+    # proj_array = np.flipud(proj_array)  # Flip vertically
+    # proj_array = np.fliplr(proj_array)  # Flip horizontally
     
     return proj_array
 
