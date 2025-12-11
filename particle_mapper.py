@@ -527,12 +527,10 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
                           "alt": float(euler_final[1]),  # theta  
                           "phi": float(euler_final[2])}) # psi
     
-    # Use inverse transform - this might be needed for coordinate system differences
-    transform = transform.inverse()
-    
+    # NO inverse transform - try direct with flips
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     print(f"  DEBUG EMAN2: After corrections: [{euler_final[0]:.6f}, {euler_final[1]:.6f}, {euler_final[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using corrected Euler angles with inverse transform")
+    print(f"  DEBUG EMAN2: Using corrected Euler angles with NO inverse transform")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
