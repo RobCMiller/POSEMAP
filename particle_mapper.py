@@ -501,44 +501,39 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     em_volume.set_data_string(volume_xyz.tobytes())
     print(f"  DEBUG EMAN2: Volume data set, creating transform and projecting...")
     
-    # Build the exact same rotation matrix that NumPy uses
-    # NumPy: R rotates from volume space to view space
-    # NumPy then uses R.T to transform view coords to volume coords
-    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    # Try Approach 1: Use corrected Euler angles directly (avoid rotation matrix conversion errors)
+    # Apply rotation corrections to Euler angles first, then use them directly
+    euler_final = euler_angles.copy()
     
-    # Apply rotation corrections (same as NumPy)
     if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
         from scipy.spatial.transform import Rotation as Rot
+        # Get main rotation matrix from Euler angles (ZYZ)
+        R_main = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+        # Get correction rotation matrix (XYZ)
         rot_x_rad = np.deg2rad(rotation_correction_x)
         rot_y_rad = np.deg2rad(rotation_correction_y)
         rot_z_rad = np.deg2rad(rotation_correction_z)
         rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
         R_correction = rot_correction.as_matrix()
-        # Combine rotations: R_final = R @ R_correction (same as NumPy)
-        R = R @ R_correction
+        # Combine rotations: R_final = R_main @ R_correction (same as NumPy)
+        R_final = R_main @ R_correction
+        # Convert back to ZYZ Euler angles
+        rot_final = Rot.from_matrix(R_final)
+        euler_final = rot_final.as_euler('ZYZ', degrees=False)
     
-    # NumPy uses R.T to transform view coords to volume coords
-    # But EMAN2 rotates the volume object itself, not coordinates
-    # If NumPy samples at R.T @ view_coords, and we rotate volume by R,
-    # then projecting should give the same result (rotating object by R = transforming coords by R.T)
-    # So use R directly (not R.T) for EMAN2
-    R_for_eman2 = R  # Use R directly since we're rotating the object
-    
-    # Convert R to Euler angles for EMAN2
-    from scipy.spatial.transform import Rotation as Rot
-    rot_from_matrix = Rot.from_matrix(R_for_eman2)
-    euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
-    
+    # Try using the corrected Euler angles directly with inverse transform
     # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
-    # Use direct transform (no inverse) since we're using R directly
     transform = Transform({"type": "eman", 
-                          "az": euler_zyz[0],   # phi
-                          "alt": euler_zyz[1],  # theta  
-                          "phi": euler_zyz[2]}) # psi
+                          "az": euler_final[0],   # phi
+                          "alt": euler_final[1],  # theta  
+                          "phi": euler_final[2]}) # psi
+    
+    # Use inverse transform - this might be needed for coordinate system differences
+    transform = transform.inverse()
     
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
-    print(f"  DEBUG EMAN2: R Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using direct transform (R) with: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
+    print(f"  DEBUG EMAN2: After corrections: [{euler_final[0]:.6f}, {euler_final[1]:.6f}, {euler_final[2]:.6f}]")
+    print(f"  DEBUG EMAN2: Using corrected Euler angles directly with inverse transform")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
