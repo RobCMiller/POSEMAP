@@ -523,11 +523,11 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
     
     # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
-    # Try negating angles - maybe EMAN2 uses opposite sign convention
+    # Try negating all angles - maybe EMAN2 uses opposite sign convention
     # IMPORTANT: Convert numpy types to Python floats for EMAN2
     transform = Transform({"type": "eman", 
                           "az": float(-euler_zyz[0]),   # -phi
-                          "alt": float(euler_zyz[1]),   # theta  
+                          "alt": float(-euler_zyz[1]),  # -theta  
                           "phi": float(-euler_zyz[2])}) # -psi
     
     # Use inverse transform with negated angles
