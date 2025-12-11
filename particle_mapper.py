@@ -553,8 +553,9 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
-    # Try horizontal flip only with inverse transform
-    proj_array = np.fliplr(proj_array)  # Flip horizontally (left-to-right)
+    # Try transpose + vertical flip with inverse transform
+    proj_array = proj_array.T  # Transpose
+    proj_array = np.flipud(proj_array)  # Flip vertically (top-to-bottom)
     
     return proj_array
 
