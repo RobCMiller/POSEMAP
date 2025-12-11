@@ -528,15 +528,19 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
     
     # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
-    # Use direct transform (no inverse) since we're already using R.T
+    # Try using inverse transform with R.T - this might be needed if EMAN2's
+    # projection direction or coordinate system is different
     transform = Transform({"type": "eman", 
                           "az": euler_zyz[0],   # phi
                           "alt": euler_zyz[1],  # theta  
                           "phi": euler_zyz[2]}) # psi
     
+    # Use inverse transform - EMAN2 might apply transforms differently
+    transform = transform.inverse()
+    
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     print(f"  DEBUG EMAN2: R.T Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using direct transform (R.T) with: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
+    print(f"  DEBUG EMAN2: Using inverse transform (R.T) with: az={euler_zyz[0]:.6f}, alt={euler_zyz[1]:.6f}, phi={euler_zyz[2]:.6f}")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
@@ -555,9 +559,11 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
-    # EMAN2 might have different image orientation - try flipping vertically
-    # This might be needed if EMAN2's projection has different Y-axis convention
-    proj_array = np.flipud(proj_array)
+    # Try different flip combinations to match NumPy orientation
+    # First try: flip both vertically and horizontally
+    # If this doesn't work, we'll need to try other combinations
+    proj_array = np.flipud(proj_array)  # Flip vertically
+    proj_array = np.fliplr(proj_array)  # Flip horizontally
     
     return proj_array
 
