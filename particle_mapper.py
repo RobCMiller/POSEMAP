@@ -527,10 +527,12 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
                           "alt": float(euler_final[1]),  # theta  
                           "phi": float(euler_final[2])}) # psi
     
-    # NO inverse transform - try direct with flips
+    # Use inverse transform
+    transform = transform.inverse()
+    
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     print(f"  DEBUG EMAN2: After corrections: [{euler_final[0]:.6f}, {euler_final[1]:.6f}, {euler_final[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using corrected Euler angles with NO inverse transform")
+    print(f"  DEBUG EMAN2: Using corrected Euler angles with inverse transform and NO flips")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
@@ -549,9 +551,9 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
-    # Try rotating 180 degrees instead of flips
-    from scipy.ndimage import rotate
-    proj_array = rotate(proj_array, 180, axes=(0, 1), reshape=False, order=1)
+    # Try no flips/rotations - maybe the corrected Euler angles + inverse is enough
+    # proj_array = np.flipud(proj_array)  # Flip vertically
+    # proj_array = np.fliplr(proj_array)  # Flip horizontally
     
     return proj_array
 
