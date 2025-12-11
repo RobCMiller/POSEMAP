@@ -490,7 +490,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # Convert numpy array to EMAN2 EMData
     # EMAN2 expects [nx, ny, nz] format (x, y, z)
     # Volume is in [z, y, x] format, so transpose to [x, y, z]
-    volume_xyz = volume.transpose(0, 2, 1).astype(np.float32)  # Try (z, x, y) instead of (x, y, z)
+    volume_xyz = volume.transpose(2, 1, 0).astype(np.float32)  # Back to [x, y, z]
     # Ensure contiguous array
     if not volume_xyz.flags['C_CONTIGUOUS']:
         volume_xyz = np.ascontiguousarray(volume_xyz)
@@ -516,8 +516,8 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         R = R @ R_correction
     
     # Try using R.T with inverse transform
-    # Convert R.T to Euler angles for EMAN2
-    R_for_eman2 = R.T  # Use R.T
+    # Convert R (not R.T) to Euler angles for EMAN2
+    R_for_eman2 = R  # Use R directly
     from scipy.spatial.transform import Rotation as Rot
     rot_from_matrix = Rot.from_matrix(R_for_eman2)
     euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
@@ -529,10 +529,12 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
                           "alt": float(euler_zyz[1]),  # theta  
                           "phi": float(euler_zyz[2])}) # psi
     
-    # NO inverse transform
+    # Use inverse transform
+    transform = transform.inverse()
+    
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
-    print(f"  DEBUG EMAN2: R.T Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using R.T Euler angles with NO inverse transform")
+    print(f"  DEBUG EMAN2: R Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
+    print(f"  DEBUG EMAN2: Using R (not R.T) Euler angles with inverse transform")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
