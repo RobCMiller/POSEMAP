@@ -552,10 +552,8 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
-    # Try no flips first - maybe using R directly fixes the orientation
-    # If this doesn't work, we'll try different flip combinations
-    # proj_array = np.flipud(proj_array)  # Flip vertically
-    # proj_array = np.fliplr(proj_array)  # Flip horizontally
+    # Try horizontal flip only - might be needed for X-axis orientation
+    proj_array = np.fliplr(proj_array)  # Flip horizontally
     
     return proj_array
 
