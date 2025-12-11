@@ -555,6 +555,10 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
+    # EMAN2 might have different image orientation - try flipping vertically
+    # This might be needed if EMAN2's projection has different Y-axis convention
+    proj_array = np.flipud(proj_array)
+    
     return proj_array
 
 
