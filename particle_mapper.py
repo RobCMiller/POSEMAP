@@ -515,9 +515,9 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         # Combine rotations: R_final = R @ R_correction (same as NumPy)
         R = R @ R_correction
     
-    # NumPy uses R.T to transform view coords to volume coords
-    # Convert R.T to Euler angles for EMAN2
-    R_for_eman2 = R.T
+    # Try using R directly (not R.T) with inverse transform
+    # Convert R to Euler angles for EMAN2
+    R_for_eman2 = R  # Use R directly
     from scipy.spatial.transform import Rotation as Rot
     rot_from_matrix = Rot.from_matrix(R_for_eman2)
     euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
@@ -533,8 +533,8 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     transform = transform.inverse()
     
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
-    print(f"  DEBUG EMAN2: R.T Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using R.T Euler angles with inverse transform")
+    print(f"  DEBUG EMAN2: R Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
+    print(f"  DEBUG EMAN2: Using R (not R.T) Euler angles with inverse transform")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
