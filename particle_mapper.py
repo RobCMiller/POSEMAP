@@ -434,6 +434,10 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     
     This function uses EMAN2's projection capabilities for more accurate EM simulation.
     
+    WARNING: This function currently has known orientation issues. The projection
+    orientation does not match the NumPy implementation. Use the NumPy method
+    (use_eman2=False) for correct orientation matching.
+    
     Parameters:
     -----------
     pdb_data : dict
