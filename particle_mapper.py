@@ -515,7 +515,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         # Combine rotations: R_final = R @ R_correction (same as NumPy)
         R = R @ R_correction
     
-    # Try using R.T with all angles negated
+    # Try using R.T with NO negation and NO inverse
     # Convert R.T to Euler angles for EMAN2
     R_for_eman2 = R.T  # Use R.T
     from scipy.spatial.transform import Rotation as Rot
@@ -523,19 +523,16 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
     
     # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
-    # Try negating all angles - maybe EMAN2 uses opposite sign convention
     # IMPORTANT: Convert numpy types to Python floats for EMAN2
     transform = Transform({"type": "eman", 
-                          "az": float(-euler_zyz[0]),   # -phi
-                          "alt": float(-euler_zyz[1]),  # -theta  
-                          "phi": float(-euler_zyz[2])}) # -psi
+                          "az": float(euler_zyz[0]),   # phi
+                          "alt": float(euler_zyz[1]),  # theta  
+                          "phi": float(euler_zyz[2])}) # psi
     
-    # Use inverse transform with negated angles
-    transform = transform.inverse()
-    
+    # NO inverse transform
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     print(f"  DEBUG EMAN2: R.T Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using R.T Euler angles with all angles negated and inverse transform")
+    print(f"  DEBUG EMAN2: Using R.T Euler angles with NO negation and NO inverse transform")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
