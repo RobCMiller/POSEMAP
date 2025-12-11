@@ -521,11 +521,12 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         euler_final = rot_final.as_euler('ZYZ', degrees=False)
     
     # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
+    # Try swapping the order - maybe EMAN2 expects different mapping
     # IMPORTANT: Convert numpy types to Python floats for EMAN2
     transform = Transform({"type": "eman", 
-                          "az": float(euler_final[0]),   # phi
-                          "alt": float(euler_final[1]),  # theta  
-                          "phi": float(euler_final[2])}) # psi
+                          "az": float(euler_final[2]),   # Try psi as az
+                          "alt": float(euler_final[1]),  # theta stays as alt
+                          "phi": float(euler_final[0])}) # Try phi as phi
     
     # Use inverse transform
     transform = transform.inverse()
@@ -551,9 +552,9 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
-    # Try transpose + vertical flip
-    proj_array = proj_array.T
-    proj_array = np.flipud(proj_array)  # Flip vertically
+    # Try no flips/transpose with swapped Euler angle order
+    # proj_array = proj_array.T
+    # proj_array = np.flipud(proj_array)  # Flip vertically
     
     return proj_array
 
