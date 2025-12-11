@@ -501,7 +501,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     em_volume.set_data_string(volume_xyz.tobytes())
     print(f"  DEBUG EMAN2: Volume data set, creating transform and projecting...")
     
-    # Try Approach 1: Use corrected Euler angles directly (avoid rotation matrix conversion errors)
+    # Try Approach 2: Use corrected Euler angles directly with NO inverse transform
     # Apply rotation corrections to Euler angles first, then use them directly
     euler_final = euler_angles.copy()
     
@@ -521,19 +521,17 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         rot_final = Rot.from_matrix(R_final)
         euler_final = rot_final.as_euler('ZYZ', degrees=False)
     
-    # Try using the corrected Euler angles directly with inverse transform
+    # Use corrected Euler angles directly with NO inverse transform
     # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
     transform = Transform({"type": "eman", 
                           "az": euler_final[0],   # phi
                           "alt": euler_final[1],  # theta  
                           "phi": euler_final[2]}) # psi
     
-    # Use inverse transform - this might be needed for coordinate system differences
-    transform = transform.inverse()
-    
+    # NO inverse transform - try direct
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     print(f"  DEBUG EMAN2: After corrections: [{euler_final[0]:.6f}, {euler_final[1]:.6f}, {euler_final[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Using corrected Euler angles directly with inverse transform")
+    print(f"  DEBUG EMAN2: Using corrected Euler angles directly with NO inverse transform")
     
     # Project the volume (projection will be same size as volume's x,y dimensions)
     print(f"  DEBUG EMAN2: Projecting volume (this may take a moment for large volumes)...")
@@ -552,8 +550,8 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
-    # Try horizontal flip only - might be needed for X-axis orientation
-    proj_array = np.fliplr(proj_array)  # Flip horizontally
+    # Try vertical flip only - might be needed for Y-axis orientation
+    proj_array = np.flipud(proj_array)  # Flip vertically
     
     return proj_array
 
