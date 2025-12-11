@@ -490,7 +490,10 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # Convert numpy array to EMAN2 EMData
     # EMAN2 expects [nx, ny, nz] format (x, y, z)
     # Volume is in [z, y, x] format, so transpose to [x, y, z]
-    volume_xyz = volume.transpose(2, 1, 0).astype(np.float32)
+    # Try different transpose: maybe we need [y, x, z] or [z, x, y]?
+    # Original: volume.transpose(2, 1, 0) = [x, y, z] from [z, y, x]
+    # Try: [y, x, z] = transpose(1, 2, 0) to see if orientation is different
+    volume_xyz = volume.transpose(1, 2, 0).astype(np.float32)  # [y, x, z] instead of [x, y, z]
     # Ensure contiguous array
     if not volume_xyz.flags['C_CONTIGUOUS']:
         volume_xyz = np.ascontiguousarray(volume_xyz)
@@ -550,8 +553,8 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         zoom_factor_w = w / proj_w
         proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
     
-    # Try vertical flip only - might be needed for Y-axis orientation
-    proj_array = np.flipud(proj_array)  # Flip vertically
+    # Try no flips - maybe the different volume transpose fixes orientation
+    # proj_array = np.flipud(proj_array)  # Flip vertically
     
     return proj_array
 
