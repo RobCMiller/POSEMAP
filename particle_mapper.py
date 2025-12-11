@@ -504,10 +504,11 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # Try Approach 4: Use original Euler angles directly (no corrections, no matrix conversion)
     # Maybe the corrections or matrix conversion is causing issues
     # EMAN2 uses [az, alt, phi] = [phi, theta, psi] in ZYZ convention
+    # IMPORTANT: Convert numpy types to Python floats for EMAN2
     transform = Transform({"type": "eman", 
-                          "az": euler_angles[0],   # phi
-                          "alt": euler_angles[1],  # theta  
-                          "phi": euler_angles[2]}) # psi
+                          "az": float(euler_angles[0]),   # phi
+                          "alt": float(euler_angles[1]),  # theta  
+                          "phi": float(euler_angles[2])}) # psi
     
     # NO inverse transform - baseline test
     print(f"  DEBUG EMAN2: Using original Euler angles (no corrections) with NO inverse transform")
