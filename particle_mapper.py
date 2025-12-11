@@ -515,7 +515,6 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         # Combine rotations: R_final = R @ R_correction (same as NumPy)
         R = R @ R_correction
     
-    # Try using R.T with inverse transform
     # ============================================================================
     # CONVERT ROTATION MATRIX TO EMAN2 TRANSFORM
     # ============================================================================
