@@ -35,6 +35,7 @@ from particle_mapper import (
     fractional_to_pixel_coords, load_pdb_structure, project_pdb_structure,
     calculate_custom_vector_from_pdb, project_custom_vector,
     calculate_structure_com, calculate_com_offset_correction,
+    simulate_em_projection_from_pdb_eman2_all_variations,
     calculate_vector_from_two_points, simulate_em_projection_from_pdb
 )
 from scipy.ndimage import gaussian_filter
@@ -5163,56 +5164,143 @@ color #1 & nucleic #62466B
                 )
                 print(f"EM simulation complete for particle {particle_idx+1}, projection shape: {em_projection.shape}")
                 
-                # Normalize EM projection to [0, 1] for display
-                if em_projection.max() > em_projection.min():
-                    em_proj_norm = (em_projection - em_projection.min()) / (em_projection.max() - em_projection.min())
-                else:
-                    em_proj_norm = em_projection.copy().astype(np.float32)
-                
-                # Create side-by-side comparison image (left: actual micrograph, right: simulated projection)
-                # Right panel is higher resolution (2x), so we'll resize it to match left panel size
-                from scipy.ndimage import zoom as scipy_zoom
-                if em_proj_norm.shape[0] != box_size:
-                    # Resize high-res projection to match micrograph size
-                    zoom_factor = box_size / em_proj_norm.shape[0]
-                    em_proj_resized = scipy_zoom(em_proj_norm, zoom_factor, order=1)
-                else:
-                    em_proj_resized = em_proj_norm
-                
-                # Both images are normalized to [0, 1] and displayed with origin='lower'
-                comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
-                # Left side: actual micrograph (grayscale -> RGB)
-                # Normalize using vmin/vmax from ENTIRE image (same as main GUI)
-                if vmax > vmin:
-                    mg_normalized = np.clip((mg_extracted_for_display - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
-                else:
-                    mg_normalized = np.zeros_like(mg_extracted_for_display, dtype=np.float32)
-                comparison[:, :box_size, 0] = mg_normalized
-                comparison[:, :box_size, 1] = mg_normalized
-                comparison[:, :box_size, 2] = mg_normalized
-                # Right side: simulated EM projection (grayscale -> RGB, resized from high-res to match left panel)
-                # Set background color to #363636 (RGB: 54/255 ≈ 0.212)
-                bg_color = 54.0 / 255.0
-                comparison[:, box_size:, 0] = bg_color
-                comparison[:, box_size:, 1] = bg_color
-                comparison[:, box_size:, 2] = bg_color
-                # Overlay projection (projection values are in [0, 1], so they'll blend with background)
-                comparison[:, box_size:, 0] = np.maximum(comparison[:, box_size:, 0], em_proj_resized)
-                comparison[:, box_size:, 1] = np.maximum(comparison[:, box_size:, 1], em_proj_resized)
-                comparison[:, box_size:, 2] = np.maximum(comparison[:, box_size:, 2], em_proj_resized)
+                # Create side-by-side comparison for NumPy (EMAN2 will show grid instead)
+                comparison = None
+                if not use_eman2:
+                    # Normalize EM projection to [0, 1] for display
+                    if em_projection.max() > em_projection.min():
+                        em_proj_norm = (em_projection - em_projection.min()) / (em_projection.max() - em_projection.min())
+                    else:
+                        em_proj_norm = em_projection.copy().astype(np.float32)
+                    
+                    # Create side-by-side comparison image (left: actual micrograph, right: simulated projection)
+                    # Right panel is higher resolution (2x), so we'll resize it to match left panel size
+                    from scipy.ndimage import zoom as scipy_zoom
+                    if em_proj_norm.shape[0] != box_size:
+                        # Resize high-res projection to match micrograph size
+                        zoom_factor = box_size / em_proj_norm.shape[0]
+                        em_proj_resized = scipy_zoom(em_proj_norm, zoom_factor, order=1)
+                    else:
+                        em_proj_resized = em_proj_norm
+                    
+                    # Both images are normalized to [0, 1] and displayed with origin='lower'
+                    comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
+                    # Left side: actual micrograph (grayscale -> RGB)
+                    # Normalize using vmin/vmax from ENTIRE image (same as main GUI)
+                    if vmax > vmin:
+                        mg_normalized = np.clip((mg_extracted_for_display - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
+                    else:
+                        mg_normalized = np.zeros_like(mg_extracted_for_display, dtype=np.float32)
+                    comparison[:, :box_size, 0] = mg_normalized
+                    comparison[:, :box_size, 1] = mg_normalized
+                    comparison[:, :box_size, 2] = mg_normalized
+                    # Right side: simulated EM projection (grayscale -> RGB, resized from high-res to match left panel)
+                    # Set background color to #363636 (RGB: 54/255 ≈ 0.212)
+                    bg_color = 54.0 / 255.0
+                    comparison[:, box_size:, 0] = bg_color
+                    comparison[:, box_size:, 1] = bg_color
+                    comparison[:, box_size:, 2] = bg_color
+                    # Overlay projection (projection values are in [0, 1], so they'll blend with background)
+                    comparison[:, box_size:, 0] = np.maximum(comparison[:, box_size:, 0], em_proj_resized)
+                    comparison[:, box_size:, 1] = np.maximum(comparison[:, box_size:, 1], em_proj_resized)
+                    comparison[:, box_size:, 2] = np.maximum(comparison[:, box_size:, 2], em_proj_resized)
                 
                 # Create window in main thread
                 def create_window():
                     comparison_window = tk.Toplevel(self.root)
                     method_name = "EMAN2" if use_eman2 else "NumPy"
-                    comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection ({method_name})")
-                    comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
                     
-                    # Create matplotlib figure (no title)
-                    fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
-                    ax = fig.add_subplot(111)
-                    # Use origin='lower' to match the main display orientation
-                    ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
+                    # If EMAN2, show all variations in a grid
+                    if use_eman2 and all_variations is not None:
+                        # Create grid of all variations
+                        num_variations = len(all_variations)
+                        # Calculate grid size (aim for roughly square grid)
+                        cols = int(np.ceil(np.sqrt(num_variations)))
+                        rows = int(np.ceil(num_variations / cols))
+                        
+                        # Each variation will be displayed at box_size
+                        grid_width = cols * box_size
+                        grid_height = rows * box_size
+                        
+                        comparison_window.title(f"Particle {particle_idx+1} - EMAN2 Variations (Select correct one)")
+                        comparison_window.geometry(f"{grid_width + 100}x{grid_height + 150}")
+                        
+                        # Create scrollable frame
+                        canvas_frame = tk.Frame(comparison_window)
+                        canvas_frame.pack(fill=tk.BOTH, expand=True)
+                        
+                        scrollbar = tk.Scrollbar(canvas_frame)
+                        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+                        
+                        canvas = tk.Canvas(canvas_frame, yscrollcommand=scrollbar.set)
+                        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                        scrollbar.config(command=canvas.yview)
+                        
+                        # Create frame for matplotlib figure
+                        fig_frame = tk.Frame(canvas)
+                        canvas.create_window((0, 0), window=fig_frame, anchor=tk.NW)
+                        
+                        # Create matplotlib figure
+                        fig = Figure(figsize=(grid_width / 100, grid_height / 100), dpi=100)
+                        
+                        # Create grid of subplots
+                        for var_num, proj_array in sorted(all_variations.items()):
+                            row = (var_num - 1) // cols
+                            col = (var_num - 1) % cols
+                            ax = fig.add_subplot(rows, cols, var_num)
+                            
+                            # Resize projection to box_size
+                            from scipy.ndimage import zoom as scipy_zoom
+                            if proj_array.shape[0] != box_size:
+                                zoom_factor = box_size / proj_array.shape[0]
+                                proj_resized = scipy_zoom(proj_array, zoom_factor, order=1)
+                            else:
+                                proj_resized = proj_array
+                            
+                            # Normalize
+                            if proj_resized.max() > proj_resized.min():
+                                proj_norm = (proj_resized - proj_resized.min()) / (proj_resized.max() - proj_resized.min())
+                            else:
+                                proj_norm = proj_resized.copy().astype(np.float32)
+                            
+                            # Display with background color
+                            bg_color = 54.0 / 255.0
+                            display_img = np.ones((box_size, box_size, 3), dtype=np.float32) * bg_color
+                            display_img[:, :, 0] = np.maximum(display_img[:, :, 0], proj_norm)
+                            display_img[:, :, 1] = np.maximum(display_img[:, :, 1], proj_norm)
+                            display_img[:, :, 2] = np.maximum(display_img[:, :, 2], proj_norm)
+                            
+                            ax.imshow(display_img, origin='lower', aspect='auto', vmin=0, vmax=1)
+                            ax.set_title(f"#{var_num}", fontsize=10, color='yellow', weight='bold')
+                            ax.axis('off')
+                        
+                        # Add instruction label
+                        instruction = tk.Label(comparison_window, 
+                                             text="Please identify which variation number matches the NumPy projection",
+                                             font=('Arial', 12, 'bold'))
+                        instruction.pack(pady=5)
+                        
+                        # Embed figure
+                        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+                        canvas_widget = FigureCanvasTkAgg(fig, fig_frame)
+                        canvas_widget.draw()
+                        canvas_widget.get_tk_widget().pack()
+                        
+                        # Update scroll region
+                        fig_frame.update_idletasks()
+                        canvas.config(scrollregion=canvas.bbox("all"))
+                        
+                    else:
+                        # NumPy single comparison
+                        # Single comparison (NumPy or single EMAN2)
+                        comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection ({method_name})")
+                        comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
+                        
+                        # Create matplotlib figure (no title)
+                        fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
+                        ax = fig.add_subplot(111)
+                        # Use origin='lower' to match the main display orientation
+                        ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
                     
                     # Add borders around both panels (color #4d4d4f)
                     from matplotlib.patches import Rectangle

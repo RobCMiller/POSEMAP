@@ -423,6 +423,148 @@ def pdb_to_density_map(pdb_data: Dict, pixel_size: float = 1.0,
     return volume, pixel_size, half_size
 
 
+def simulate_em_projection_from_pdb_eman2_all_variations(pdb_data: Dict, euler_angles: np.ndarray,
+                                                          output_size: Tuple[int, int],
+                                                          pixel_size: float = 1.0,
+                                                          rotation_correction_x: float = 0.0,
+                                                          rotation_correction_y: float = 0.0,
+                                                          rotation_correction_z: float = 0.0) -> Dict[int, np.ndarray]:
+    """
+    Generate all likely EMAN2 projection variations for troubleshooting.
+    
+    Returns a dictionary mapping variation number to projection array.
+    """
+    try:
+        from EMAN2 import EMData, Transform
+        import numpy as np
+    except ImportError:
+        raise ImportError("EMAN2 is not available. Please install EMAN2 or use the fallback method.")
+    
+    # Create volume once (shared across all variations)
+    h, w = output_size
+    min_grid_size = max(h, w)
+    if min_grid_size > 800:
+        desired_grid_size = 640
+    else:
+        desired_grid_size = min_grid_size
+    desired_grid_size = ((desired_grid_size + 31) // 32) * 32
+    desired_grid_size = min(desired_grid_size, 768)
+    
+    print(f"  DEBUG EMAN2: Creating density map with grid_size={desired_grid_size}...")
+    volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0, grid_size=desired_grid_size)
+    
+    volume_xyz = volume.transpose(2, 1, 0).astype(np.float32)
+    if not volume_xyz.flags['C_CONTIGUOUS']:
+        volume_xyz = np.ascontiguousarray(volume_xyz)
+    
+    em_volume = EMData()
+    em_volume.set_size(volume_xyz.shape[0], volume_xyz.shape[1], volume_xyz.shape[2])
+    em_volume.set_data_string(volume_xyz.tobytes())
+    
+    # Build R matrix
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
+        from scipy.spatial.transform import Rotation as Rot
+        rot_x_rad = np.deg2rad(rotation_correction_x)
+        rot_y_rad = np.deg2rad(rotation_correction_y)
+        rot_z_rad = np.deg2rad(rotation_correction_z)
+        rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
+        R_correction = rot_correction.as_matrix()
+        R = R @ R_correction
+    
+    from scipy.spatial.transform import Rotation as Rot
+    from scipy.ndimage import zoom
+    
+    variations = {}
+    variation_num = 1
+    
+    # Define all combinations to test
+    configs = [
+        # (R_or_RT, use_inverse, flip_vertical, flip_horizontal, transpose, description)
+        ("R", False, False, False, False, "R, no inv, no flips"),
+        ("R", False, True, False, False, "R, no inv, flipud"),
+        ("R", False, False, True, False, "R, no inv, fliplr"),
+        ("R", False, True, True, False, "R, no inv, both flips"),
+        ("R", False, False, False, True, "R, no inv, transpose"),
+        ("R", False, True, False, True, "R, no inv, transpose+flipud"),
+        ("R", False, False, True, True, "R, no inv, transpose+fliplr"),
+        ("R", False, True, True, True, "R, no inv, transpose+both"),
+        ("R", True, False, False, False, "R, inv, no flips"),
+        ("R", True, True, False, False, "R, inv, flipud"),
+        ("R", True, False, True, False, "R, inv, fliplr"),
+        ("R", True, True, True, False, "R, inv, both flips"),
+        ("R", True, False, False, True, "R, inv, transpose"),
+        ("R", True, True, False, True, "R, inv, transpose+flipud"),
+        ("R", True, False, True, True, "R, inv, transpose+fliplr"),
+        ("R", True, True, True, True, "R, inv, transpose+both"),
+        ("RT", False, False, False, False, "R.T, no inv, no flips"),
+        ("RT", False, True, False, False, "R.T, no inv, flipud"),
+        ("RT", False, False, True, False, "R.T, no inv, fliplr"),
+        ("RT", False, True, True, False, "R.T, no inv, both flips"),
+        ("RT", False, False, False, True, "R.T, no inv, transpose"),
+        ("RT", False, True, False, True, "R.T, no inv, transpose+flipud"),
+        ("RT", False, False, True, True, "R.T, no inv, transpose+fliplr"),
+        ("RT", False, True, True, True, "R.T, no inv, transpose+both"),
+        ("RT", True, False, False, False, "R.T, inv, no flips"),
+        ("RT", True, True, False, False, "R.T, inv, flipud"),
+        ("RT", True, False, True, False, "R.T, inv, fliplr"),
+        ("RT", True, True, True, False, "R.T, inv, both flips"),
+        ("RT", True, False, False, True, "R.T, inv, transpose"),
+        ("RT", True, True, False, True, "R.T, inv, transpose+flipud"),
+        ("RT", True, False, True, True, "R.T, inv, transpose+fliplr"),
+        ("RT", True, True, True, True, "R.T, inv, transpose+both"),
+    ]
+    
+    print(f"  DEBUG EMAN2: Generating {len(configs)} projection variations...")
+    
+    for r_or_rt, use_inverse, flip_v, flip_h, transpose, desc in configs:
+        try:
+            # Select rotation matrix
+            R_for_eman2 = R if r_or_rt == "R" else R.T
+            
+            # Convert to Euler angles
+            rot_from_matrix = Rot.from_matrix(R_for_eman2)
+            euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
+            
+            # Create transform
+            transform = Transform({"type": "eman", 
+                                  "az": float(euler_zyz[0]),
+                                  "alt": float(euler_zyz[1]),
+                                  "phi": float(euler_zyz[2])})
+            
+            if use_inverse:
+                transform = transform.inverse()
+            
+            # Project
+            projection = em_volume.project("standard", transform)
+            proj_array = projection.numpy().copy()
+            
+            # Resize
+            proj_h, proj_w = proj_array.shape
+            if proj_h != h or proj_w != w:
+                zoom_factor_h = h / proj_h
+                zoom_factor_w = w / proj_w
+                proj_array = zoom(proj_array, (zoom_factor_h, zoom_factor_w), order=1)
+            
+            # Apply post-processing
+            if transpose:
+                proj_array = proj_array.T
+            if flip_v:
+                proj_array = np.flipud(proj_array)
+            if flip_h:
+                proj_array = np.fliplr(proj_array)
+            
+            variations[variation_num] = proj_array
+            print(f"    Variation {variation_num}: {desc}")
+            variation_num += 1
+            
+        except Exception as e:
+            print(f"    Variation {variation_num} failed: {e}")
+            variation_num += 1
+    
+    return variations
+
+
 def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarray,
                                           output_size: Tuple[int, int],
                                           pixel_size: float = 1.0,
