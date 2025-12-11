@@ -518,23 +518,17 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # ============================================================================
     # CONVERT ROTATION MATRIX TO EMAN2 TRANSFORM
     # ============================================================================
-    # NumPy method uses R.T to transform coordinates from view space to volume space.
-    # EMAN2 rotates the volume, so we need to think about this differently.
-    #
-    # Key insight: If NumPy uses R.T to transform coordinates, then to rotate the
-    # volume to the same orientation, we might need R (not R.T), OR we might need
-    # R.T with inverse transform, OR we might need R with no inverse.
-    #
-    # SYSTEMATIC TEST: Try R.T (matching NumPy's coordinate transform) with
-    # no inverse transform, and test different post-processing flips.
+    # NumPy method: Uses R.T to transform coordinates, then flips vertically
+    # 
+    # NEW TEST: R.T with inverse transform and NO flips
+    # The inverse of R.T is R, so this effectively rotates volume by R
+    # This might match NumPy's coordinate transformation approach
     # ============================================================================
     
     from scipy.spatial.transform import Rotation as Rot
     
     # Use R.T (matching NumPy's coordinate transformation approach)
-    # NumPy: coords_3d = R.T @ coords_2d (transforms view coords to volume coords)
-    # EMAN2: rotates volume, so we might need R.T to match
-    R_for_eman2 = R.T  # Use R.T to match NumPy's coordinate transform
+    R_for_eman2 = R.T
     
     rot_from_matrix = Rot.from_matrix(R_for_eman2)
     euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
@@ -546,12 +540,12 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
                           "alt": float(euler_zyz[1]),  # theta  
                           "phi": float(euler_zyz[2])}) # psi
     
-    # Do NOT apply inverse transform (try without inverse first)
-    # transform = transform.inverse()  # Commented out - try without inverse
+    # Apply inverse transform (inverse of R.T is R)
+    transform = transform.inverse()
     
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     print(f"  DEBUG EMAN2: R.T Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Configuration: R.T (matching NumPy), NO inverse transform")
+    print(f"  DEBUG EMAN2: Configuration: R.T with inverse transform (effectively R), NO flips")
     
     # ============================================================================
     # PROJECT VOLUME
@@ -577,11 +571,11 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # ============================================================================
     # POST-PROCESSING: ORIENTATION CORRECTIONS
     # ============================================================================
-    # NumPy method applies flipud at the end. Let's try matching that exactly.
-    # Test configuration: R.T, no inverse, vertical flip (matching NumPy)
+    # Test configuration: R.T with inverse (effectively R), NO flips
+    # This is a new combination we haven't tried yet
     # ============================================================================
     
-    proj_array = np.flipud(proj_array)  # Flip vertically (matching NumPy's final step)
+    # No flips - try raw projection
     
     return proj_array
 
