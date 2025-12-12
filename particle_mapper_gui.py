@@ -4943,6 +4943,9 @@ color #1 & nucleic #62466B
         use_eman2 : bool
             If True, use EMAN2 for projection (slower but potentially higher quality)
             If False, use NumPy method (faster)
+        high_resolution : bool
+            If True, use higher resolution density map for NumPy projection (slower but more detail)
+            Only applies when use_eman2=False
         """
         if self.current_micrograph_idx is None or self.current_particles is None:
             messagebox.showwarning("No Data", "No micrograph or particle data loaded.")
