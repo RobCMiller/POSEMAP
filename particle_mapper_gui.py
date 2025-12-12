@@ -5166,46 +5166,43 @@ color #1 & nucleic #62466B
                 )
                 print(f"EM simulation complete for particle {particle_idx+1}, projection shape: {em_projection.shape}")
                 
-                # Create side-by-side comparison for NumPy (EMAN2 will show grid instead)
-                comparison = None
-                if not use_eman2:
-                    # Normalize EM projection to [0, 1] for display
-                    if em_projection.max() > em_projection.min():
-                        em_proj_norm = (em_projection - em_projection.min()) / (em_projection.max() - em_projection.min())
-                    else:
-                        em_proj_norm = em_projection.copy().astype(np.float32)
-                    
-                    # Create side-by-side comparison image (left: actual micrograph, right: simulated projection)
-                    # Right panel is higher resolution (2x), so we'll resize it to match left panel size
-                    from scipy.ndimage import zoom as scipy_zoom
-                    if em_proj_norm.shape[0] != box_size:
-                        # Resize high-res projection to match micrograph size
-                        zoom_factor = box_size / em_proj_norm.shape[0]
-                        em_proj_resized = scipy_zoom(em_proj_norm, zoom_factor, order=1)
-                    else:
-                        em_proj_resized = em_proj_norm
-                    
-                    # Both images are normalized to [0, 1] and displayed with origin='lower'
-                    comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
-                    # Left side: actual micrograph (grayscale -> RGB)
-                    # Normalize using vmin/vmax from ENTIRE image (same as main GUI)
-                    if vmax > vmin:
-                        mg_normalized = np.clip((mg_extracted_for_display - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
-                    else:
-                        mg_normalized = np.zeros_like(mg_extracted_for_display, dtype=np.float32)
-                    comparison[:, :box_size, 0] = mg_normalized
-                    comparison[:, :box_size, 1] = mg_normalized
-                    comparison[:, :box_size, 2] = mg_normalized
-                    # Right side: simulated EM projection (grayscale -> RGB, resized from high-res to match left panel)
-                    # Set background color to #363636 (RGB: 54/255 ≈ 0.212)
-                    bg_color = 54.0 / 255.0
-                    comparison[:, box_size:, 0] = bg_color
-                    comparison[:, box_size:, 1] = bg_color
-                    comparison[:, box_size:, 2] = bg_color
-                    # Overlay projection (projection values are in [0, 1], so they'll blend with background)
-                    comparison[:, box_size:, 0] = np.maximum(comparison[:, box_size:, 0], em_proj_resized)
-                    comparison[:, box_size:, 1] = np.maximum(comparison[:, box_size:, 1], em_proj_resized)
-                    comparison[:, box_size:, 2] = np.maximum(comparison[:, box_size:, 2], em_proj_resized)
+                # Normalize EM projection to [0, 1] for display
+                if em_projection.max() > em_projection.min():
+                    em_proj_norm = (em_projection - em_projection.min()) / (em_projection.max() - em_projection.min())
+                else:
+                    em_proj_norm = em_projection.copy().astype(np.float32)
+                
+                # Create side-by-side comparison image (left: actual micrograph, right: simulated projection)
+                # Right panel is higher resolution (2x), so we'll resize it to match left panel size
+                from scipy.ndimage import zoom as scipy_zoom
+                if em_proj_norm.shape[0] != box_size:
+                    # Resize high-res projection to match micrograph size
+                    zoom_factor = box_size / em_proj_norm.shape[0]
+                    em_proj_resized = scipy_zoom(em_proj_norm, zoom_factor, order=1)
+                else:
+                    em_proj_resized = em_proj_norm
+                
+                # Both images are normalized to [0, 1] and displayed with origin='lower'
+                comparison = np.zeros((box_size, box_size * 2, 3), dtype=np.float32)
+                # Left side: actual micrograph (grayscale -> RGB)
+                # Normalize using vmin/vmax from ENTIRE image (same as main GUI)
+                if vmax > vmin:
+                    mg_normalized = np.clip((mg_extracted_for_display - vmin) / (vmax - vmin), 0, 1).astype(np.float32)
+                else:
+                    mg_normalized = np.zeros_like(mg_extracted_for_display, dtype=np.float32)
+                comparison[:, :box_size, 0] = mg_normalized
+                comparison[:, :box_size, 1] = mg_normalized
+                comparison[:, :box_size, 2] = mg_normalized
+                # Right side: simulated EM projection (grayscale -> RGB, resized from high-res to match left panel)
+                # Set background color to #363636 (RGB: 54/255 ≈ 0.212)
+                bg_color = 54.0 / 255.0
+                comparison[:, box_size:, 0] = bg_color
+                comparison[:, box_size:, 1] = bg_color
+                comparison[:, box_size:, 2] = bg_color
+                # Overlay projection (projection values are in [0, 1], so they'll blend with background)
+                comparison[:, box_size:, 0] = np.maximum(comparison[:, box_size:, 0], em_proj_resized)
+                comparison[:, box_size:, 1] = np.maximum(comparison[:, box_size:, 1], em_proj_resized)
+                comparison[:, box_size:, 2] = np.maximum(comparison[:, box_size:, 2], em_proj_resized)
                 
                 # Create window in main thread
                 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
