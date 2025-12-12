@@ -1822,10 +1822,10 @@ class ParticleMapperGUI:
         R_180_x = np.array([[1.0, 0.0, 0.0],
                             [0.0, -1.0, 0.0],
                             [0.0, 0.0, -1.0]])
-        # Apply corrections: first apply Y rotation, then X rotation to the original rotation
-        # This means: R_chimerax = R_180_x @ R_180_y @ R_volume_to_view
-        # (Apply corrections first, then the volume-to-view rotation)
-        R_chimerax = R_180_x @ R_180_y @ R_volume_to_view
+        # Apply corrections AFTER the volume-to-view rotation
+        # This means: R_chimerax = R_volume_to_view @ R_180_y @ R_180_x
+        # (Apply volume-to-view rotation first, then Y rotation, then X rotation)
+        R_chimerax = R_volume_to_view @ R_180_y @ R_180_x
         
         # Debug: Print rotation matrices for verification
         phi, theta, psi = euler_angles[0], euler_angles[1], euler_angles[2]
@@ -1834,7 +1834,7 @@ class ParticleMapperGUI:
         print(f"  R_volume_to_view (PyMOL object rotation):\n{R_volume_to_view}")
         print(f"  R_180_y (180° Y rotation):\n{R_180_y}")
         print(f"  R_180_x (180° X rotation):\n{R_180_x}")
-        print(f"  R_chimerax (R_180_x @ R_180_y @ R_volume_to_view):\n{R_chimerax}")
+        print(f"  R_chimerax (R_volume_to_view @ R_180_y @ R_180_x):\n{R_chimerax}")
         
         # Translation: use zeros (centering handled separately)
         translation = [0.0, 0.0, 0.0]
