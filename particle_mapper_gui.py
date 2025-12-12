@@ -5226,6 +5226,7 @@ color #1 & nucleic #62466B
                 
                 # Create window in main thread - capture all_variations in closure
                 all_variations_capture = all_variations  # Capture for closure
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg  # Import at function level
                 def create_window():
                     comparison_window = tk.Toplevel(self.root)
                     method_name = "EMAN2" if use_eman2 else "NumPy"
@@ -5301,7 +5302,6 @@ color #1 & nucleic #62466B
                         instruction.pack(pady=5)
                         
                         # Embed figure
-                        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
                         canvas_widget = FigureCanvasTkAgg(fig, fig_frame)
                         canvas_widget.draw()
                         canvas_widget.get_tk_widget().pack()
