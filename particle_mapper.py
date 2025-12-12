@@ -882,6 +882,7 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
                                     pixel_size: float = 1.0,
                                     atom_radius: float = 2.0,
                                     use_eman2: bool = True,
+                                    high_resolution: bool = False,
                                     rotation_correction_x: float = 0.0,
                                     rotation_correction_y: float = 0.0,
                                     rotation_correction_z: float = 0.0) -> np.ndarray:
@@ -945,8 +946,30 @@ def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
     # Use the same pixel_size for the density map as the micrograph
     # This ensures the scale matches - each voxel in the density map represents
     # the same physical size (pixel_size Angstroms) as each pixel in the micrograph
-    print(f"  DEBUG: Generating density map with pixel_size={pixel_size}, atom_radius={atom_radius}")
-    volume, volume_pixel_size, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius)
+    
+    # For high resolution, use a larger grid_size to capture more detail
+    grid_size = None
+    if high_resolution:
+        # Calculate a higher resolution grid_size
+        # Use 2x the default calculation, capped at 1024 for very high quality
+        coords = pdb_data['coords']
+        if not isinstance(coords, np.ndarray):
+            coords = np.array(coords)
+        min_coords = coords.min(axis=0)
+        max_coords = coords.max(axis=0)
+        extent = max_coords - min_coords
+        max_extent = np.max(extent) * 1.8
+        grid_size = int(np.ceil(max_extent / pixel_size))
+        # Use 2x multiplier for high resolution
+        grid_size = grid_size * 2
+        # Round up to nearest 32 for efficiency
+        grid_size = ((grid_size + 31) // 32) * 32
+        # Cap at 1024 for very high quality (1024^3 = 1B voxels)
+        grid_size = min(grid_size, 1024)
+        print(f"  DEBUG: High resolution mode - using grid_size={grid_size}")
+    
+    print(f"  DEBUG: Generating density map with pixel_size={pixel_size}, atom_radius={atom_radius}, grid_size={grid_size}")
+    volume, volume_pixel_size, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=atom_radius, grid_size=grid_size)
     print(f"  DEBUG: Density map generated, shape={volume.shape}, pixel_size={volume_pixel_size}, half_size={half_size:.2f}")
     
     # Verify pixel sizes match

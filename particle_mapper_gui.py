@@ -4908,7 +4908,9 @@ color #1 & nucleic #62466B
         menu.add_command(label="Add Projection Image", 
                         command=lambda: self.add_projection_for_particle(particle_idx))
         menu.add_command(label="Compare: Micrograph vs Projection (NumPy)", 
-                        command=lambda: self.compare_particle_projection(particle_idx, use_eman2=False))
+                        command=lambda: self.compare_particle_projection(particle_idx, use_eman2=False, high_resolution=False))
+        menu.add_command(label="Compare: Micrograph vs Projection (NumPy - High Resolution)", 
+                        command=lambda: self.compare_particle_projection(particle_idx, use_eman2=False, high_resolution=True))
         # EMAN2 comparison disabled for now - will be re-enabled after further testing
         # menu.add_command(label="Compare: Micrograph vs Projection (Slow - EMAN2)", 
         #                 command=lambda: self.compare_particle_projection(particle_idx, use_eman2=True))
@@ -4926,7 +4928,7 @@ color #1 & nucleic #62466B
         
         menu.tk_popup(x_tk, y_tk)
     
-    def compare_particle_projection(self, particle_idx, use_eman2=False):
+    def compare_particle_projection(self, particle_idx, use_eman2=False, high_resolution=False):
         """
         Create a side-by-side comparison image showing:
         - Left: Actual micrograph particle region (extracted like a particle extractor)
@@ -5144,7 +5146,12 @@ color #1 & nucleic #62466B
                 # Now generate the EM projection for comparison
                 
                 # Update status
-                method_name = "EMAN2" if use_eman2 else "NumPy"
+                if use_eman2:
+                    method_name = "EMAN2"
+                elif high_resolution:
+                    method_name = "NumPy (High Resolution)"
+                else:
+                    method_name = "NumPy"
                 self.root.after(0, lambda: self.status_var.set(f"Generating {method_name} projection for particle {particle_idx+1}..."))
                 
                 # Generate simulated EM projection (right side)
@@ -5174,6 +5181,7 @@ color #1 & nucleic #62466B
                     pixel_size=projection_pixel_size,  # Use half pixel size to maintain physical size
                     atom_radius=2.0,  # 2 Angstrom atom radius
                     use_eman2=use_eman2,  # Use specified method
+                    high_resolution=high_resolution,  # High resolution for NumPy
                     rotation_correction_x=rotation_correction_x,
                     rotation_correction_y=rotation_correction_y,
                     rotation_correction_z=rotation_correction_z

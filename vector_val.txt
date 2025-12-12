@@ -1,0 +1,17 @@
+# Custom vector calculated from ChimeraX markers
+# Marker 1 (x, y, z): 319.400000, 151.600000, 265.800000
+# Marker 2 (x, y, z): 174.100000, 305.300000, 305.700000
+# Vector (normalized): [-0.675064, 0.714090, 0.185375]
+# Format: vector_x, vector_y, vector_z (one per line)
+-0.6750638045
+0.7140902047
+0.1853754012
+# Marker positions (for reference):
+# marker1_x, marker1_y, marker1_z
+319.4000000000
+151.6000000000
+265.8000000000
+# marker2_x, marker2_y, marker2_z
+174.1000000000
+305.3000000000
+305.7000000000
