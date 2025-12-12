@@ -5152,35 +5152,18 @@ color #1 & nucleic #62466B
                 projection_size = box_size * 2
                 projection_pixel_size = pixel_size / 2.0  # Half pixel size for 2x resolution
                 
-                # If using EMAN2, generate all variations for troubleshooting
-                all_variations = None
-                if use_eman2:
-                    print(f"  Generating all EMAN2 variations for troubleshooting...")
-                    all_variations = simulate_em_projection_from_pdb_eman2_all_variations(
-                        self.pdb_data,
-                        pose,
-                        output_size=(projection_size, projection_size),
-                        pixel_size=projection_pixel_size,
-                        rotation_correction_x=rotation_correction_x,
-                        rotation_correction_y=rotation_correction_y,
-                        rotation_correction_z=rotation_correction_z
-                    )
-                    print(f"  Generated {len(all_variations)} EMAN2 variations")
-                    # Use first variation as default (will be replaced by grid display)
-                    em_projection = list(all_variations.values())[0]
-                else:
-                    # NumPy method - single projection
-                    em_projection = simulate_em_projection_from_pdb(
-                        self.pdb_data,
-                        pose,  # Euler angles [phi, theta, psi] in radians
-                        output_size=(projection_size, projection_size),
-                        pixel_size=projection_pixel_size,  # Use half pixel size to maintain physical size
-                        atom_radius=2.0,  # 2 Angstrom atom radius
-                        use_eman2=False,
-                        rotation_correction_x=rotation_correction_x,
-                        rotation_correction_y=rotation_correction_y,
-                        rotation_correction_z=rotation_correction_z
-                    )
+                # Generate single projection (EMAN2 or NumPy)
+                em_projection = simulate_em_projection_from_pdb(
+                    self.pdb_data,
+                    pose,  # Euler angles [phi, theta, psi] in radians
+                    output_size=(projection_size, projection_size),
+                    pixel_size=projection_pixel_size,  # Use half pixel size to maintain physical size
+                    atom_radius=2.0,  # 2 Angstrom atom radius
+                    use_eman2=use_eman2,  # Use specified method
+                    rotation_correction_x=rotation_correction_x,
+                    rotation_correction_y=rotation_correction_y,
+                    rotation_correction_z=rotation_correction_z
+                )
                 print(f"EM simulation complete for particle {particle_idx+1}, projection shape: {em_projection.shape}")
                 
                 # Create side-by-side comparison for NumPy (EMAN2 will show grid instead)
