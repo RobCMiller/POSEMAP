@@ -577,6 +577,43 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     This function uses EMAN2's projection capabilities for more accurate EM simulation.
     The orientation has been calibrated to match the NumPy implementation.
     
+    ============================================================================
+    PROJECTION CONFIGURATION (Calibrated to match NumPy method):
+    ============================================================================
+    
+    1. ROTATION MATRIX:
+       - Uses Euler angles (ZYZ convention) to build rotation matrix R
+       - Applies rotation corrections in XYZ convention (same as NumPy)
+       - Uses R directly (not R.T) for EMAN2 transform
+    
+    2. EMAN2 TRANSFORM:
+       - Converts rotation matrix to Euler angles (ZYZ)
+       - Creates EMAN2 Transform with: az=phi, alt=theta, phi=psi
+       - NO inverse transform applied
+    
+    3. POST-PROCESSING (to match NumPy orientation):
+       - Step 1: Transpose the projection array
+       - Step 2: Flip vertically (np.flipud)
+       - Step 3: Rotate 330° counter-clockwise (in-plane rotation)
+    
+    This configuration was determined through systematic troubleshooting:
+    - Base configuration: Variation #6 (R, no inv, transpose+flipud)
+    - In-plane rotation: #12 (330°) identified as correct orientation
+    
+    ============================================================================
+    RESOLUTION SETTINGS:
+    ============================================================================
+    
+    The density map grid_size determines the resolution of the projection:
+    - Higher grid_size = more detail but slower computation
+    - Current settings:
+      * For output_size > 800: uses grid_size = 1024 (high quality)
+      * For output_size <= 800: uses grid_size = output_size * 1.5 (scaled)
+      * Maximum cap: 1280 (for very high quality)
+      * Rounded to nearest 32 for EMAN2 efficiency
+    
+    To increase resolution further, increase the grid_size multiplier or cap.
+    
     Parameters:
     -----------
     pdb_data : dict
@@ -601,27 +638,28 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
         raise ImportError("EMAN2 is not available. Please install EMAN2 or use the fallback method.")
     
     # Convert PDB to density map first
-    # For better resolution, calculate appropriate grid_size based on desired output size
-    # We want the volume to be large enough for good quality, but not so large it's too slow
+    # For higher resolution, use a larger grid_size to capture more detail
+    # Higher grid_size = more secondary structure visible, but slower computation
     h, w = output_size
     min_grid_size = max(h, w)
     
-    # For very large output sizes (e.g., 2x resolution for downsampling), 
-    # we don't need the volume to be as large - the final resize will handle quality
-    # Use a more conservative approach: use output size directly, but cap reasonably
+    # Use a multiplier to increase resolution beyond output size
+    # This ensures we have enough detail even after projection and resizing
     if min_grid_size > 800:
-        # For large outputs (likely 2x resolution that will be downsampled),
-        # use a fixed reasonable size (640-768 range)
-        desired_grid_size = 640  # Good balance of quality and speed
+        # For large outputs (likely 2x resolution for comparison), use high quality
+        # Use 1024 for excellent detail (1024^3 = 1B voxels)
+        desired_grid_size = 1024
     else:
-        # For normal sizes, use output size directly (no 1.2x multiplier)
-        desired_grid_size = min_grid_size
+        # For normal sizes, use 1.5x multiplier for better detail
+        # This provides more resolution than the output size, capturing fine structure
+        desired_grid_size = int(min_grid_size * 1.5)
     
-    # Round up to nearest 32 for efficiency
+    # Round up to nearest 32 for EMAN2 efficiency (EMAN2 works best with sizes divisible by 32)
     desired_grid_size = ((desired_grid_size + 31) // 32) * 32
-    # Cap at 768 for reasonable performance (640^3 = 262M voxels, 768^3 = 453M voxels)
-    # This is much faster than 1024^3 (1B voxels) while still providing excellent quality
-    desired_grid_size = min(desired_grid_size, 768)
+    # Cap at 1280 for very high quality (1280^3 = 2.1B voxels)
+    # This provides excellent detail for secondary structure visualization
+    # Note: Higher values (e.g., 1536, 2048) are possible but much slower
+    desired_grid_size = min(desired_grid_size, 1280)
     print(f"  DEBUG EMAN2: Creating density map with grid_size={desired_grid_size} (output size={h}x{w})...")
     volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0, grid_size=desired_grid_size)
     print(f"  DEBUG EMAN2: Density map created, shape={volume.shape}, converting to EMData...")
@@ -657,10 +695,22 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # ============================================================================
     # CONVERT ROTATION MATRIX TO EMAN2 TRANSFORM
     # ============================================================================
-    # CORRECT CONFIGURATION (Variation #6 from troubleshooting):
-    # - Use R (not R.T)
-    # - No inverse transform
-    # - Post-processing: transpose + vertical flip (flipud)
+    # CORRECT CONFIGURATION (determined through systematic troubleshooting):
+    # 
+    # Base configuration (Variation #6):
+    #   - Use R (not R.T) - direct rotation matrix
+    #   - No inverse transform - use transform as-is
+    #   - Post-processing: transpose + vertical flip (flipud)
+    #
+    # In-plane rotation (Rotation #12 from troubleshooting):
+    #   - Additional 330° counter-clockwise rotation applied after base processing
+    #   - This corrects the final orientation to match NumPy projection
+    #
+    # This configuration was identified by:
+    #   1. Testing 32 combinations of R/R.T, inverse/no inverse, and flips
+    #   2. User identified Variation #6 as correct base configuration
+    #   3. Testing 12 in-plane rotations (every 30°)
+    #   4. User identified Rotation #12 (330°) as correct final orientation
     # ============================================================================
     
     from scipy.spatial.transform import Rotation as Rot
@@ -709,13 +759,19 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # ============================================================================
     # POST-PROCESSING: ORIENTATION CORRECTIONS
     # ============================================================================
-    # Variation #6: transpose + vertical flip (flipud)
-    # Additional: 330-degree rotation for in-plane orientation (Rotation #12 from troubleshooting)
+    # These steps are required to match the NumPy projection orientation:
+    #
+    # Step 1: Transpose - swaps rows and columns
+    # Step 2: Vertical flip (flipud) - flips array upside down
+    # Step 3: 330° rotation - final in-plane rotation to correct orientation
+    #
+    # The 330° rotation (Rotation #12) was identified through systematic testing
+    # of 12 rotation variations (0°, 30°, 60°, ..., 330°) and user verification.
     # ============================================================================
     
-    proj_array = proj_array.T  # Transpose first
-    proj_array = np.flipud(proj_array)  # Then flip vertically
-    # Apply 330° rotation (equivalent to -30° or 11 * 30° counter-clockwise)
+    proj_array = proj_array.T  # Step 1: Transpose
+    proj_array = np.flipud(proj_array)  # Step 2: Flip vertically
+    # Step 3: Apply 330° counter-clockwise rotation (equivalent to -30° clockwise)
     from scipy.ndimage import rotate
     proj_array = rotate(proj_array, 330.0, reshape=False, order=1, mode='constant', cval=0.0)
     
