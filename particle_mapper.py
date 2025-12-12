@@ -720,6 +720,105 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     return proj_array
 
 
+def simulate_em_projection_from_pdb_eman2_rotation_variations(pdb_data: Dict, euler_angles: np.ndarray,
+                                                               output_size: Tuple[int, int],
+                                                               pixel_size: float = 1.0,
+                                                               rotation_correction_x: float = 0.0,
+                                                               rotation_correction_y: float = 0.0,
+                                                               rotation_correction_z: float = 0.0) -> Dict[int, np.ndarray]:
+    """
+    Generate 12 in-plane rotation variations (every 30 degrees) for troubleshooting.
+    
+    Uses the correct base configuration (Variation #6: R, no inv, transpose+flipud)
+    and applies rotations from 0° to 330° in 30° increments.
+    
+    Returns a dictionary mapping rotation number (1-12) to projection array.
+    Rotation numbers correspond to: 0°, 30°, 60°, 90°, 120°, 150°, 180°, 210°, 240°, 270°, 300°, 330°
+    """
+    try:
+        from EMAN2 import EMData, Transform
+        import numpy as np
+    except ImportError:
+        raise ImportError("EMAN2 is not available. Please install EMAN2 or use the fallback method.")
+    
+    # Create volume once (shared across all variations)
+    h, w = output_size
+    min_grid_size = max(h, w)
+    if min_grid_size > 800:
+        desired_grid_size = 640
+    else:
+        desired_grid_size = min_grid_size
+    desired_grid_size = ((desired_grid_size + 31) // 32) * 32
+    desired_grid_size = min(desired_grid_size, 768)
+    
+    print(f"  DEBUG EMAN2: Creating density map with grid_size={desired_grid_size}...")
+    volume, _, half_size = pdb_to_density_map(pdb_data, pixel_size=pixel_size, atom_radius=2.0, grid_size=desired_grid_size)
+    
+    volume_xyz = volume.transpose(2, 1, 0).astype(np.float32)
+    if not volume_xyz.flags['C_CONTIGUOUS']:
+        volume_xyz = np.ascontiguousarray(volume_xyz)
+    
+    em_volume = EMData()
+    em_volume.set_size(volume_xyz.shape[0], volume_xyz.shape[1], volume_xyz.shape[2])
+    em_volume.set_data_string(volume_xyz.tobytes())
+    
+    # Build R matrix (same as base configuration)
+    R = euler_to_rotation_matrix(euler_angles, convention='ZYZ')
+    if abs(rotation_correction_x) > 1e-6 or abs(rotation_correction_y) > 1e-6 or abs(rotation_correction_z) > 1e-6:
+        from scipy.spatial.transform import Rotation as Rot
+        rot_x_rad = np.deg2rad(rotation_correction_x)
+        rot_y_rad = np.deg2rad(rotation_correction_y)
+        rot_z_rad = np.deg2rad(rotation_correction_z)
+        rot_correction = Rot.from_euler('XYZ', [rot_x_rad, rot_y_rad, rot_z_rad], degrees=False)
+        R_correction = rot_correction.as_matrix()
+        R = R @ R_correction
+    
+    from scipy.spatial.transform import Rotation as Rot
+    from scipy.ndimage import zoom
+    
+    # Base configuration: R, no inv, transpose+flipud
+    R_for_eman2 = R
+    rot_from_matrix = Rot.from_matrix(R_for_eman2)
+    euler_zyz = rot_from_matrix.as_euler('ZYZ', degrees=False)
+    
+    transform = Transform({"type": "eman", 
+                          "az": float(euler_zyz[0]),
+                          "alt": float(euler_zyz[1]),
+                          "phi": float(euler_zyz[2])})
+    
+    # Project once (base projection)
+    print(f"  DEBUG EMAN2: Projecting volume (base projection)...")
+    projection = em_volume.project("standard", transform)
+    proj_array_base = projection.numpy().copy()
+    
+    # Resize base projection
+    proj_h, proj_w = proj_array_base.shape
+    if proj_h != h or proj_w != w:
+        zoom_factor_h = h / proj_h
+        zoom_factor_w = w / proj_w
+        proj_array_base = zoom(proj_array_base, (zoom_factor_h, zoom_factor_w), order=1)
+    
+    # Apply base post-processing: transpose + flipud
+    proj_array_base = proj_array_base.T
+    proj_array_base = np.flipud(proj_array_base)
+    
+    # Generate 12 rotation variations (0°, 30°, 60°, ..., 330°)
+    variations = {}
+    rotation_angles = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
+    
+    print(f"  DEBUG EMAN2: Generating 12 in-plane rotation variations...")
+    for i, angle_deg in enumerate(rotation_angles, start=1):
+        # Apply in-plane rotation
+        # np.rot90 rotates counter-clockwise, so k=1 is 90°, k=2 is 180°, etc.
+        # For 30° increments, we need to use scipy.ndimage.rotate
+        from scipy.ndimage import rotate
+        proj_rotated = rotate(proj_array_base, angle_deg, reshape=False, order=1, mode='constant', cval=0.0)
+        variations[i] = proj_rotated
+        print(f"    Rotation {i}: {angle_deg}°")
+    
+    return variations
+
+
 def simulate_em_projection_from_pdb(pdb_data: Dict, euler_angles: np.ndarray,
                                     output_size: Tuple[int, int],
                                     pixel_size: float = 1.0,
