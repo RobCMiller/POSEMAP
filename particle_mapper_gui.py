@@ -1812,20 +1812,27 @@ class ParticleMapperGUI:
         # PyMOL: object rotated by R, viewed from +Z → matches projection
         # ChimeraX: scene rotated by R (via view matrix), viewed from +Z → should match PyMOL
         #
-        # CORRECTION: ChimeraX view appears rotated 180° in-plane compared to PyMOL projection
-        # This is likely due to coordinate system convention differences (Y-axis flip or similar)
-        # Apply 180° rotation around Z axis to correct: R_180_z = [[-1,0,0],[0,-1,0],[0,0,1]]
-        R_180_z = np.array([[-1.0, 0.0, 0.0],
+        # CORRECTION: ChimeraX view needs 180° rotations around Y and X axes to match PyMOL projection
+        # This corrects for coordinate system convention differences between ChimeraX and PyMOL
+        # Apply 180° rotation around Y axis: R_180_y = [[-1,0,0],[0,1,0],[0,0,-1]]
+        R_180_y = np.array([[-1.0, 0.0, 0.0],
+                            [0.0, 1.0, 0.0],
+                            [0.0, 0.0, -1.0]])
+        # Apply 180° rotation around X axis: R_180_x = [[1,0,0],[0,-1,0],[0,0,-1]]
+        R_180_x = np.array([[1.0, 0.0, 0.0],
                             [0.0, -1.0, 0.0],
-                            [0.0, 0.0, 1.0]])
-        R_chimerax = R_volume_to_view @ R_180_z  # Apply 180° Z rotation correction
+                            [0.0, 0.0, -1.0]])
+        # Combine: first rotate around Y, then around X
+        R_correction = R_180_x @ R_180_y
+        R_chimerax = R_volume_to_view @ R_correction  # Apply Y and X rotation corrections
         
         # Debug: Print rotation matrices for verification
         phi, theta, psi = euler_angles[0], euler_angles[1], euler_angles[2]
         print(f"DEBUG ChimeraX: Euler=[{phi:.6f}, {theta:.6f}, {psi:.6f}] rad, "
               f"[{phi*180/np.pi:.2f}, {theta*180/np.pi:.2f}, {psi*180/np.pi:.2f}] deg")
         print(f"  R_volume_to_view (PyMOL object rotation):\n{R_volume_to_view}")
-        print(f"  R_chimerax (with 180° Z correction):\n{R_chimerax}")
+        print(f"  R_correction (180° Y and X rotations):\n{R_correction}")
+        print(f"  R_chimerax (with Y and X corrections):\n{R_chimerax}")
         
         # Translation: use zeros (centering handled separately)
         translation = [0.0, 0.0, 0.0]
