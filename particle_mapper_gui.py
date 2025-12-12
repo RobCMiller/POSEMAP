@@ -5207,15 +5207,61 @@ color #1 & nucleic #62466B
                     comparison[:, box_size:, 1] = np.maximum(comparison[:, box_size:, 1], em_proj_resized)
                     comparison[:, box_size:, 2] = np.maximum(comparison[:, box_size:, 2], em_proj_resized)
                 
-                # Create window in main thread - capture all_variations in closure
-                all_variations_capture = all_variations  # Capture for closure
-                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg  # Import at function level
+                # Create window in main thread
+                from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
                 def create_window():
                     comparison_window = tk.Toplevel(self.root)
                     method_name = "EMAN2" if use_eman2 else "NumPy"
+                    comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection ({method_name})")
+                    comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
                     
-                    # If EMAN2, show all variations in a grid
-                    if use_eman2 and all_variations_capture is not None:
+                    # Create matplotlib figure (no title)
+                    fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
+                    ax = fig.add_subplot(111)
+                    # Use origin='lower' to match the main display orientation
+                    ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
+                    
+                    # Add borders around both panels (color #4d4d4f)
+                    from matplotlib.patches import Rectangle
+                    border_color = '#4d4d4f'
+                    border_width = 2
+                    # Left panel border
+                    rect_left = Rectangle((-0.5, -0.5), box_size, box_size, 
+                                         linewidth=border_width, edgecolor=border_color, 
+                                         facecolor='none', transform=ax.transData)
+                    ax.add_patch(rect_left)
+                    # Right panel border
+                    rect_right = Rectangle((box_size - 0.5, -0.5), box_size, box_size,
+                                          linewidth=border_width, edgecolor=border_color,
+                                          facecolor='none', transform=ax.transData)
+                    ax.add_patch(rect_right)
+                    
+                    ax.axis('off')
+                    
+                    # Embed in tkinter
+                    canvas = FigureCanvasTkAgg(fig, comparison_window)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                    
+                    # Add save button
+                    def save_comparison():
+                        from tkinter import filedialog
+                        filename = filedialog.asksaveasfilename(
+                            defaultextension='.png',
+                            filetypes=[('PNG files', '*.png'), ('All files', '*.*')],
+                            initialfile=f'particle_{particle_idx+1}_comparison.png'
+                        )
+                        if filename:
+                            fig.savefig(filename, dpi=400, bbox_inches='tight')
+                            messagebox.showinfo("Saved", f"Comparison saved to {filename}")
+                    
+                    save_button = tk.Button(comparison_window, text="Save Comparison", command=save_comparison)
+                    save_button.pack(pady=5)
+                    
+                    self.status_var.set(f"{method_name} comparison generated for particle {particle_idx+1}")
+                
+                # Create window in main thread
+                self.root.after(0, create_window)
                         # Create grid of all variations
                         num_variations = len(all_variations_capture)
                         # Calculate grid size (aim for roughly square grid)
