@@ -683,7 +683,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     print(f"  DEBUG EMAN2: R Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Configuration: R (not R.T), NO inverse, transpose + flipud")
+    print(f"  DEBUG EMAN2: Configuration: R (not R.T), NO inverse, transpose + flipud + rot90")
     
     # ============================================================================
     # PROJECT VOLUME
@@ -710,10 +710,12 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # POST-PROCESSING: ORIENTATION CORRECTIONS
     # ============================================================================
     # Variation #6: transpose + vertical flip (flipud)
+    # Additional: 90-degree counter-clockwise rotation for in-plane orientation
     # ============================================================================
     
     proj_array = proj_array.T  # Transpose first
     proj_array = np.flipud(proj_array)  # Then flip vertically
+    proj_array = np.rot90(proj_array, k=1)  # Rotate 90° counter-clockwise (in-plane)
     
     return proj_array
 
