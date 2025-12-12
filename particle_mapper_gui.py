@@ -4907,10 +4907,11 @@ color #1 & nucleic #62466B
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label="Add Projection Image", 
                         command=lambda: self.add_projection_for_particle(particle_idx))
-        menu.add_command(label="Compare: Micrograph vs Projection (Fast - NumPy)", 
+        menu.add_command(label="Compare: Micrograph vs Projection (NumPy)", 
                         command=lambda: self.compare_particle_projection(particle_idx, use_eman2=False))
-        menu.add_command(label="Compare: Micrograph vs Projection (Slow - EMAN2)", 
-                        command=lambda: self.compare_particle_projection(particle_idx, use_eman2=True))
+        # EMAN2 comparison disabled for now - will be re-enabled after further testing
+        # menu.add_command(label="Compare: Micrograph vs Projection (Slow - EMAN2)", 
+        #                 command=lambda: self.compare_particle_projection(particle_idx, use_eman2=True))
         menu.add_command(label="Open in ChimeraX", 
                         command=lambda: self.open_chimerax(particle_idx=particle_idx))
         
@@ -5053,6 +5054,11 @@ color #1 & nucleic #62466B
                 # Draw the box in the main thread
                 def draw_extraction_box():
                     from matplotlib.patches import Rectangle
+                    # Save current axis limits and aspect to prevent resize
+                    current_xlim = self.ax.get_xlim()
+                    current_ylim = self.ax.get_ylim()
+                    current_aspect = self.ax.get_aspect()
+                    
                     # Remove old extraction box if it exists
                     if hasattr(self, 'extraction_box_rect') and self.extraction_box_rect is not None:
                         try:
@@ -5072,6 +5078,13 @@ color #1 & nucleic #62466B
                         zorder=30  # High zorder to be on top of everything
                     )
                     self.ax.add_patch(self.extraction_box_rect)
+                    
+                    # Restore axis limits and aspect to prevent resize
+                    self.ax.set_xlim(current_xlim)
+                    self.ax.set_ylim(current_ylim)
+                    self.ax.set_aspect(current_aspect, adjustable='box')
+                    
+                    # Use blit=False to ensure proper rendering, but preserve layout
                     self.canvas.draw_idle()
                 
                 self.root.after(0, draw_extraction_box)
