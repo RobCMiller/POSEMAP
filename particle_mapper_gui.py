@@ -5262,37 +5262,6 @@ color #1 & nucleic #62466B
                 
                 # Create window in main thread
                 self.root.after(0, create_window)
-                        # Create grid of all variations
-                        num_variations = len(all_variations_capture)
-                        # Calculate grid size (aim for roughly square grid)
-                        cols = int(np.ceil(np.sqrt(num_variations)))
-                        rows = int(np.ceil(num_variations / cols))
-                        
-                        # Each variation will be displayed at box_size
-                        grid_width = cols * box_size
-                        grid_height = rows * box_size
-                        
-                        comparison_window.title(f"Particle {particle_idx+1} - EMAN2 Variations (Select correct one)")
-                        comparison_window.geometry(f"{grid_width + 100}x{grid_height + 150}")
-                        
-                        # Create scrollable frame
-                        canvas_frame = tk.Frame(comparison_window)
-                        canvas_frame.pack(fill=tk.BOTH, expand=True)
-                        
-                        scrollbar = tk.Scrollbar(canvas_frame)
-                        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-                        
-                        canvas = tk.Canvas(canvas_frame, yscrollcommand=scrollbar.set)
-                        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-                        scrollbar.config(command=canvas.yview)
-                        
-                        # Create frame for matplotlib figure
-                        fig_frame = tk.Frame(canvas)
-                        canvas.create_window((0, 0), window=fig_frame, anchor=tk.NW)
-                        
-                        # Create matplotlib figure
-                        fig = Figure(figsize=(grid_width / 100, grid_height / 100), dpi=100)
-                        
                 
             except Exception as e:
                 error_msg = f"Failed to generate comparison: {str(e)}"
