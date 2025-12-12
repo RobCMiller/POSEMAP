@@ -1805,12 +1805,12 @@ class ParticleMapperGUI:
         R_volume_to_view = rot.as_matrix()
         
         # CRITICAL: ChimeraX view matrix interpretation
-        # After testing, we found that ChimeraX's "view matrix camera" actually rotates
-        # the SCENE/OBJECT (not the camera), similar to PyMOL's object rotation.
-        # Therefore, we use the DIRECT rotation matrix (same as PyMOL), not the transpose.
+        # ChimeraX's "view matrix camera" rotates the CAMERA (not the object)
+        # To see the same view as PyMOL (which rotates the object), we need the INVERSE
+        # For rotation matrices, the inverse is the transpose: R^-1 = R^T
         #
         # PyMOL: object rotated by R, viewed from +Z → matches projection
-        # ChimeraX: scene rotated by R (via view matrix), viewed from +Z → should match PyMOL
+        # ChimeraX: camera rotated by R^T, viewing object → should match PyMOL
         #
         # CORRECTION: ChimeraX view needs 180° rotations around Y and X axes to match PyMOL projection
         # This corrects for coordinate system convention differences between ChimeraX and PyMOL
@@ -1822,19 +1822,20 @@ class ParticleMapperGUI:
         R_180_x = np.array([[1.0, 0.0, 0.0],
                             [0.0, -1.0, 0.0],
                             [0.0, 0.0, -1.0]])
-        # Apply corrections AFTER the volume-to-view rotation
-        # This means: R_chimerax = R_volume_to_view @ R_180_y @ R_180_x
-        # (Apply volume-to-view rotation first, then Y rotation, then X rotation)
-        R_chimerax = R_volume_to_view @ R_180_y @ R_180_x
+        # Use transpose (inverse) for camera rotation, then apply corrections
+        # R_chimerax = R_180_x @ R_180_y @ R_volume_to_view^T
+        # (Apply Y rotation, then X rotation, then camera rotation which is transpose of object rotation)
+        R_chimerax = R_180_x @ R_180_y @ R_volume_to_view.T
         
         # Debug: Print rotation matrices for verification
         phi, theta, psi = euler_angles[0], euler_angles[1], euler_angles[2]
         print(f"DEBUG ChimeraX: Euler=[{phi:.6f}, {theta:.6f}, {psi:.6f}] rad, "
               f"[{phi*180/np.pi:.2f}, {theta*180/np.pi:.2f}, {psi*180/np.pi:.2f}] deg")
         print(f"  R_volume_to_view (PyMOL object rotation):\n{R_volume_to_view}")
+        print(f"  R_volume_to_view^T (camera rotation):\n{R_volume_to_view.T}")
         print(f"  R_180_y (180° Y rotation):\n{R_180_y}")
         print(f"  R_180_x (180° X rotation):\n{R_180_x}")
-        print(f"  R_chimerax (R_volume_to_view @ R_180_y @ R_180_x):\n{R_chimerax}")
+        print(f"  R_chimerax (R_180_x @ R_180_y @ R_volume_to_view^T):\n{R_chimerax}")
         
         # Translation: use zeros (centering handled separately)
         translation = [0.0, 0.0, 0.0]
