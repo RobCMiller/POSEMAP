@@ -5153,37 +5153,18 @@ color #1 & nucleic #62466B
                 projection_size = box_size * 2
                 projection_pixel_size = pixel_size / 2.0  # Half pixel size for 2x resolution
                 
-                # Generate projection(s) - for EMAN2, generate 12 rotation variations
-                rotation_variations_capture = None
-                if use_eman2:
-                    # Generate 12 in-plane rotation variations for troubleshooting
-                    print(f"Generating 12 in-plane rotation variations (every 30°)...")
-                    rotation_variations_capture = simulate_em_projection_from_pdb_eman2_rotation_variations(
-                        self.pdb_data,
-                        pose,  # Euler angles [phi, theta, psi] in radians
-                        output_size=(projection_size, projection_size),
-                        pixel_size=projection_pixel_size,  # Use half pixel size to maintain physical size
-                        rotation_correction_x=rotation_correction_x,
-                        rotation_correction_y=rotation_correction_y,
-                        rotation_correction_z=rotation_correction_z
-                    )
-                    print(f"Generated {len(rotation_variations_capture)} rotation variations")
-                    # For now, use the first one (0°) as the main projection
-                    # The grid display will show all 12
-                    em_projection = rotation_variations_capture[1]  # Rotation 1 = 0°
-                else:
-                    # Generate single projection (NumPy)
-                    em_projection = simulate_em_projection_from_pdb(
-                        self.pdb_data,
-                        pose,  # Euler angles [phi, theta, psi] in radians
-                        output_size=(projection_size, projection_size),
-                        pixel_size=projection_pixel_size,  # Use half pixel size to maintain physical size
-                        atom_radius=2.0,  # 2 Angstrom atom radius
-                        use_eman2=False,  # NumPy method
-                        rotation_correction_x=rotation_correction_x,
-                        rotation_correction_y=rotation_correction_y,
-                        rotation_correction_z=rotation_correction_z
-                    )
+                # Generate single projection (EMAN2 or NumPy)
+                em_projection = simulate_em_projection_from_pdb(
+                    self.pdb_data,
+                    pose,  # Euler angles [phi, theta, psi] in radians
+                    output_size=(projection_size, projection_size),
+                    pixel_size=projection_pixel_size,  # Use half pixel size to maintain physical size
+                    atom_radius=2.0,  # 2 Angstrom atom radius
+                    use_eman2=use_eman2,  # Use specified method
+                    rotation_correction_x=rotation_correction_x,
+                    rotation_correction_y=rotation_correction_y,
+                    rotation_correction_z=rotation_correction_z
+                )
                 print(f"EM simulation complete for particle {particle_idx+1}, projection shape: {em_projection.shape}")
                 
                 # Normalize EM projection to [0, 1] for display
@@ -5229,133 +5210,51 @@ color #1 & nucleic #62466B
                 def create_window():
                     comparison_window = tk.Toplevel(self.root)
                     method_name = "EMAN2" if use_eman2 else "NumPy"
+                    comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection ({method_name})")
+                    comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
                     
-                    if use_eman2 and rotation_variations_capture is not None:
-                        # Display 12 rotation variations in a grid (4 columns x 3 rows)
-                        comparison_window.title(f"Particle {particle_idx+1} - EMAN2 Rotation Variations (Select Correct One)")
-                        # Calculate grid size: 4 columns x 3 rows
-                        grid_cols = 4
-                        grid_rows = 3
-                        cell_size = box_size // 2  # Smaller cells for grid
-                        window_width = cell_size * grid_cols + 200
-                        window_height = cell_size * grid_rows + 150
-                        comparison_window.geometry(f"{window_width}x{window_height}")
-                        
-                        # Create scrollable frame
-                        canvas_frame = tk.Frame(comparison_window)
-                        canvas_frame.pack(fill=tk.BOTH, expand=True)
-                        
-                        scrollbar = tk.Scrollbar(canvas_frame, orient="vertical")
-                        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-                        
-                        # Create matplotlib figure for grid
-                        fig = Figure(figsize=(window_width / 100, window_height / 100), dpi=100)
-                        ax = fig.add_subplot(111)
-                        
-                        # Create grid layout: 4 columns x 3 rows
-                        rotation_angles = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
-                        
-                        # Normalize all variations
-                        normalized_variations = {}
-                        for rot_num, proj_array in rotation_variations_capture.items():
-                            if proj_array.max() > proj_array.min():
-                                norm = (proj_array - proj_array.min()) / (proj_array.max() - proj_array.min())
-                            else:
-                                norm = proj_array.copy().astype(np.float32)
-                            # Resize to cell_size
-                            from scipy.ndimage import zoom as scipy_zoom
-                            if norm.shape[0] != cell_size:
-                                zoom_factor = cell_size / norm.shape[0]
-                                norm = scipy_zoom(norm, zoom_factor, order=1)
-                            normalized_variations[rot_num] = norm
-                        
-                        # Create grid image
-                        grid_image = np.zeros((cell_size * grid_rows, cell_size * grid_cols), dtype=np.float32)
-                        for rot_num in range(1, 13):  # 1-12
-                            row = (rot_num - 1) // grid_cols
-                            col = (rot_num - 1) % grid_cols
-                            y_start = row * cell_size
-                            y_end = y_start + cell_size
-                            x_start = col * cell_size
-                            x_end = x_start + cell_size
-                            grid_image[y_start:y_end, x_start:x_end] = normalized_variations[rot_num]
-                        
-                        # Display grid
-                        ax.imshow(grid_image, origin='lower', aspect='auto', vmin=0, vmax=1, cmap='gray')
-                        
-                        # Add labels for each cell
-                        for rot_num in range(1, 13):
-                            row = (rot_num - 1) // grid_cols
-                            col = (rot_num - 1) % grid_cols
-                            angle = rotation_angles[rot_num - 1]
-                            x_center = col * cell_size + cell_size / 2
-                            y_center = row * cell_size + cell_size / 2
-                            ax.text(x_center, y_center, f"#{rot_num}\n{angle}°", 
-                                   ha='center', va='center', color='yellow', 
-                                   fontsize=10, weight='bold',
-                                   bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
-                        
-                        ax.axis('off')
-                        
-                        # Embed in tkinter
-                        canvas = FigureCanvasTkAgg(fig, canvas_frame)
-                        canvas.draw()
-                        canvas.get_tk_widget().pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-                        scrollbar.config(command=canvas.get_tk_widget().yview)
-                        
-                        # Add instruction label
-                        instruction_label = tk.Label(comparison_window, 
-                                                    text="Please identify which rotation number (1-12) is correct",
-                                                    font=('Arial', 12))
-                        instruction_label.pack(pady=5)
-                        
-                    else:
-                        # Single comparison view (NumPy or EMAN2 single)
-                        comparison_window.title(f"Particle {particle_idx+1} Comparison: Micrograph vs Projection ({method_name})")
-                        comparison_window.geometry(f"{box_size * 2 + 100}x{box_size + 100}")
-                        
-                        # Create matplotlib figure (no title)
-                        fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
-                        ax = fig.add_subplot(111)
-                        # Use origin='lower' to match the main display orientation
-                        ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
-                        
-                        # Add borders around both panels (color #4d4d4f)
-                        from matplotlib.patches import Rectangle
-                        border_color = '#4d4d4f'
-                        border_width = 2
-                        # Left panel border
-                        rect_left = Rectangle((-0.5, -0.5), box_size, box_size, 
-                                             linewidth=border_width, edgecolor=border_color, 
-                                             facecolor='none', transform=ax.transData)
-                        ax.add_patch(rect_left)
-                        # Right panel border
-                        rect_right = Rectangle((box_size - 0.5, -0.5), box_size, box_size,
-                                              linewidth=border_width, edgecolor=border_color,
-                                              facecolor='none', transform=ax.transData)
-                        ax.add_patch(rect_right)
-                        
-                        ax.axis('off')
-                        
-                        # Embed in tkinter
-                        canvas = FigureCanvasTkAgg(fig, comparison_window)
-                        canvas.draw()
-                        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-                        
-                        # Add save button
-                        def save_comparison():
-                            from tkinter import filedialog
-                            filename = filedialog.asksaveasfilename(
-                                defaultextension='.png',
-                                filetypes=[('PNG files', '*.png'), ('All files', '*.*')],
-                                initialfile=f'particle_{particle_idx+1}_comparison.png'
-                            )
-                            if filename:
-                                fig.savefig(filename, dpi=400, bbox_inches='tight')
-                                messagebox.showinfo("Saved", f"Comparison saved to {filename}")
-                        
-                        save_button = tk.Button(comparison_window, text="Save Comparison", command=save_comparison)
-                        save_button.pack(pady=5)
+                    # Create matplotlib figure (no title)
+                    fig = Figure(figsize=(box_size * 2 / 100, box_size / 100), dpi=100)
+                    ax = fig.add_subplot(111)
+                    # Use origin='lower' to match the main display orientation
+                    ax.imshow(comparison, origin='lower', aspect='auto', vmin=0, vmax=1)
+                    
+                    # Add borders around both panels (color #4d4d4f)
+                    from matplotlib.patches import Rectangle
+                    border_color = '#4d4d4f'
+                    border_width = 2
+                    # Left panel border
+                    rect_left = Rectangle((-0.5, -0.5), box_size, box_size, 
+                                         linewidth=border_width, edgecolor=border_color, 
+                                         facecolor='none', transform=ax.transData)
+                    ax.add_patch(rect_left)
+                    # Right panel border
+                    rect_right = Rectangle((box_size - 0.5, -0.5), box_size, box_size,
+                                          linewidth=border_width, edgecolor=border_color,
+                                          facecolor='none', transform=ax.transData)
+                    ax.add_patch(rect_right)
+                    
+                    ax.axis('off')
+                    
+                    # Embed in tkinter
+                    canvas = FigureCanvasTkAgg(fig, comparison_window)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                    
+                    # Add save button
+                    def save_comparison():
+                        from tkinter import filedialog
+                        filename = filedialog.asksaveasfilename(
+                            defaultextension='.png',
+                            filetypes=[('PNG files', '*.png'), ('All files', '*.*')],
+                            initialfile=f'particle_{particle_idx+1}_comparison.png'
+                        )
+                        if filename:
+                            fig.savefig(filename, dpi=400, bbox_inches='tight')
+                            messagebox.showinfo("Saved", f"Comparison saved to {filename}")
+                    
+                    save_button = tk.Button(comparison_window, text="Save Comparison", command=save_comparison)
+                    save_button.pack(pady=5)
                     
                     self.status_var.set(f"{method_name} comparison generated for particle {particle_idx+1}")
                 

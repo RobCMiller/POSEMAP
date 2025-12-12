@@ -683,7 +683,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     
     print(f"  DEBUG EMAN2: Input Euler angles: [{euler_angles[0]:.6f}, {euler_angles[1]:.6f}, {euler_angles[2]:.6f}]")
     print(f"  DEBUG EMAN2: R Euler angles: [{euler_zyz[0]:.6f}, {euler_zyz[1]:.6f}, {euler_zyz[2]:.6f}]")
-    print(f"  DEBUG EMAN2: Configuration: R (not R.T), NO inverse, transpose + flipud + rot180")
+    print(f"  DEBUG EMAN2: Configuration: R (not R.T), NO inverse, transpose + flipud + rot330")
     
     # ============================================================================
     # PROJECT VOLUME
@@ -710,12 +710,14 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # POST-PROCESSING: ORIENTATION CORRECTIONS
     # ============================================================================
     # Variation #6: transpose + vertical flip (flipud)
-    # Additional: 180-degree rotation for in-plane orientation
+    # Additional: 330-degree rotation for in-plane orientation (Rotation #12 from troubleshooting)
     # ============================================================================
     
     proj_array = proj_array.T  # Transpose first
     proj_array = np.flipud(proj_array)  # Then flip vertically
-    proj_array = np.rot90(proj_array, k=2)  # Rotate 180° (in-plane)
+    # Apply 330° rotation (equivalent to -30° or 11 * 30° counter-clockwise)
+    from scipy.ndimage import rotate
+    proj_array = rotate(proj_array, 330.0, reshape=False, order=1, mode='constant', cval=0.0)
     
     return proj_array
 
