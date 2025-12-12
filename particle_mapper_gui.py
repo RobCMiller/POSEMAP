@@ -5205,15 +5205,16 @@ color #1 & nucleic #62466B
                     comparison[:, box_size:, 1] = np.maximum(comparison[:, box_size:, 1], em_proj_resized)
                     comparison[:, box_size:, 2] = np.maximum(comparison[:, box_size:, 2], em_proj_resized)
                 
-                # Create window in main thread
+                # Create window in main thread - capture all_variations in closure
+                all_variations_capture = all_variations  # Capture for closure
                 def create_window():
                     comparison_window = tk.Toplevel(self.root)
                     method_name = "EMAN2" if use_eman2 else "NumPy"
                     
                     # If EMAN2, show all variations in a grid
-                    if use_eman2 and all_variations is not None:
+                    if use_eman2 and all_variations_capture is not None:
                         # Create grid of all variations
-                        num_variations = len(all_variations)
+                        num_variations = len(all_variations_capture)
                         # Calculate grid size (aim for roughly square grid)
                         cols = int(np.ceil(np.sqrt(num_variations)))
                         rows = int(np.ceil(num_variations / cols))
@@ -5244,7 +5245,7 @@ color #1 & nucleic #62466B
                         fig = Figure(figsize=(grid_width / 100, grid_height / 100), dpi=100)
                         
                         # Create grid of subplots
-                        for var_num, proj_array in sorted(all_variations.items()):
+                        for var_num, proj_array in sorted(all_variations_capture.items()):
                             row = (var_num - 1) // cols
                             col = (var_num - 1) % cols
                             ax = fig.add_subplot(rows, cols, var_num)
