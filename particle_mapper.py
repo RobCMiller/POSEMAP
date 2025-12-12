@@ -710,7 +710,7 @@ def simulate_em_projection_from_pdb_eman2(pdb_data: Dict, euler_angles: np.ndarr
     # POST-PROCESSING: ORIENTATION CORRECTIONS
     # ============================================================================
     # Variation #6: transpose + vertical flip (flipud)
-    # Additional: 90-degree counter-clockwise rotation for in-plane orientation
+    # Additional: 180-degree rotation for in-plane orientation
     # ============================================================================
     
     proj_array = proj_array.T  # Transpose first
